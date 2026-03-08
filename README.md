@@ -75,9 +75,19 @@ Typical use cases:
 - Client tab + standalone device view:
   - Client tab: `#tab_simplemdm-tab`
   - Standalone: `module/simplemdm/device/{serial}`
+  - `simplemdm_device` is a standalone page view (not a dashboard widget).
 - Connected Resources on device pages:
   - Shows linked apps/groups/profiles/resources.
   - Links into filtered API resources listing.
+
+UI modernization scope:
+- Module pages now use the same modern theme tokens/components as SimpleMDM widgets:
+  - `module/simplemdm/admin`
+  - `show/listing/simplemdm/simplemdm`
+  - `show/listing/simplemdm/simplemdm_resources`
+  - `module/simplemdm/device/{serial}`
+  - `#tab_simplemdm-tab`
+- Dashboard masonry/grid behavior is limited to dashboard contexts and does not apply to listing/admin/device pages.
 
 ## Installation
 

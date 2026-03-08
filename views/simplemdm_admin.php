@@ -1,5 +1,6 @@
 <?php
 $this->view('partials/head');
+include_once __DIR__ . '/simplemdm_widget_modern_assets.php';
 
 $simplemdm_widgets = [];
 $provides_path = APP_ROOT . 'local/modules/simplemdm/provides.yml';
@@ -27,7 +28,31 @@ if (is_readable($provides_path)) {
 }
 ?>
 
-<div class="container">
+<style>
+.simplemdm-admin-wrap {
+    margin-top: 10px;
+}
+.simplemdm-admin-wrap .simplemdm-modern-widget {
+    margin-bottom: 14px;
+}
+.simplemdm-admin-wrap .panel-title {
+    text-transform: none;
+    letter-spacing: 0.1px;
+}
+.simplemdm-admin-wrap .form-control {
+    border-radius: 10px;
+    border: 1px solid var(--simplemdm-border);
+    background: var(--simplemdm-surface);
+    color: var(--simplemdm-ink);
+}
+.simplemdm-admin-wrap .table > tbody > tr > th,
+.simplemdm-admin-wrap .table > tbody > tr > td {
+    border-color: var(--simplemdm-border);
+    color: var(--simplemdm-ink);
+}
+</style>
+
+<div class="container simplemdm-admin-wrap">
     <div class="row">
         <div class="col-lg-12">
             <h1><i class="fa fa-cog"></i> SimpleMDM Settings</h1>
@@ -37,7 +62,7 @@ if (is_readable($provides_path)) {
 
     <div class="row">
         <div class="col-md-6">
-            <div class="panel panel-default">
+            <div class="panel panel-default simplemdm-modern-widget">
                 <div class="panel-heading">
                     <h3 class="panel-title"><i class="fa fa-key"></i> API Configuration</h3>
                 </div>
@@ -56,7 +81,7 @@ if (is_readable($provides_path)) {
         </div>
 
         <div class="col-md-6">
-            <div class="panel panel-default">
+            <div class="panel panel-default simplemdm-modern-widget">
                 <div class="panel-heading">
                     <h3 class="panel-title"><i class="fa fa-refresh"></i> Sync Status</h3>
                 </div>
@@ -79,7 +104,7 @@ if (is_readable($provides_path)) {
 
     <div class="row">
         <div class="col-md-6">
-            <div class="panel panel-default">
+            <div class="panel panel-default simplemdm-modern-widget">
                 <div class="panel-heading">
                     <h3 class="panel-title"><i class="fa fa-th-large"></i> Widget Visibility</h3>
                 </div>
@@ -113,7 +138,7 @@ if (is_readable($provides_path)) {
 
     <div class="row">
         <div class="col-md-6">
-            <div class="panel panel-default">
+            <div class="panel panel-default simplemdm-modern-widget">
                 <div class="panel-heading">
                     <h3 class="panel-title"><i class="fa fa-sliders"></i> Advanced Sync & Compliance</h3>
                 </div>

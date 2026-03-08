@@ -1,6 +1,7 @@
+<?php include_once __DIR__ . '/simplemdm_widget_modern_assets.php'; ?>
 <div class="col-md-4">
-    <div class="panel panel-default">
-        <div class="panel-heading">
+    <div class="panel panel-default simplemdm-modern-widget">
+        <div class="panel-heading" data-widget="simplemdm_detail">
             <h3 class="panel-title">
                 <i class="fa fa-shield"></i>
                 <span data-i18n="simplemdm.title"></span>
@@ -11,7 +12,7 @@
                 <span data-i18n="simplemdm.no_data"></span>
             </div>
             <div id="simplemdm-detail-widget-data" style="display:none;">
-                <table class="table table-condensed">
+                <table class="table table-condensed table-striped">
                     <tr>
                         <td data-i18n="simplemdm.status"></td>
                         <td class="simplemdm-dw-status text-right"></td>

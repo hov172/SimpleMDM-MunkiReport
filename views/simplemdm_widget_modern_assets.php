@@ -647,6 +647,36 @@ body.simplemdm-theme-dark.simplemdm-layout-compact {
 </style>
 <script>
 (function() {
+    function isLikelyDashboardPage() {
+        var p = String(window.location.pathname || '').toLowerCase();
+        var h = String(window.location.hash || '').toLowerCase();
+        var q = String(window.location.search || '').toLowerCase();
+        if (p.indexOf('/show/dashboard') !== -1 || q.indexOf('/show/dashboard') !== -1 || h.indexOf('/show/dashboard') !== -1) {
+            return true;
+        }
+        if (document.getElementById('dashboard')) {
+            return true;
+        }
+        return false;
+    }
+
+    function isDashboardGridEnabled() {
+        if (window.SIMPLEMDM_FORCE_DASHBOARD_GRID === true) {
+            return true;
+        }
+        if (window.SIMPLEMDM_DISABLE_DASHBOARD_GRID === true) {
+            return false;
+        }
+        var b = document.body;
+        if (b && String(b.getAttribute('data-simplemdm-disable-dashboard-grid') || '') === '1') {
+            return false;
+        }
+        if (!isLikelyDashboardPage()) {
+            return false;
+        }
+        return true;
+    }
+
     if (window.simplemdmLayoutModeInit) {
         return;
     }
@@ -999,6 +1029,9 @@ function resizeChartsForMode(mode) {
     }
 
     function collectSimplemdmDashboardWidgets() {
+        if (!isDashboardGridEnabled()) {
+            return;
+        }
         if (document.getElementById('simplemdm-report-grid')) {
             return;
         }
@@ -1165,6 +1198,9 @@ function resizeChartsForMode(mode) {
     }
 
     function layoutSimplemdmDashboardGrid() {
+        if (!isDashboardGridEnabled()) {
+            return;
+        }
         if (document.getElementById('simplemdm-report-grid')) {
             return;
         }
@@ -1306,6 +1342,9 @@ function resizeChartsForMode(mode) {
     }
 
     function scheduleDashboardGridLayout(delay) {
+        if (!isDashboardGridEnabled()) {
+            return;
+        }
         var wait = Number(delay || 0);
         setTimeout(function() {
             if (window.requestAnimationFrame) {
@@ -1317,6 +1356,9 @@ function resizeChartsForMode(mode) {
     }
 
     window.simplemdmReflowDashboardGrid = function() {
+        if (!isDashboardGridEnabled()) {
+            return;
+        }
         collectSimplemdmDashboardWidgets();
         layoutSimplemdmDashboardGrid();
     };

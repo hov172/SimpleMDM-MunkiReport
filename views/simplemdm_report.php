@@ -3,6 +3,7 @@ $this->view('partials/head', ['breakpoints' => [
     'main' => [8, 12, 12, 12],
     'side' => [4, 12, 12, 12],
 ]]);
+include_once __DIR__ . '/simplemdm_widget_modern_assets.php';
 
 $widgets = [];
 $provides_path = APP_ROOT . 'local/modules/simplemdm/provides.yml';
@@ -26,9 +27,25 @@ if (is_readable($provides_path)) {
 }
 ?>
 
+<style>
+.simplemdm-report-header {
+    margin-top: 10px;
+    margin-bottom: 14px;
+}
+.simplemdm-report-header h1 {
+    margin: 0 0 6px;
+    color: var(--simplemdm-ink);
+    font-weight: 800;
+}
+.simplemdm-report-header .lead {
+    color: var(--simplemdm-muted);
+    margin-bottom: 0;
+}
+</style>
+
 <div class="container">
     <div class="row">
-        <div class="col-lg-12">
+        <div class="col-lg-12 simplemdm-report-header">
             <h1><i class="fa fa-cloud"></i> SimpleMDM Report</h1>
             <p class="lead">Overview of devices managed by SimpleMDM, including enrollment/security posture, command status, sync telemetry, groups, listings, and API resource widgets.</p>
         </div>

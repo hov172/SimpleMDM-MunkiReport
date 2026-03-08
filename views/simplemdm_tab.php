@@ -1,3 +1,37 @@
+<?php include_once __DIR__ . '/simplemdm_widget_modern_assets.php'; ?>
+<style>
+#simplemdm-tab .simplemdm-tab-panel {
+    border: 1px solid var(--simplemdm-border);
+    border-radius: 12px;
+    background: var(--simplemdm-card-bg);
+    padding: 10px 12px;
+    margin-bottom: 12px;
+}
+#simplemdm-tab .table > thead > tr > th {
+    background: var(--simplemdm-heading-bg);
+    color: var(--simplemdm-ink);
+    border-bottom: 1px solid var(--simplemdm-border);
+}
+#simplemdm-tab .table > tbody > tr > th,
+#simplemdm-tab .table > tbody > tr > td {
+    border-color: var(--simplemdm-border);
+    color: var(--simplemdm-ink);
+}
+#simplemdm-tab .table-striped > tbody > tr:nth-of-type(odd) {
+    background: rgba(120, 160, 200, 0.08);
+}
+#simplemdm-tab .simplemdm-tab-chip {
+    display: inline-block;
+    border-radius: 999px;
+    padding: 4px 9px;
+    margin: 0 6px 6px 0;
+    font-weight: 700;
+    font-size: 12px;
+    border: 1px solid var(--simplemdm-border);
+    background: var(--simplemdm-surface-alt);
+    color: var(--simplemdm-ink);
+}
+</style>
 <div id="simplemdm-tab" class="tab-pane">
     <h3 data-i18n="simplemdm.title"></h3>
     <button id="simplemdm-sync-now" class="btn btn-default btn-xs pull-right" style="margin-top: -30px;">
@@ -9,6 +43,7 @@
     </div>
 
     <div id="simplemdm-tab-data" style="display:none;">
+        <div class="simplemdm-tab-panel">
         <table class="table table-striped">
             <tbody>
                 <tr>
@@ -157,15 +192,19 @@
                 </tr>
             </tbody>
         </table>
+        </div>
 
         <h4 data-i18n="simplemdm.custom_attributes"></h4>
+        <div class="simplemdm-tab-panel">
         <table class="table table-striped">
             <tbody id="simplemdm-custom-attributes">
             </tbody>
         </table>
+        </div>
 
         <h4>Connected Resources</h4>
-        <div id="simplemdm-tab-resources-summary" style="margin-bottom:8px;"></div>
+        <div id="simplemdm-tab-resources-summary" class="simplemdm-tab-panel" style="margin-bottom:8px;"></div>
+        <div class="simplemdm-tab-panel">
         <table class="table table-striped table-condensed table-bordered">
             <thead>
                 <tr>
@@ -179,6 +218,7 @@
                 <tr><td colspan="4" class="text-muted">Loading...</td></tr>
             </tbody>
         </table>
+        </div>
     </div>
 </div>
 
@@ -217,7 +257,7 @@ $(document).on('appReady', function(e, lang) {
 
         summary.forEach(function(item) {
             $summary.append(
-                '<a class="label label-default" style="display:inline-block;margin:0 6px 6px 0;padding:6px 8px;" ' +
+                '<a class="simplemdm-tab-chip" ' +
                 'href="' + resourcesListingUrl('type=' + encodeURIComponent(item.type)) + '">' +
                 esc(toTitle(item.type)) + ': ' + esc(item.count) +
                 '</a>'

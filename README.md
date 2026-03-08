@@ -66,8 +66,9 @@ Typical use cases:
 
 - Device listing: `show/listing/simplemdm/simplemdm`
   - URL filter support: `status`, `dep`, `supervised`, `filevault`, `group`, `os`
+  - On-page filter controls: status/DEP/supervised/FileVault/group/OS with apply/reset actions.
 - API resources listing: `show/listing/simplemdm/simplemdm_resources`
-  - Filter by resource type, resource ID, endpoint.
+  - Filter by resource type, resource ID, endpoint exact match, or endpoint contains match.
 - SimpleMDM report: `reports/simplemdm`
 - Admin page: `module/simplemdm/admin`
   - Appears in top navigation under `Admin -> SimpleMDM Settings` (module `admin_pages` registration).

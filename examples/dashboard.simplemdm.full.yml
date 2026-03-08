@@ -1,0 +1,68 @@
+display_name: "SimpleMDM Full"
+hotkey: "m"
+
+# Copy this file to local/dashboards/simplemdm_full.yml to activate in MunkiReport.
+# This keeps the template in-module for sharing/documentation.
+
+-
+  simplemdm_trend: {}
+
+-
+  simplemdm_os_security: {}
+  simplemdm_group_top: {}
+
+-
+  simplemdm_resource_mix: {}
+  simplemdm_resource_types: {}
+
+-
+  simplemdm_command_status: {}
+  simplemdm_compliance: {}
+  simplemdm_sync_health: {}
+
+-
+  simplemdm_device_listing: {}
+  simplemdm_resources_listing: {}
+  simplemdm_enrollment: {}
+
+-
+  simplemdm_dep: {}
+  simplemdm_filevault: {}
+  simplemdm_supervised: {}
+
+-
+  simplemdm_group: {}
+  simplemdm_rt_installed_app: {}
+
+-
+  simplemdm_rt_app: {}
+  simplemdm_rt_assignment_group: {}
+  simplemdm_rt_custom_configuration_profile: {}
+
+-
+  simplemdm_rt_device_group: {}
+  simplemdm_rt_enrollment: {}
+  simplemdm_rt_script: {}
+
+-
+  simplemdm_rt_restrictions: {}
+  simplemdm_rt_privacy_preference: {}
+  simplemdm_rt_software_update_policyformac_os: {}
+
+-
+  simplemdm_rt_home_screen_layout: {}
+  simplemdm_rt_lock_screen_message: {}
+  simplemdm_rt_managed_software_updates: {}
+
+-
+  simplemdm_rt_notification_settings: {}
+  simplemdm_rt_disk_management_settings: {}
+  simplemdm_rt_gatekeeper_policy: {}
+
+-
+  simplemdm_rt_kernel_extension_policy: {}
+  simplemdm_rt_login_window: {}
+  simplemdm_rt_system_extension_policy: {}
+
+-
+  simplemdm_rt_wallpaper: {}

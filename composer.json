@@ -1,0 +1,8 @@
+{
+    "name": "munkireport/simplemdm",
+    "description": "SimpleMDM module for MunkiReport. Syncs device data from SimpleMDM API.",
+    "license": "MIT",
+    "require": {
+        "php": ">=7.0"
+    }
+}

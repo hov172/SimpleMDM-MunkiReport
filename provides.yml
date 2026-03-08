@@ -1,0 +1,94 @@
+detail_widgets:
+    simplemdm_detail:
+        view: simplemdm_detail_widget
+client_tabs:
+    simplemdm-tab:
+        view: simplemdm_tab
+        i18n: simplemdm.title
+        badge: simplemdm-cnt
+listings:
+    simplemdm:
+        view: simplemdm_listing
+        i18n: simplemdm.listing_title
+    simplemdm_resources:
+        view: simplemdm_resources_listing
+        i18n: simplemdm.resources_listing_title
+reports:
+    simplemdm:
+        view: simplemdm_report
+        i18n: simplemdm.report_title
+widgets:
+    simplemdm_enrollment:
+        view: simplemdm_enrollment_widget
+    simplemdm_dep:
+        view: simplemdm_dep_widget
+    simplemdm_filevault:
+        view: simplemdm_filevault_widget
+    simplemdm_supervised:
+        view: simplemdm_supervised_widget
+    simplemdm_group:
+        view: simplemdm_group_widget
+    simplemdm_resource_types:
+        view: simplemdm_resource_types_widget
+    simplemdm_trend:
+        view: simplemdm_trend_widget
+    simplemdm_os_security:
+        view: simplemdm_os_security_widget
+    simplemdm_group_top:
+        view: simplemdm_group_top_widget
+    simplemdm_resource_mix:
+        view: simplemdm_resource_mix_widget
+    simplemdm_command_status:
+        view: simplemdm_command_status_widget
+    simplemdm_compliance:
+        view: simplemdm_compliance_widget
+    simplemdm_sync_health:
+        view: simplemdm_sync_health_widget
+    simplemdm_device_listing:
+        view: simplemdm_device_listing_widget
+    simplemdm_resources_listing:
+        view: simplemdm_resources_listing_widget
+    simplemdm_rt_installed_app:
+        view: simplemdm_rt_installed_app_widget
+    simplemdm_rt_app:
+        view: simplemdm_rt_app_widget
+    simplemdm_rt_assignment_group:
+        view: simplemdm_rt_assignment_group_widget
+    simplemdm_rt_custom_configuration_profile:
+        view: simplemdm_rt_custom_configuration_profile_widget
+    simplemdm_rt_device_group:
+        view: simplemdm_rt_device_group_widget
+    simplemdm_rt_enrollment:
+        view: simplemdm_rt_enrollment_widget
+    simplemdm_rt_script:
+        view: simplemdm_rt_script_widget
+    simplemdm_rt_restrictions:
+        view: simplemdm_rt_restrictions_widget
+    simplemdm_rt_privacy_preference:
+        view: simplemdm_rt_privacy_preference_widget
+    simplemdm_rt_software_update_policyformac_os:
+        view: simplemdm_rt_software_update_policyformac_os_widget
+    simplemdm_rt_home_screen_layout:
+        view: simplemdm_rt_home_screen_layout_widget
+    simplemdm_rt_lock_screen_message:
+        view: simplemdm_rt_lock_screen_message_widget
+    simplemdm_rt_managed_software_updates:
+        view: simplemdm_rt_managed_software_updates_widget
+    simplemdm_rt_notification_settings:
+        view: simplemdm_rt_notification_settings_widget
+    simplemdm_rt_disk_management_settings:
+        view: simplemdm_rt_disk_management_settings_widget
+    simplemdm_rt_gatekeeper_policy:
+        view: simplemdm_rt_gatekeeper_policy_widget
+    simplemdm_rt_kernel_extension_policy:
+        view: simplemdm_rt_kernel_extension_policy_widget
+    simplemdm_rt_login_window:
+        view: simplemdm_rt_login_window_widget
+    simplemdm_rt_system_extension_policy:
+        view: simplemdm_rt_system_extension_policy_widget
+    simplemdm_rt_wallpaper:
+        view: simplemdm_rt_wallpaper_widget
+admin_menu:
+    simplemdm:
+        view: admin
+        i18n: simplemdm.admin_menu

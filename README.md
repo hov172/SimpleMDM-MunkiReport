@@ -1,0 +1,535 @@
+# SimpleMDM Module for MunkiReport
+
+Module-only SimpleMDM integration for MunkiReport.
+
+This module syncs devices and API resources from SimpleMDM server-side, stores them locally, and exposes listings, widgets, and per-device connected resource views.
+
+## Key Points
+
+- No MunkiReport core patch required.
+- Sync auth and routing are handled inside this module.
+- Supports API-key protected ingest routes and optional webhook secret protected route.
+- Supports deep API resource sync (apps/profiles/groups/etc. where available).
+- Provides device-level connected resource mapping.
+- Supports dashboard add/remove widgets for all SimpleMDM widgets, including per-resource-type widgets.
+- All report widgets are modernized with chart/KPI dashboards (NVD3-based where applicable) and drill-down links.
+- Widgets auto-adapt to layout density and active theme (including Bootswatch theme accent matching).
+- Modern widget UI assets are loaded inline from `views/simplemdm_widget_modern_assets.php` (no separate module CSS/JS build step required).
+- Optional delta-sync, command-status sync, and sync telemetry reporting are built into the sync script + module.
+
+## What This Module Does
+
+SimpleMDM module is used to:
+
+- Pull SimpleMDM device inventory into MunkiReport for centralized visibility.
+- Pull SimpleMDM resource objects (apps, profiles, groups, scripts, and related objects) for reporting.
+- Show connected resources per device so admins can see which profiles/apps/groups are tied to endpoints.
+- Provide dashboard widgets for enrollment, DEP, supervision, FileVault, resource mix, command status, compliance, and sync health.
+- Track historical trends with snapshots and per-device history for change over time.
+- Ingest webhooks for near-real-time updates and maintain event audit records.
+- Normalize relationship data for deeper analysis and filtering.
+
+Typical use cases:
+
+- Fleet posture dashboard for security/compliance and OS baseline tracking.
+- Operational monitoring of command execution outcomes and sync reliability.
+- Helpdesk and engineering troubleshooting for “what is assigned to this device?” questions.
+- Reporting on configuration policy spread (profiles, restrictions, apps) across the fleet.
+
+## Architecture
+
+- Sync script: `local/modules/simplemdm/scripts/simplemdm_sync.py`
+- Module endpoints (module-only):
+  - `/index.php?/module/simplemdm/index?op=ingest`
+  - `/index.php?/module/simplemdm/index?op=ingest_resources`
+  - `/index.php?/module/simplemdm/index?op=ingest_commands`
+  - `/index.php?/module/simplemdm/index?op=webhook`
+  - `/index.php?/module/simplemdm/index?op=update_sync_status`
+  - `/index.php?/module/simplemdm/get_dashboard_trend`
+  - `/index.php?/module/simplemdm/get_os_security_stats`
+  - `/index.php?/module/simplemdm/get_command_status_stats`
+  - `/index.php?/module/simplemdm/get_compliance_stats`
+  - `/index.php?/module/simplemdm/get_sync_telemetry`
+  - `/index.php?/module/simplemdm/get_resource_type_stats`
+  - `/index.php?/module/simplemdm/get_resource_type_count/{type}`
+- Tables:
+  - `simplemdm` (device records)
+  - `simplemdm_config` (settings + sync status)
+  - `simplemdm_resource` (non-device API resources)
+  - `simplemdm_dashboard_snapshot` (historical dashboard metrics)
+  - `simplemdm_command` (command status history)
+  - `simplemdm_webhook_event` (raw webhook events)
+  - `simplemdm_relationship_edge` (normalized relationship edges)
+  - `simplemdm_device_history` (daily per-device state snapshots)
+
+## Features
+
+- Device listing: `show/listing/simplemdm/simplemdm`
+  - URL filter support: `status`, `dep`, `supervised`, `filevault`, `group`, `os`
+- API resources listing: `show/listing/simplemdm/simplemdm_resources`
+  - Filter by resource type, resource ID, endpoint.
+- SimpleMDM report: `reports/simplemdm`
+- Admin page: `module/simplemdm/admin`
+- Client tab + standalone device view:
+  - Client tab: `#tab_simplemdm-tab`
+  - Standalone: `module/simplemdm/device/{serial}`
+- Connected Resources on device pages:
+  - Shows linked apps/groups/profiles/resources.
+  - Links into filtered API resources listing.
+
+## Installation
+
+1. Place module in local modules:
+
+```bash
+cp -R simplemdm /path/to/munkireport/local/modules/simplemdm
+```
+
+2. Enable module in MunkiReport `.env`:
+
+```env
+MODULES="...,simplemdm,..."
+```
+
+3. Run migrations:
+
+```bash
+php /path/to/munkireport/please migrate
+```
+
+## Configuration
+
+1. Open `Admin -> SimpleMDM Settings`.
+2. Enter SimpleMDM API key and save.
+3. Optional: toggle report widgets on/off in the same admin page.
+4. Optional: in Advanced Sync & Compliance, set:
+   - `webhook_secret`
+   - `compliance_min_os`
+   - `sync_delta_enabled`
+   - `sync_commands_enabled`
+
+Current admin scope:
+- Admin currently manages API/auth, widget visibility, and advanced sync/compliance settings.
+- Layout ordering, full-width spans, and expand/collapse behavior are module-driven defaults (not separate admin toggles).
+
+### Advanced Setting Behavior
+
+- `webhook_secret`
+  - Shared secret used by the webhook ingest route.
+  - If set, webhook senders should include `X-SIMPLEMDM-WEBHOOK-SECRET: <secret>`.
+- `compliance_min_os`
+  - Minimum OS baseline used by compliance calculations.
+  - Format should be dotted versions, for example `14.4` or `15.1.2`.
+- `sync_delta_enabled`
+  - Enables cursor/delta attempt in the sync script.
+  - If endpoint does not support delta parameters, script falls back to full for that scope.
+- `sync_commands_enabled`
+  - Enables command status sync during regular sync runs.
+  - Can still be overridden manually by running script with `--sync-commands`.
+
+Security behavior:
+- `api_key` is only returned by `get_config` for global admins.
+- Non-global callers receive `api_key_set` only.
+- `webhook_secret` is not returned to non-global callers; only `webhook_secret_set` flag is exposed.
+
+## Connect New Features (End-to-End)
+
+### 1) API Sync Connection
+
+1. In SimpleMDM, generate or copy an API key with read access to devices and resources.
+2. In MunkiReport `Admin -> SimpleMDM Settings`, save the API key.
+3. Run one manual sync:
+
+```bash
+python3 /path/to/munkireport/local/modules/simplemdm/scripts/simplemdm_sync.py \
+  --api-key 'YOUR_SIMPLEMDM_API_KEY' \
+  --munkireport-url 'https://your-munkireport' \
+  --verbose
+```
+
+4. Verify status in admin page:
+   - `last_sync_status` should become `success`.
+   - `last_sync_time` should update.
+5. Verify data exists:
+   - Device listing: `show/listing/simplemdm/simplemdm`
+   - Resource listing: `show/listing/simplemdm/simplemdm_resources`
+
+### 2) Webhook Connection
+
+1. Set `webhook_secret` in module advanced settings.
+2. In SimpleMDM webhook configuration, set target URL:
+   - `https://<your-munkireport>/index.php?/module/simplemdm/index?op=webhook`
+3. Configure webhook request header:
+   - `X-SIMPLEMDM-WEBHOOK-SECRET: <same secret>`
+4. Send a test event from SimpleMDM.
+5. Confirm events are being stored (via module data/API checks) and widget data updates after next dashboard refresh.
+
+Fallback auth option:
+- Instead of webhook secret, webhook sender may use `X-SIMPLEMDM-API-KEY` matching stored module API key.
+
+### 3) Delta Sync Connection
+
+1. Enable `sync_delta_enabled` in admin advanced settings.
+2. Keep regular scheduled sync running.
+3. Script reads `last_sync_cursor` from module config, attempts delta, then writes updated cursor.
+4. If unsupported by endpoint, script automatically runs full for that scope and records telemetry.
+
+### 4) Command Status Connection
+
+1. Enable `sync_commands_enabled` in admin advanced settings.
+2. Run sync or scheduled sync.
+3. Optionally cap API load with `--commands-limit`.
+4. Add `simplemdm_command_status` widget to dashboard.
+5. Validate by opening:
+   - `module/simplemdm/get_command_status_stats`
+
+### 5) Compliance + Sync Health Connection
+
+1. Set `compliance_min_os` to your baseline (example: `14.6`).
+2. Add these widgets:
+   - `simplemdm_compliance`
+   - `simplemdm_sync_health`
+3. Validate endpoints:
+   - `module/simplemdm/get_compliance_stats`
+   - `module/simplemdm/get_sync_telemetry`
+
+## Sync Script
+
+### Run manually
+
+```bash
+python3 /path/to/munkireport/local/modules/simplemdm/scripts/simplemdm_sync.py \
+  --api-key 'YOUR_SIMPLEMDM_API_KEY' \
+  --munkireport-url 'https://your-munkireport'
+```
+
+### Useful options
+
+- `--verbose`: debug logging
+- `--dry-run`: fetch only, no submit
+- `--max-parent-resources N`: limit deep nested sync per parent endpoint (0 = all)
+- `--delta`: attempt delta sync with last cursor
+- `--last-sync-cursor`: override cursor used for delta sync
+- `--sync-commands`: fetch/submit command status records
+- `--commands-limit N`: cap command fetch count
+
+### Auto-config behavior
+
+If `--api-key` is omitted, script reads API key from module config (`get_config`) when available.
+
+Sync mode decisions:
+- Manual `--delta` enables delta mode even if admin toggle is off.
+- If admin toggle `sync_delta_enabled=1`, script uses delta mode for scheduled/default runs.
+- Manual `--sync-commands` enables commands even if admin toggle is off.
+- If admin toggle `sync_commands_enabled=1`, script includes commands for scheduled/default runs.
+
+Telemetry written back on sync status updates:
+- API request count
+- API error count
+- Rate-limit hit count
+- Last sync scope (`full` or `delta`)
+- Delta cursor used/new cursor
+- Whether command sync ran
+
+Example (faster test run):
+
+```bash
+python3 .../simplemdm_sync.py --api-key 'KEY' --munkireport-url 'https://mr' --max-parent-resources 25 --verbose
+```
+
+Example with delta + commands:
+
+```bash
+python3 .../simplemdm_sync.py --api-key 'KEY' --munkireport-url 'https://mr' --delta --sync-commands --commands-limit 250
+```
+
+### Scheduling
+
+Recommended: run frequent device sync with capped deep resources, and a less frequent full deep sync.
+
+Example cron:
+
+```cron
+*/15 * * * * /usr/bin/python3 /path/to/.../simplemdm_sync.py --api-key 'KEY' --munkireport-url 'https://mr' --max-parent-resources 25 >> /var/log/simplemdm_sync.log 2>&1
+0 2 * * * /usr/bin/python3 /path/to/.../simplemdm_sync.py --api-key 'KEY' --munkireport-url 'https://mr' >> /var/log/simplemdm_sync_deep.log 2>&1
+```
+
+Recommended production pattern:
+- Every 10-15 minutes: delta-enabled sync with moderate resource cap.
+- Once nightly: full deep sync with no cap.
+- Enable commands sync at least on the nightly run if command volume is high.
+
+Example cron (delta frequent + deep nightly):
+
+```cron
+*/15 * * * * /usr/bin/python3 /path/to/.../simplemdm_sync.py --api-key 'KEY' --munkireport-url 'https://mr' --delta --max-parent-resources 25 >> /var/log/simplemdm_sync.log 2>&1
+15 2 * * * /usr/bin/python3 /path/to/.../simplemdm_sync.py --api-key 'KEY' --munkireport-url 'https://mr' --sync-commands --commands-limit 500 >> /var/log/simplemdm_sync_commands.log 2>&1
+0 3 * * * /usr/bin/python3 /path/to/.../simplemdm_sync.py --api-key 'KEY' --munkireport-url 'https://mr' >> /var/log/simplemdm_sync_deep.log 2>&1
+```
+
+## Widgets
+
+### Core SimpleMDM widgets
+
+- `simplemdm_enrollment`
+- `simplemdm_dep`
+- `simplemdm_filevault`
+- `simplemdm_supervised`
+- `simplemdm_group`
+- `simplemdm_resource_types`
+- `simplemdm_device_listing`
+- `simplemdm_resources_listing`
+- `simplemdm_trend` (historical trend line from sync snapshots)
+- `simplemdm_os_security` (stacked enrollment/supervision/FileVault by OS)
+- `simplemdm_group_top` (top assignment groups bar chart)
+- `simplemdm_resource_mix` (resource type donut)
+- `simplemdm_command_status` (command state distribution)
+- `simplemdm_compliance` (compliant vs noncompliant + reasons)
+- `simplemdm_sync_health` (latest sync telemetry + scope/delta/rate-limit stats)
+
+### Per-resource-type widgets (individually add/remove)
+
+- `simplemdm_rt_installed_app`
+- `simplemdm_rt_app`
+- `simplemdm_rt_assignment_group`
+- `simplemdm_rt_custom_configuration_profile`
+- `simplemdm_rt_device_group`
+- `simplemdm_rt_enrollment`
+- `simplemdm_rt_script`
+- `simplemdm_rt_restrictions`
+- `simplemdm_rt_privacy_preference`
+- `simplemdm_rt_software_update_policyformac_os`
+- `simplemdm_rt_home_screen_layout`
+- `simplemdm_rt_lock_screen_message`
+- `simplemdm_rt_managed_software_updates`
+- `simplemdm_rt_notification_settings`
+- `simplemdm_rt_disk_management_settings`
+- `simplemdm_rt_gatekeeper_policy`
+- `simplemdm_rt_kernel_extension_policy`
+- `simplemdm_rt_login_window`
+- `simplemdm_rt_system_extension_policy`
+- `simplemdm_rt_wallpaper`
+
+You can add/remove via Widget Gallery and dashboard layout controls.
+
+Theme/Layout-aware styling:
+- Widgets automatically switch between `compact` and `comfortable` density modes based on explicit layout mode classes/attributes (if present) or auto-detection from screen/widget width.
+- Color tokens switch by mode/theme (surface, border, accent, chart palettes), including explicit variants for:
+  - `light + comfortable`
+  - `light + compact`
+  - `dark + comfortable`
+  - `dark + compact`
+- You can force mode by setting `data-layout-mode="compact"` or `data-layout-mode="comfortable"` on `<body>`, or using matching body classes such as `layout-compact`.
+- You can force theme with `data-theme="dark|light"` (or `data-bs-theme` / `data-color-mode`) and the widgets will live-update chart colors on mode/theme change.
+- Bootswatch theme accents (Cerulean, Darkly, Cyborg, Slate, etc.) are detected from active stylesheet and applied to widget accents/charts.
+- Runtime attributes set by the module:
+  - `data-simplemdm-layout="compact|comfortable"`
+  - `data-simplemdm-theme="light|dark"`
+  - `data-simplemdm-theme-name="{bootswatch-name|auto}"`
+- Widgets re-render on `simplemdm:modechange` to keep chart colors synchronized after theme/layout changes.
+
+Dashboard layout behavior (module-wide):
+- On dashboard pages, SimpleMDM widgets are automatically grouped into a module-managed grid container (`#simplemdm-dashboard-grid`).
+- Grid uses balanced masonry placement (shortest-column algorithm) to reduce empty vertical gaps.
+- Widget width honors intended span:
+  - Full-width for designated featured widgets.
+  - Multi-column for regular widgets.
+- Long list-heavy widgets automatically get internal list scrolling for readability and to avoid oversized columns.
+- Current featured full-width widgets (within the SimpleMDM widget set) are ordered as:
+  - `simplemdm_resource_types`
+  - `simplemdm_group_top`
+  - `simplemdm_group`
+
+Scope notes:
+- This behavior is module-only and applies to all users loading SimpleMDM widgets.
+- Non-SimpleMDM widgets are not modified by this layout engine.
+
+Resource/Group expand-collapse behavior:
+- `simplemdm_resource_types` has two sections:
+  - `Resource Type Chart`
+  - `Resource Cards` (`+ Expand` / `- Collapse`)
+- `simplemdm_group` has two sections:
+  - `Top Groups Chart`
+  - `Assignment Group List` (`+ Expand` / `- Collapse`)
+- In collapsed mode, list/card areas are intentionally scrollable.
+- In expanded mode, each area grows to full height and triggers dashboard reflow so lower widgets are pushed down.
+- Empty assignment group values are labeled as `No Assignment Group` in group stats.
+
+### Dashboard Template (In Module)
+
+For sharing/documentation, a full dashboard layout template is included in-module:
+
+- `local/modules/simplemdm/examples/dashboard.simplemdm.full.yml`
+
+Auto-install behavior:
+
+- On module migration, the template is copied to:
+  - `local/dashboards/simplemdm_full.yml`
+- It is only copied if missing (existing dashboard files are never overwritten).
+- `local/dashboards/default.yml` is not modified by this module.
+- This keeps the module portable across MunkiReport instances without forcing dashboard changes.
+
+Manual copy (optional):
+
+```bash
+cp local/modules/simplemdm/examples/dashboard.simplemdm.full.yml local/dashboards/simplemdm_full.yml
+```
+
+Then open:
+
+- `show/dashboard/simplemdm_full`
+
+If you want SimpleMDM as your main dashboard, update your own dashboard YAML manually (for example `local/dashboards/default.yml`) or select `SimpleMDM Full` in the dashboard switcher.
+
+## Theme/Mode Integration Details
+
+Widgets are theme-aware and layout-aware by design:
+
+- Reads active theme/mode from body/html markers (`data-theme`, `data-bs-theme`, `data-color-mode`, and common dark classes).
+- Reads layout density from `data-layout-mode` or layout classes (`layout-compact`, `layout-comfortable`), then falls back to width-based auto detection.
+- Applies runtime attributes:
+  - `data-simplemdm-theme`
+  - `data-simplemdm-theme-name`
+  - `data-simplemdm-layout`
+- Emits `simplemdm:modechange` when theme/layout changes are detected so charts can rerender with correct axis/text/palette colors.
+- Triggers repeated post-render grid reflow on dashboard pages so async-loaded widget content settles into balanced columns.
+
+Expected behavior:
+- Switching Bootswatch theme (for example Cerulean to Darkly) updates widget accent + chart colors.
+- Switching layout mode updates spacing/typography/card density.
+- Dark themes keep axis labels and legends readable.
+- Featured widgets (`resource_types`, `groups`) render as full-width rows for visibility.
+
+## API/Endpoint Use
+
+### Ingest endpoints (used by sync/webhooks)
+
+- `POST /index.php?/module/simplemdm/index?op=ingest`
+  - Device payload batch ingest.
+- `POST /index.php?/module/simplemdm/index?op=ingest_resources`
+  - API resource payload batch ingest.
+- `POST /index.php?/module/simplemdm/index?op=ingest_commands`
+  - Command payload batch ingest.
+- `POST /index.php?/module/simplemdm/index?op=webhook`
+  - Webhook event ingest with secret/API-key auth.
+- `POST /index.php?/module/simplemdm/index?op=update_sync_status`
+  - Sync status + telemetry updates from sync script.
+
+### Read endpoints (widgets/report/listings)
+
+- `GET /index.php?/module/simplemdm/get_dashboard_trend`
+- `GET /index.php?/module/simplemdm/get_os_security_stats`
+- `GET /index.php?/module/simplemdm/get_command_status_stats`
+- `GET /index.php?/module/simplemdm/get_compliance_stats`
+- `GET /index.php?/module/simplemdm/get_sync_telemetry`
+- `GET /index.php?/module/simplemdm/get_resource_type_stats`
+- `GET /index.php?/module/simplemdm/get_resource_type_count/{type}`
+
+## Validation Checklist
+
+After rollout, verify in this order:
+
+1. Migrations applied with no errors.
+2. Admin config saved and API key present.
+3. Manual sync returns success.
+4. Device and resource listings populate.
+5. New widgets render data:
+   - Trend, OS Security, Group Top, Resource Mix
+   - Command Status, Compliance, Sync Health
+6. Theme switch (light/dark and different Bootswatch theme) updates widget/chart styling.
+7. Webhook test event is accepted and stored.
+8. Scheduled cron runs update `last_sync_time` and telemetry counters.
+
+## Data Model Notes
+
+- `simplemdm_resource` uniqueness: `(resource_type, resource_id, source_endpoint)`
+  - Prevents deep resource overwrite across different nested endpoints.
+- `simplemdm_dashboard_snapshot` stores historical dashboard metrics captured on successful sync status updates (`last_sync_status=success`).
+- `simplemdm_device_history` captures one row per device per day (status, OS, group, supervision, DEP, FileVault).
+- `simplemdm_relationship_edge` stores normalized graph edges from device/resource relationship payloads.
+- `simplemdm_command` stores command status records from sync script and webhook ingestion.
+- `simplemdm_webhook_event` stores raw webhook envelope/payload for audit and replay diagnostics.
+- Additional indexes exist for listing filters:
+  - `resource_id`
+  - `(resource_type, resource_id)`
+
+## Troubleshooting
+
+### Listing links open 404 / “Invalid method name: listing”
+
+Use rewrite-safe URLs with `index.php?` in non-rewrite environments.
+The module widgets already handle this fallback.
+
+### Admin save hangs or does not complete
+
+Check browser console/network and confirm module route resolves:
+`/index.php?/module/simplemdm/save_config`
+
+### Sync says success but no data in UI
+
+- Confirm API key saved.
+- Run manual sync with `--verbose`.
+- Check `Admin -> SimpleMDM Settings` for `last_sync_status` and `last_sync_time`.
+- Confirm `simplemdm` and `simplemdm_resource` rows exist.
+
+### Command status widget is empty
+
+- Enable `sync_commands_enabled` in admin advanced settings, or run script with `--sync-commands`.
+- Confirm tenant/API exposes `commands` endpoint (script will skip if unavailable).
+
+### Trend widget shows only one day / no history
+
+- Ensure migration for `simplemdm_dashboard_snapshot` has run.
+- Ensure sync updates `last_sync_status` to `success` (snapshots are recorded on success status updates).
+- Run at least 2 successful sync cycles across different times/days.
+
+### Webhook route returns Unauthorized
+
+- Configure `webhook_secret` in module admin advanced settings.
+- Send header `X-SIMPLEMDM-WEBHOOK-SECRET: <secret>`.
+- Or use `X-SIMPLEMDM-API-KEY` with stored module API key.
+
+### Delta sync appears to do full sync
+
+- Some endpoints may not support delta filter parameters.
+- Script automatically falls back to full sync for unsupported endpoints and reports scope/telemetry.
+
+### Theme switches but widget colors do not change
+
+- Refresh the dashboard after switching theme/mode.
+- If styles still appear stale, clear browser cache and reload.
+- Verify dashboard theme actually changed in MunkiReport.
+- Inspect `<body>` attributes/classes and confirm `data-simplemdm-theme` / `data-simplemdm-theme-name` update.
+- Confirm no custom CSS overrides `--simplemdm-*` variables or NVD3 SVG text styles.
+
+### Sync is too slow
+
+Use `--max-parent-resources` for frequent runs and run full deep sync less often.
+
+### Sync health widget has stale values
+
+- Ensure sync script posts `op=update_sync_status` successfully.
+- Confirm latest sync did not run with `--dry-run`.
+- Check that scheduled job is using current script path.
+
+### Compliance widget does not match expected baseline
+
+- Confirm `compliance_min_os` is set in module settings.
+- Check OS version formatting in source device payloads.
+- Re-run a full sync after baseline changes.
+
+### Webhook accepted but no visible UI change
+
+- Webhook may affect command/device state not currently visible in active filters.
+- Run an API sync cycle to reconcile full state after webhook events.
+- Check command/compliance widgets and device detail page for updates.
+
+## Files Added/Updated by This Module
+
+- Controllers/models/views under `local/modules/simplemdm/`
+- Migrations under `local/modules/simplemdm/migrations/`
+- No required permanent changes in MunkiReport core files.
+
+## License
+
+MIT

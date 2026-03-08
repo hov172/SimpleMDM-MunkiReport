@@ -70,6 +70,7 @@ Typical use cases:
   - Filter by resource type, resource ID, endpoint.
 - SimpleMDM report: `reports/simplemdm`
 - Admin page: `module/simplemdm/admin`
+  - Appears in top navigation under `Admin -> SimpleMDM Settings` (module `admin_pages` registration).
 - Client tab + standalone device view:
   - Client tab: `#tab_simplemdm-tab`
   - Standalone: `module/simplemdm/device/{serial}`
@@ -111,6 +112,7 @@ php /path/to/munkireport/please migrate
 Current admin scope:
 - Admin currently manages API/auth, widget visibility, and advanced sync/compliance settings.
 - Layout ordering, full-width spans, and expand/collapse behavior are module-driven defaults (not separate admin toggles).
+- If the Admin menu item does not appear after module updates, refresh/restart MunkiReport so module `provides.yml` metadata is reloaded.
 
 ### Advanced Setting Behavior
 

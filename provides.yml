@@ -88,7 +88,7 @@ widgets:
         view: simplemdm_rt_system_extension_policy_widget
     simplemdm_rt_wallpaper:
         view: simplemdm_rt_wallpaper_widget
-admin_menu:
-    simplemdm:
+admin_pages:
+    admin:
         view: admin
         i18n: simplemdm.admin_menu

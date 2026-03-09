@@ -106,6 +106,10 @@ Typical use cases:
   - Shows linked apps/groups/profiles/resources.
   - Links into filtered API resources listing.
 
+![SimpleMDM Report Widgets](docs/images/dashboard-widgets.png)
+![SimpleMDM Device Listing](docs/images/device-listing.png)
+![SimpleMDM API Resources Listing](docs/images/api-resources-listing.png)
+
 UI modernization scope:
 - Module pages now use the same modern theme tokens/components as SimpleMDM widgets:
   - `module/simplemdm/admin`
@@ -153,6 +157,9 @@ php /path/to/munkireport/please migrate
    - `sync_commands_enabled`
    - `sync_device_subresources_enabled`
    - `device_subresource_limit`
+
+![SimpleMDM Settings](docs/images/admin-settings.png)
+![Advanced Sync & Compliance Settings](docs/images/advanced-sync-settings.png)
 
 Current admin scope:
 - Admin currently manages API/auth, widget visibility, and advanced sync/compliance settings.
@@ -397,6 +404,376 @@ Widget purpose note:
 - `simplemdm_rt_wallpaper`
 
 You can add/remove via Widget Gallery and dashboard layout controls.
+
+### Detailed Widget Breakdown
+
+Widget data conventions:
+- Most widget counters/charts are built from module tables (`simplemdm`, `simplemdm_resource`, `simplemdm_command`, `simplemdm_dashboard_snapshot`) populated by sync/webhook ingest.
+- Widgets load data via JSON endpoints under `/module/simplemdm/*`.
+- Most chart/list widgets provide drill-down links into:
+  - device listing: `show/listing/simplemdm/simplemdm`
+  - resource listing: `show/listing/simplemdm/simplemdm_resources`
+- Empty-state behavior: widgets show `No data`/fallback text when endpoint returns no rows.
+
+Core widget reference:
+
+`simplemdm_enrollment`
+- Purpose: enrolled vs unenrolled fleet snapshot.
+- Endpoint: `GET /module/simplemdm/get_enrollment_stats`.
+- Visual: donut chart + total count + ratio.
+- Drill-down: listing filter for enrollment state.
+
+`simplemdm_dep`
+- Purpose: DEP-enrolled vs not-DEP distribution.
+- Endpoint: `GET /module/simplemdm/get_dep_stats`.
+- Visual: donut + total + percentage.
+- Drill-down: listing filter by DEP state.
+
+`simplemdm_filevault`
+- Purpose: FileVault enabled vs disabled posture.
+- Endpoint: `GET /module/simplemdm/get_filevault_stats`.
+- Visual: donut + count + share.
+- Drill-down: listing filter by FileVault state.
+
+`simplemdm_supervised`
+- Purpose: supervised vs unsupervised coverage.
+- Endpoint: `GET /module/simplemdm/get_supervised_stats`.
+- Visual: donut + count + share.
+- Drill-down: listing filter by supervision state.
+
+`simplemdm_group`
+- Purpose: full assignment-group insight.
+- Endpoint: `GET /module/simplemdm/get_assignment_group_stats`.
+- Sections:
+  - `Top Groups Chart` (bar chart, top groups by count).
+  - `Assignment Group List` (expand/collapse with hidden-row count label).
+- Behavior: collapsed list is intentionally scrollable; expanded mode reflows grid.
+- Drill-down: each bar/list row links to filtered device listing by group.
+![SimpleMDM Groups Widget](docs/images/groups-dashboard.png)
+
+`simplemdm_group_top`
+- Purpose: compact top-groups chart variant.
+- Endpoint: `GET /module/simplemdm/get_assignment_group_stats`.
+- Visual: bar chart only (summary-first footprint).
+- Drill-down: click bar to filtered group listing.
+
+`simplemdm_resource_types`
+- Purpose: complete resource-type distribution + cards.
+- Endpoint: `GET /module/simplemdm/get_resource_type_stats`.
+- Sections:
+  - `Resource Type Chart` (horizontal bars, top resource types).
+  - `Resource Cards` (expand/collapse, row-aligned collapsed height, scroll hint/fade).
+- Behavior: color scale is count-aware (log-style interpolation for skewed distributions).
+- Drill-down: chart bars and card CTAs route to filtered resource listing.
+![Resource Type Breakdown](docs/images/resource-types-breakdown.png)
+
+`simplemdm_resource_mix`
+- Purpose: compact resource mix overview.
+- Endpoint: `GET /module/simplemdm/get_resource_type_stats`.
+- Visual: donut by resource type.
+- Drill-down: segment click opens filtered resource listing.
+
+`simplemdm_device_listing`
+- Purpose: single-card fleet size summary.
+- Endpoints:
+  - `GET /module/simplemdm/get_enrollment_stats`
+  - `GET /module/simplemdm/get_dep_stats`
+  - `GET /module/simplemdm/get_supervised_stats`
+  - `GET /module/simplemdm/get_filevault_stats`
+- Visual: total devices KPI + compact donut legend.
+- Drill-down: opens full device listing.
+
+`simplemdm_devices_table`
+- Purpose: dashboard/report mini table of device rows.
+- Endpoint: `GET /module/simplemdm/get_data`.
+- Columns: Device, Serial, Status, OS, Group.
+- Behavior:
+  - Device row section (`Device Rows`) supports expand/collapse.
+  - Collapsed section is scrollable; expanded section grows and triggers grid reflow.
+  - Shows up to 50 rows in-widget for quick scan.
+- Drill-down: device name/serial links to per-device detail page.
+
+`simplemdm_resources_listing`
+- Purpose: top resource-type counters in card form.
+- Endpoint: `GET /module/simplemdm/get_resource_type_stats`.
+- Visual: condensed cards with count and quick action.
+- Drill-down: button opens filtered resource listing by type.
+
+`simplemdm_trend`
+- Purpose: time-series trend (default 30 days).
+- Endpoint: `GET /module/simplemdm/get_dashboard_trend?days=30`.
+- Data source: `simplemdm_dashboard_snapshot`.
+- Visual: line chart for key totals across snapshots.
+- Note: if no historical snapshots exist yet, endpoint returns current-day fallback row.
+
+`simplemdm_os_security`
+- Purpose: enrollment/supervision/FileVault posture split by OS version.
+- Endpoint: `GET /module/simplemdm/get_os_security_stats`.
+- Visual: stacked bars by OS bucket (top buckets + `Other` rollup).
+- Drill-down: quick OS posture analysis; supports filtering strategy decisions.
+
+`simplemdm_command_status`
+- Purpose: command execution state distribution telemetry.
+- Endpoint: `GET /module/simplemdm/get_command_status_stats`.
+- Data source: `simplemdm_command`.
+- Dependency: command sync must be enabled/populated (`sync_commands_enabled` or CLI `--sync-commands`).
+
+`simplemdm_compliance`
+- Purpose: compliant vs noncompliant fleet summary with reason buckets.
+- Endpoint: `GET /module/simplemdm/get_compliance_stats`.
+- Compliance logic:
+  - enrolled
+  - supervised
+  - FileVault enabled
+  - optional minimum OS from `compliance_min_os`
+- Outputs: totals + reason counters (`not_enrolled`, `not_supervised`, `filevault_off`, `os_below_min`).
+
+`simplemdm_sync_health`
+- Purpose: latest sync health and telemetry status.
+- Endpoint: `GET /module/simplemdm/get_sync_telemetry`.
+- Data shown:
+  - last sync status/time/cursor
+  - duration
+  - API request/error/rate-limit counts
+  - delta mode flag
+  - sync scope
+- Use case: operational monitoring for sync stability and API pressure.
+
+Per-resource-type widget family (`simplemdm_rt_*`):
+- Shared renderer: `views/simplemdm_resource_type_base_widget.php`.
+- Shared endpoints:
+  - `GET /module/simplemdm/get_resource_type_count/{type}`
+  - `GET /module/simplemdm/get_resource_type_stats` (for share-of-total context)
+- Shared behavior:
+  - count KPI + percent-of-all-resources indicator
+  - one-click drill-down to `show/listing/simplemdm/simplemdm_resources?type={type}`
+- Individual widgets map as:
+  - `simplemdm_rt_installed_app` -> `installed_app`
+  - `simplemdm_rt_app` -> `app`
+  - `simplemdm_rt_assignment_group` -> `assignment_group`
+  - `simplemdm_rt_custom_configuration_profile` -> `custom_configuration_profile`
+  - `simplemdm_rt_device_group` -> `device_group`
+  - `simplemdm_rt_enrollment` -> `enrollment`
+  - `simplemdm_rt_script` -> `script`
+  - `simplemdm_rt_restrictions` -> `restrictions`
+  - `simplemdm_rt_privacy_preference` -> `privacy_preference`
+  - `simplemdm_rt_software_update_policyformac_os` -> `software_update_policyformac_os`
+  - `simplemdm_rt_home_screen_layout` -> `home_screen_layout`
+  - `simplemdm_rt_lock_screen_message` -> `lock_screen_message`
+  - `simplemdm_rt_managed_software_updates` -> `managed_software_updates`
+  - `simplemdm_rt_notification_settings` -> `notification_settings`
+  - `simplemdm_rt_disk_management_settings` -> `disk_management_settings`
+  - `simplemdm_rt_gatekeeper_policy` -> `gatekeeper_policy`
+  - `simplemdm_rt_kernel_extension_policy` -> `kernel_extension_policy`
+  - `simplemdm_rt_login_window` -> `login_window`
+  - `simplemdm_rt_system_extension_policy` -> `system_extension_policy`
+  - `simplemdm_rt_wallpaper` -> `wallpaper`
+
+Non-dashboard SimpleMDM summary widget:
+
+`simplemdm_detail` (client detail widget/tab)
+- Purpose: compact SimpleMDM summary inside client context.
+- Endpoint: `GET /module/simplemdm/get_simplemdm_data/{serial}`.
+- Scope: detail widget/client tab context, not part of dashboard widget gallery.
+
+### Device Detail Page Breakdown
+
+Route and purpose:
+- Page: `module/simplemdm/device/{serial}`.
+- Goal: single-device operational view combining stored device record, raw attributes/relationships, inferred linked resources, synced per-device subresources, and action runner controls.
+
+Load sequence:
+- Base device row + raw payload:
+  - `GET /module/simplemdm/get_simplemdm_data/{serial}`
+- Connected resource graph:
+  - `GET /module/simplemdm/get_device_resources/{serial}`
+- Direct per-device subresources:
+  - `GET /module/simplemdm/get_device_subresources/{serial}`
+
+Top header and KPI chips:
+- Header: device name/title + serial context.
+- Badges: enrollment status, assignment group.
+- KPI cards: enrollment, DEP, supervision, FileVault quick state.
+
+Main panels:
+
+`Overview`
+- High-signal identity and recency fields:
+  - device name, model, OS/build
+  - enrolled at, last seen at, last seen IP
+  - SimpleMDM device ID
+![Device Detail Overview](docs/images/device-detail-overview.png)
+
+`Security & Compliance`
+- Fast-check booleans:
+  - supervised
+  - DEP enrollment
+  - FileVault enabled
+  - firewall enabled
+  - SIP enabled
+  - passcode compliant
+  - activation lock
+  - remote desktop
+
+`Attributes`
+- Dynamic grouped render from `attributes_json` with section toggles:
+  - Identity
+  - Enrollment
+  - OS & Updates
+  - Security
+  - Hardware & Capacity
+  - Network & Cellular
+  - Location
+  - Other (auto-catchall for unmapped keys)
+- Includes nested object rendering (for fields like `firewall` / `os_update`).
+- Technical field toggle available for expanded operator diagnostics.
+![Device Attributes and Enrollment](docs/images/device-attributes-enrollment.png)
+![Device OS and Updates](docs/images/device-os-updates.png)
+![Device Security Details](docs/images/device-security-details.png)
+![Device Hardware and Network](docs/images/device-hardware-network.png)
+
+`Relationships`
+- Direct render of `relationships_json` payload by key.
+- Designed for API-level inspection/troubleshooting, not only human-friendly labels.
+
+`Connected Resources`
+- Normalized relationship graph view from `simplemdm_relationship_edge`.
+- Summary chips:
+  - total linked resources
+  - source badges: `Direct per-device` vs `Derived relationship`
+  - per-type totals linking to filtered resource listing
+- Per-type expandable tables with columns:
+  - Name
+  - ID
+  - Source
+  - Match reason
+  - Endpoint
+
+`Synced Device Subresources`
+- Populated from direct endpoint sync (`installed_apps`, `users`, `profiles`).
+- Summary chips: Installed Apps count, Users count, Profiles count.
+- Expandable per-type tables:
+  - Installed Apps: Name, Identifier, Version, Managed, Source
+  - Users: Username, Full Name, UID, Logged In, Source
+  - Profiles: Name, Identifier, Type, Source
+- Source label currently shown as `Direct per-device`.
+
+`Device Actions`
+- Action runner for supported passthrough actions on selected device.
+- UI elements:
+  - action selector
+  - HTTP method display
+  - optional JSON payload input
+  - action secret input
+  - result/output area
+- Guardrails:
+  - requires loaded `simplemdmDeviceId`
+  - requires non-empty action secret
+  - validates JSON payload when provided
+  - shows success/error response and HTTP result body
+- Supported action set in UI:
+  - refresh
+  - push_apps
+  - restart
+  - shutdown
+  - lock
+  - clear_passcode
+  - clear_firmware_password
+  - rotate_firmware_password
+  - clear_recovery_lock_password
+  - clear_restrictions_password
+  - rotate_recovery_lock_password
+  - rotate_filevault_key
+  - set_admin_password
+  - rotate_admin_password
+  - wipe
+  - update_os
+  - remote_desktop (enable/disable)
+  - bluetooth (enable/disable)
+  - set_time_zone
+  - unenroll
+  - delete_device
+
+Security model for device actions:
+- All passthrough endpoints require global admin authorization.
+- Mutating requests (`POST/PATCH/DELETE/PUT`) additionally require `X-SIMPLEMDM-ACTION-SECRET` matching `action_api_secret` in module settings.
+- Secret values are stripped/sanitized before upstream proxy passthrough where applicable.
+
+What this page changes in SimpleMDM:
+- Read panels (`Overview`, `Attributes`, `Relationships`, `Connected Resources`, `Synced Device Subresources`) are non-mutating and do not alter SimpleMDM state.
+- `Device Actions` are mutating when action endpoints are invoked and can change device/server state in SimpleMDM, depending on chosen command and payload.
+
+### Operator Runbook (Common Tasks)
+
+Use these repeatable flows for daily operations.
+
+1. Find noncompliant devices quickly
+- Open `show/report/simplemdm/simplemdm`.
+- Check `simplemdm_compliance` for compliant/noncompliant totals and reason buckets.
+- Open `simplemdm_os_security` to see which OS buckets carry lower enrolled/supervised/FileVault ratios.
+- Open `show/listing/simplemdm/simplemdm` and filter by:
+  - `status != enrolled` (or status filter)
+  - `supervised = no`
+  - `filevault = no`
+  - `os` below your baseline target
+- Prioritize remediation by largest assignment group from `simplemdm_group` / `simplemdm_group_top`.
+
+2. Investigate a single device end-to-end
+- From `simplemdm_devices_table` (dashboard/report) or `show/listing/simplemdm/simplemdm`, click the device name/serial.
+- In `module/simplemdm/device/{serial}`:
+  - Confirm quick posture in `Overview` + `Security & Compliance`.
+  - Expand `Attributes` sections for exact values (OS update object, firewall object, network/cellular metadata, etc.).
+  - Review `Connected Resources` to identify linked profiles/apps/groups and relationship source (`Direct per-device` vs `Derived relationship`).
+  - Review `Synced Device Subresources` for installed apps/users/profiles inventory.
+
+3. Run a safe action first (recommended)
+- In Admin, set/confirm `action_api_secret`.
+- On device page (`module/simplemdm/device/{serial}`), go to `Device Actions`.
+- Select `Refresh` (safe, non-destructive).
+- Enter `Action Secret` and run.
+- Confirm:
+  - action status shows success
+  - response body appears in action output
+  - subsequent refresh updates inventory-related fields if device responds
+
+4. Execute higher-risk actions with guardrails
+- Before running actions like `wipe`, `lock`, `clear_*`, `rotate_*`, or `set_admin_password`:
+  - verify correct device identity (serial + model + assignment group)
+  - verify platform prerequisites (for example macOS-only actions)
+  - require change approval in your internal process
+- Use JSON payload only when required by endpoint (example: lock message/phone/pin, update_os mode).
+- Re-check device detail after command submission and after next sync cycle.
+
+5. Verify command telemetry pipeline
+- Ensure command sync is enabled:
+  - Admin toggle `sync_commands_enabled=1` or script flag `--sync-commands`.
+- Run sync.
+- Open `simplemdm_command_status` widget and confirm status distribution is populated.
+- If empty:
+  - verify sync logs for command endpoint availability/fallback behavior
+  - verify rows exist in `simplemdm_command`
+  - confirm tenant/API supports at least one command history path
+
+6. Verify deep per-device subresource sync
+- Enable deep sync:
+  - `sync_device_subresources_enabled=1`
+  - optional `device_subresource_limit` (`0` = all devices).
+- Run sync.
+- Open several device detail pages and confirm `Synced Device Subresources` tables populate for:
+  - Installed Apps
+  - Users
+  - Profiles
+- If sparse/empty for some devices, confirm device platform support and upstream API returns data.
+
+7. Confirm schedule behavior and “no-run” expectations
+- If `enable_scheduled_sync=0`, schedule-gated runs should skip work (`--respect-schedule`).
+- If schedule is enabled, `sync_interval_minutes` controls due-window cadence.
+- Confirm `simplemdm_sync_health` updates after actual runs (status/time/duration/request counts).
+
+8. Use report layout reset safely
+- `Reset Layout` on `show/report/simplemdm/simplemdm` restores report defaults only.
+- `Reset Layout` on dashboard pages restores dashboard defaults only.
+- Use reset when localStorage layout state becomes stale after widget visibility/order changes.
 
 Theme/Layout-aware styling:
 - Widgets automatically switch between `compact` and `comfortable` density modes based on explicit layout mode classes/attributes (if present) or auto-detection from screen/widget width.

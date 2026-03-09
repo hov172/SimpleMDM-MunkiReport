@@ -185,21 +185,15 @@ Use the printed path in crontab:
 
 ### B) Docker MunkiReport (docker compose)
 
+Use this sequence for a completely new Docker-based MunkiReport setup.
+
 Important working directory:
 - Run `docker compose` commands from the MunkiReport repo root (the directory containing `docker-compose.yml`), not from `local/modules/simplemdm`.
-- Preferred pattern:
+- Preferred pattern after setup:
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
 docker compose up -d --build
-```
-
-Compose file requirement:
-- `docker-compose.yml` belongs to the main MunkiReport repo, not this module repo.
-- If missing in your MunkiReport checkout, create it from the example:
-
-```bash
-cp docker-compose.yml.example docker-compose.yml
 ```
 
 Prerequisite check:
@@ -207,9 +201,10 @@ Prerequisite check:
 ```bash
 docker --version
 docker compose version
+git --version
 ```
 
-One-shot bootstrap (new or existing MunkiReport checkout + module clone + build/start + migrate):
+One-shot bootstrap (fresh or existing MunkiReport checkout):
 
 ```bash
 [ -d munkireport-php/.git ] || git clone https://github.com/munkireport/munkireport-php.git && \
@@ -218,71 +213,84 @@ cp -n .env.example .env && \
 cp -n docker-compose.yml.example docker-compose.yml && \
 mkdir -p local/modules && \
 [ -d local/modules/simplemdm/.git ] || git clone https://github.com/hov172/SimpleMDM-MunkiReport local/modules/simplemdm && \
+perl -i.bak -pe 's/^MODULES=.*/MODULES="munkireport,managedinstalls,disk_report,simplemdm"/' .env && \
+grep -q '^MODULES=' .env || echo 'MODULES="munkireport,managedinstalls,disk_report,simplemdm"' >> .env && \
 docker compose up -d --build && \
 docker compose exec munkireport php please migrate
 ```
 
-These steps match the compose setup in the MunkiReport repo (`docker-compose.yml`) where service name is `munkireport` and app is exposed on port `8888`.
+These steps assume the standard MunkiReport compose setup where the service name is `munkireport` and the app is exposed on port `8888`.
 
-1. Prepare MunkiReport compose environment:
+1. Clone MunkiReport and enter the repo:
 
 ```bash
-cp -n .env.example .env
+git clone https://github.com/munkireport/munkireport-php.git
+cd munkireport-php
 ```
 
-2. Install/copy module to host `local/modules` (mounted into container):
-   - Skip this step if you already ran the one-shot bootstrap above.
+2. Create the env file:
+
+```bash
+cp .env.example .env
+```
+
+3. Create the compose file from the MunkiReport example:
+
+```bash
+cp docker-compose.yml.example docker-compose.yml
+```
+
+4. Install/copy the module into the host `local/modules` path that Docker mounts into the app container:
 
 ```bash
 mkdir -p local/modules
-[ -d local/modules/simplemdm/.git ] || git clone https://github.com/hov172/SimpleMDM-MunkiReport local/modules/simplemdm
+git clone https://github.com/hov172/SimpleMDM-MunkiReport local/modules/simplemdm
 ```
 
-3. Ensure module is enabled for container runtime:
-   - In `docker-compose.yml`, ensure `MODULES` includes `simplemdm`
-   - Or set it in `.env` if your compose setup reads env substitutions
-   - Example `.env` command (replace existing `MODULES=` value):
+5. Enable `simplemdm` before starting containers:
+   - Ensure `MODULES` includes `simplemdm` in `.env`
+   - If your compose file hardcodes `MODULES`, update `docker-compose.yml` instead
+
+Example `.env` command to replace an existing `MODULES=` line:
 
 ```bash
 perl -i.bak -pe 's/^MODULES=.*/MODULES="munkireport,managedinstalls,disk_report,simplemdm"/' .env
 ```
 
-   - If `.env` does not have `MODULES=`, append it:
+If `.env` does not already contain `MODULES=`, append it:
 
 ```bash
 grep -q '^MODULES=' .env || echo 'MODULES="munkireport,managedinstalls,disk_report,simplemdm"' >> .env
 ```
 
-   - Verify compose resolves the expected value:
-
-```bash
-docker compose config | grep -n MODULES
-```
-
-   - If output still shows old/hardcoded modules, update `docker-compose.yml` directly.
-
-Example `docker-compose.yml` environment line:
+Example `docker-compose.yml` environment line if compose is not reading `.env`:
 
 ```yaml
 - MODULES=munkireport,managedinstalls,disk_report,simplemdm
 ```
 
-4. Build and start containers:
+6. Verify compose resolves the expected module list:
+
+```bash
+docker compose config | grep -n MODULES
+```
+
+7. Build and start containers:
 
 ```bash
 docker compose up -d --build
 ```
 
-5. Run migrations inside container:
+8. Run migrations inside the app container:
 
 ```bash
 docker compose exec munkireport php please migrate
 ```
 
-6. Open MunkiReport in browser:
+9. Open MunkiReport in the browser:
    - `http://localhost:8888`
 
-7. Configure module settings in UI:
+10. Configure module settings in UI:
    - Open `Admin -> SimpleMDM Settings`
    - Save `api_key`
    - Optional but recommended: set `webhook_secret`, `action_api_secret`, and sync toggles

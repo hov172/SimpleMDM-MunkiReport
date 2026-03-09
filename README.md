@@ -233,6 +233,146 @@ python3 /path/to/munkireport/local/modules/simplemdm/scripts/simplemdm_sync.py \
 Fallback auth option:
 - Instead of webhook secret, webhook sender may use `X-SIMPLEMDM-API-KEY` matching stored module API key.
 
+#### Webhook Connection (Detailed: how/why/when + examples)
+
+When to use webhook ingestion:
+- Use webhooks when you want near-real-time updates between scheduled sync runs.
+- Use webhooks for operational responsiveness (recent enrollment/status/command-related events).
+- Keep scheduled sync enabled even with webhooks. Webhooks are additive and best-effort, not a complete replacement for full reconciliation.
+
+Why use hybrid mode (recommended):
+- Webhook path is event-driven and low-latency.
+- Scheduled sync is authoritative and reconciles any missed/partial events.
+- Combined model gives both fast updates and data correctness at scale.
+
+How webhook auth works in this module:
+- Route: `POST /index.php?/module/simplemdm/index?op=webhook`
+- Request is accepted if either condition is true:
+  - `X-SIMPLEMDM-WEBHOOK-SECRET` matches `webhook_secret` in module settings, or
+  - `X-SIMPLEMDM-API-KEY` matches stored module API key.
+- If neither is valid:
+  - HTTP `401`
+  - body: `{"status":"error","message":"Unauthorized"}`
+
+Payload requirements:
+- Body must be valid JSON object.
+- If JSON parse fails:
+  - HTTP `400`
+  - body: `{"status":"error","message":"Invalid JSON data"}`
+
+Event persistence behavior:
+- Every accepted webhook is stored in `simplemdm_webhook_event` with:
+  - `event_id` (from `id`/`event_id`/`uuid`, or fallback `anonymous:{sha1(payload)}`)
+  - `event_type` (from `type`/`event_type`/`event` when present)
+  - `status=received`
+  - `received_at`, `source_ip`, and raw `payload_json`
+- Idempotency behavior:
+  - Duplicate webhook events with same event id update existing row via `updateOrCreate`.
+  - Events without ID use payload hash fallback identity.
+
+Best-effort upsert behavior:
+- Device partial upsert attempts when payload includes `data.attributes` and at least one of:
+  - `serial_number`
+  - `device_name`
+  - `status`
+- Command upsert attempts when:
+  - event type contains `command` (case-insensitive), or
+  - payload includes `command_uuid`
+- Webhook endpoint still returns success even if optional parsing/upsert of secondary records fails internally.
+
+What webhook does not guarantee:
+- Full resource catalog refresh (`simplemdm_resource`) for all endpoints/types.
+- Complete command history backfill by itself.
+- Full consistency after long outages or dropped webhook deliveries.
+- Use scheduled sync for these guarantees.
+
+Recommended production pattern:
+1. Enable and secure webhook (`webhook_secret`).
+2. Keep cron runner with `--respect-schedule`.
+3. Enable delta sync for regular cadence (`sync_delta_enabled=1`).
+4. Optionally enable command/deep subresource sync depending on reporting goals.
+5. Periodically run a full reconciliation window (off-hours) for large fleets.
+
+End-to-end examples:
+
+Example A: Test webhook with secret header
+```bash
+curl -X POST "https://<your-munkireport>/index.php?/module/simplemdm/index?op=webhook" \
+  -H "Content-Type: application/json" \
+  -H "X-SIMPLEMDM-WEBHOOK-SECRET: <your_webhook_secret>" \
+  -d '{
+    "id":"evt_test_001",
+    "type":"device.updated",
+    "data":{
+      "id":"121",
+      "attributes":{
+        "serial_number":"C07YP14PJYW0",
+        "device_name":"Design Lab Mini 2018",
+        "status":"enrolled",
+        "os_version":"15.7.2",
+        "is_supervised":true,
+        "is_dep_enrollment":true,
+        "filevault_enabled":true
+      },
+      "relationships":{}
+    }
+  }'
+```
+Expected result:
+- HTTP `200`
+- body: `{"status":"success"}`
+- Event row appears/updates in `simplemdm_webhook_event`.
+- Device row may update if attributes are mappable.
+
+Example B: Test webhook with API key fallback auth
+```bash
+curl -X POST "https://<your-munkireport>/index.php?/module/simplemdm/index?op=webhook" \
+  -H "Content-Type: application/json" \
+  -H "X-SIMPLEMDM-API-KEY: <your_simplemdm_api_key>" \
+  -d '{
+    "event_id":"evt_test_002",
+    "event_type":"command.completed",
+    "data":{
+      "command_uuid":"cmd-12345",
+      "device_id":"121",
+      "status":"completed",
+      "command_type":"restart"
+    }
+  }'
+```
+Expected result:
+- HTTP `200`
+- Command upsert attempted into `simplemdm_command`.
+
+Example C: Invalid auth (expected failure)
+```bash
+curl -X POST "https://<your-munkireport>/index.php?/module/simplemdm/index?op=webhook" \
+  -H "Content-Type: application/json" \
+  -d '{"id":"evt_bad_auth","type":"device.updated","data":{}}'
+```
+Expected result:
+- HTTP `401`
+- body contains `Unauthorized`.
+
+Example D: Invalid JSON (expected failure)
+```bash
+curl -X POST "https://<your-munkireport>/index.php?/module/simplemdm/index?op=webhook" \
+  -H "Content-Type: application/json" \
+  -H "X-SIMPLEMDM-WEBHOOK-SECRET: <your_webhook_secret>" \
+  -d 'not-json'
+```
+Expected result:
+- HTTP `400`
+- body contains `Invalid JSON data`.
+
+Verification checklist (webhook path):
+1. Send test event and confirm HTTP `200`.
+2. Confirm row in `simplemdm_webhook_event` for event id (or payload hash id).
+3. For device update payloads, confirm `simplemdm` row changes on matching serial/device.
+4. For command payloads, confirm `simplemdm_command` records update.
+5. Refresh report widgets to confirm visible telemetry changes where applicable.
+6. Run scheduled sync afterward to reconcile non-webhook coverage.
+
 ### 3) Delta Sync Connection
 
 1. Enable `sync_delta_enabled` in admin advanced settings.

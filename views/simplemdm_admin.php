@@ -168,6 +168,17 @@ if (is_readable($provides_path)) {
                         </div>
                         <div class="checkbox">
                             <label>
+                                <input type="checkbox" id="enable_scheduled_sync" name="enable_scheduled_sync" value="1">
+                                Enable scheduled sync (cron must still call script)
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label for="sync_interval_minutes">Scheduled sync interval (minutes)</label>
+                            <input type="number" min="1" step="1" class="form-control" id="sync_interval_minutes" name="sync_interval_minutes" placeholder="15">
+                            <p class="help-block">Used when script runs with <code>--respect-schedule</code>.</p>
+                        </div>
+                        <div class="checkbox">
+                            <label>
                                 <input type="checkbox" id="sync_device_subresources_enabled" name="sync_device_subresources_enabled" value="1">
                                 Enable deep per-device subresource sync (profiles/apps/users)
                             </label>
@@ -207,6 +218,8 @@ $(document).on('appReady', function() {
         $('#compliance_min_os').val(data.compliance_min_os || '');
         $('#sync_delta_enabled').prop('checked', String(data.sync_delta_enabled || '0') === '1');
         $('#sync_commands_enabled').prop('checked', String(data.sync_commands_enabled || '0') === '1');
+        $('#enable_scheduled_sync').prop('checked', String(data.enable_scheduled_sync || '0') === '1');
+        $('#sync_interval_minutes').val(String(data.sync_interval_minutes || '15'));
         $('#sync_device_subresources_enabled').prop('checked', String(data.sync_device_subresources_enabled || '0') === '1');
         $('#device_subresource_limit').val(String(data.device_subresource_limit || '0'));
     });
@@ -267,6 +280,8 @@ $(document).on('appReady', function() {
             compliance_min_os: $('#compliance_min_os').val() || '',
             sync_delta_enabled: $('#sync_delta_enabled').is(':checked') ? '1' : '0',
             sync_commands_enabled: $('#sync_commands_enabled').is(':checked') ? '1' : '0',
+            enable_scheduled_sync: $('#enable_scheduled_sync').is(':checked') ? '1' : '0',
+            sync_interval_minutes: String($('#sync_interval_minutes').val() || '15'),
             sync_device_subresources_enabled: $('#sync_device_subresources_enabled').is(':checked') ? '1' : '0',
             device_subresource_limit: String($('#device_subresource_limit').val() || '0')
         };

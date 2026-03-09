@@ -418,6 +418,8 @@ class Simplemdm_controller extends Module_controller
         $config_keys = [
             'webhook_secret',
             'compliance_min_os',
+            'enable_scheduled_sync',
+            'sync_interval_minutes',
             'sync_delta_enabled',
             'sync_commands_enabled',
             'sync_device_subresources_enabled',
@@ -437,6 +439,7 @@ class Simplemdm_controller extends Module_controller
                     $key === 'sync_delta_enabled'
                     || $key === 'sync_last_delta_mode'
                     || $key === 'sync_commands_enabled'
+                    || $key === 'enable_scheduled_sync'
                     || $key === 'sync_device_subresources_enabled'
                 ) {
                     $value = $value === '1' ? '1' : '0';
@@ -444,6 +447,12 @@ class Simplemdm_controller extends Module_controller
                     $v = (int)$value;
                     if ($v < 0) {
                         $v = 0;
+                    }
+                    $value = (string)$v;
+                } elseif ($key === 'sync_interval_minutes') {
+                    $v = (int)$value;
+                    if ($v < 1) {
+                        $v = 1;
                     }
                     $value = (string)$v;
                 }

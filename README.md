@@ -269,13 +269,14 @@ python3 .../simplemdm_sync.py --api-key 'KEY' --munkireport-url 'https://mr' --s
 
 ### Scheduling
 
-Recommended: run frequent device sync with capped deep resources, and a less frequent full deep sync.
+Recommended: run cron every minute with `--respect-schedule`, then control cadence from Admin settings:
+- `enable_scheduled_sync`
+- `sync_interval_minutes`
 
 Example cron:
 
 ```cron
-*/15 * * * * /usr/bin/python3 /path/to/.../simplemdm_sync.py --api-key 'KEY' --munkireport-url 'https://mr' --max-parent-resources 25 >> /var/log/simplemdm_sync.log 2>&1
-0 2 * * * /usr/bin/python3 /path/to/.../simplemdm_sync.py --api-key 'KEY' --munkireport-url 'https://mr' >> /var/log/simplemdm_sync_deep.log 2>&1
+* * * * * /usr/bin/python3 /path/to/.../simplemdm_sync.py --munkireport-url 'https://mr' --respect-schedule --max-parent-resources 25 >> /var/log/simplemdm_sync.log 2>&1
 ```
 
 Recommended production pattern:

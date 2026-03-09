@@ -137,14 +137,32 @@ def get_config():
         default=250,
         help='Max command records to fetch when --sync-commands is enabled'
     )
+    parser.add_argument(
+        '--respect-schedule',
+        action='store_true',
+        help='Only run when admin scheduling is enabled and interval is due'
+    )
+    parser.add_argument(
+        '--force-run',
+        action='store_true',
+        help='Run now even when --respect-schedule is set'
+    )
+    parser.add_argument(
+        '--sync-interval-minutes',
+        type=int,
+        default=0,
+        help='Override schedule interval minutes when --respect-schedule is used (0 = use admin setting)'
+    )
 
     args = parser.parse_args()
 
     if args.verbose:
         logger.setLevel(logging.DEBUG)
 
-    if not args.api_key and args.munkireport_url:
-        logger.info('API key not found in environment. Attempting to fetch from MunkiReport...')
+    config_data = {}
+    if args.munkireport_url:
+        if not args.api_key:
+            logger.info('API key not found in environment. Attempting to fetch from MunkiReport...')
         try:
             # We call the get_config endpoint of the simplemdm module
             config_url = f"{args.munkireport_url}/index.php?/module/simplemdm/get_config"
@@ -155,7 +173,8 @@ def get_config():
             ctx = ssl.create_default_context()
             with urllib.request.urlopen(req, context=ctx) as response:
                 config_data = json.loads(response.read().decode())
-                args.api_key = config_data.get('api_key', '')
+                if not args.api_key:
+                    args.api_key = config_data.get('api_key', '')
                 if not args.delta and str(config_data.get('sync_delta_enabled', '0')) == '1':
                     args.delta = True
                 if not args.last_sync_cursor:
@@ -175,6 +194,16 @@ def get_config():
         except Exception as e:
             logger.debug(f'Failed to fetch config from MunkiReport: {e}')
 
+    args.schedule_enabled = str(config_data.get('enable_scheduled_sync', '0')) == '1'
+    args.schedule_last_sync_time = str(config_data.get('last_sync_time', '') or '')
+    if args.sync_interval_minutes <= 0:
+        try:
+            args.sync_interval_minutes = int(config_data.get('sync_interval_minutes', '15') or 15)
+        except Exception:
+            args.sync_interval_minutes = 15
+    if args.sync_interval_minutes < 1:
+        args.sync_interval_minutes = 1
+
     if not args.api_key:
         logger.error('SimpleMDM API key is required. Set SIMPLEMDM_API_KEY, use --api-key, or configure it in the MunkiReport UI.')
         sys.exit(1)
@@ -184,6 +213,51 @@ def get_config():
         sys.exit(1)
 
     return args
+
+
+def parse_last_sync_time(value):
+    """Parse configured last_sync_time value into UTC datetime if possible."""
+    raw = str(value or '').strip()
+    if not raw:
+        return None
+
+    # Stored format is often "<iso_timestamp> - ...".
+    token = raw.split(' - ', 1)[0].strip()
+    if token.endswith('Z'):
+        token = token[:-1] + '+00:00'
+
+    try:
+        dt = datetime.fromisoformat(token)
+    except Exception:
+        try:
+            dt = datetime.strptime(token, '%Y-%m-%d %H:%M:%S')
+            dt = dt.replace(tzinfo=timezone.utc)
+        except Exception:
+            return None
+
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def should_run_now(config):
+    """Decide if scheduled sync should run now."""
+    if config.force_run:
+        return True, 'force-run enabled'
+
+    if not config.schedule_enabled:
+        return False, 'admin schedule is disabled'
+
+    last_sync_dt = parse_last_sync_time(config.schedule_last_sync_time)
+    if last_sync_dt is None:
+        return True, 'no valid last_sync_time found'
+
+    now = datetime.now(timezone.utc)
+    elapsed_seconds = (now - last_sync_dt).total_seconds()
+    interval_seconds = int(config.sync_interval_minutes) * 60
+    if elapsed_seconds >= interval_seconds:
+        return True, f'due (elapsed {int(elapsed_seconds)}s >= interval {interval_seconds}s)'
+    return False, f'not due yet (elapsed {int(elapsed_seconds)}s < interval {interval_seconds}s)'
 
 
 def simplemdm_request(endpoint, api_key):
@@ -743,6 +817,13 @@ def update_sync_status(munkireport_url, api_key, status, message, token='', extr
 def main():
     """Main sync routine."""
     config = get_config()
+
+    if config.respect_schedule and not config.dry_run:
+        run_now, reason = should_run_now(config)
+        if not run_now:
+            logger.info(f"Skipping sync (--respect-schedule): {reason}")
+            return
+        logger.info(f"Schedule check passed: {reason}")
 
     start = time.time()
     logger.info("Starting SimpleMDM sync...")

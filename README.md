@@ -201,7 +201,15 @@ Additional host requirement for SimpleMDM data sync:
 python3 --version
 ```
 
-`python3` is required for the host-side `simplemdm_sync.py` runs shown later in this section. It is not required just to clone the repos and start the Docker containers.
+`python3` is required for the host-side `simplemdm_sync.py` importer used by this module.
+
+How it is used:
+- The PHP module and migrations run inside the MunkiReport container
+- The SimpleMDM data import is performed by `local/modules/simplemdm/scripts/simplemdm_sync.py`
+- The manual sync test later in this section runs with `python3 .../simplemdm_sync.py`
+- The recommended scheduled sync uses the same script from cron on the host
+
+`python3` is not required just to clone the repos, start the Docker containers, or run the PHP migrations.
 
 Use the step-by-step commands below. Avoid chaining this setup into a single `&&`/`||` one-liner, because a pre-existing invalid `munkireport-php` folder can cause later commands to run in the wrong directory.
 

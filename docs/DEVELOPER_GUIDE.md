@@ -2,6 +2,20 @@
 
 This guide is for contributors who need to understand and modify the module safely.
 
+## Table of Contents
+
+- [1) Purpose and Use Cases](#1-purpose-and-use-cases)
+- [2) Key Objects (What, Why, How They Work)](#2-key-objects-what-why-how-they-work)
+- [3) Module Layout](#3-module-layout)
+- [4) High-Level Data Flow](#4-high-level-data-flow)
+- [5) Entry Points and Responsibilities](#5-entry-points-and-responsibilities)
+- [6) Database Model Map](#6-database-model-map)
+- [7) UI and View Map](#7-ui-and-view-map)
+- [8) Common Change Workflows](#8-common-change-workflows)
+- [9) Security Boundaries](#9-security-boundaries)
+- [10) Dev Checklist Before Commit](#10-dev-checklist-before-commit)
+- [11) File-Level Quick Reference](#11-file-level-quick-reference)
+
 ## 1) Purpose and Use Cases
 
 ### What this module does

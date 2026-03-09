@@ -21,6 +21,25 @@ This module syncs devices and API resources from SimpleMDM server-side, stores t
 Developer docs:
 - See `docs/DEVELOPER_GUIDE.md` for architecture, code map, flow charts, and extension workflows.
 
+## Table of Contents
+
+- [Key Points](#key-points)
+- [Quick Start (5 Minutes)](#quick-start-5-minutes)
+- [From Scratch Setup (Hosted + Docker)](#from-scratch-setup-hosted--docker)
+- [What This Module Does](#what-this-module-does)
+- [Architecture](#architecture)
+- [Features](#features)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Connect New Features (End-to-End)](#connect-new-features-end-to-end)
+- [Sync Script](#sync-script)
+- [Widgets](#widgets)
+- [Device Detail Page Breakdown](#device-detail-page-breakdown)
+- [Validation Checklist](#validation-checklist)
+- [Troubleshooting](#troubleshooting)
+- [Files Added/Updated by This Module](#files-addedupdated-by-this-module)
+- [License](#license)
+
 ## Quick Start (5 Minutes)
 
 1. Install and migrate:

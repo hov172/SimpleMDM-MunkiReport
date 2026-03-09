@@ -108,34 +108,30 @@ local/modules/simplemdm/
 
 ### Sync and Storage Flow
 
-```mermaid
-flowchart LR
-    A[SimpleMDM API] --> B[scripts/simplemdm_sync.py]
-    B --> C[/module/simplemdm/index?op=ingest]
-    B --> D[/module/simplemdm/index?op=ingest_resources]
-    B --> E[/module/simplemdm/index?op=ingest_commands]
-    B --> F[/module/simplemdm/index?op=update_sync_status]
+```text
+SimpleMDM API
+  -> scripts/simplemdm_sync.py
+    -> /module/simplemdm/index?op=ingest           -> simplemdm
+    -> /module/simplemdm/index?op=ingest_resources -> simplemdm_resource
+    -> /module/simplemdm/index?op=ingest_commands  -> simplemdm_command
+    -> /module/simplemdm/index?op=update_sync_status -> simplemdm_config
 
-    C --> G[(simplemdm)]
-    D --> H[(simplemdm_resource)]
-    E --> I[(simplemdm_command)]
-    F --> J[(simplemdm_config)]
-
-    G --> K[(simplemdm_relationship_edge)]
-    G --> L[(simplemdm_device_history)]
-    G --> M[(simplemdm_dashboard_snapshot)]
-    H --> K
+Derived/related writes:
+  simplemdm -> simplemdm_relationship_edge
+  simplemdm -> simplemdm_device_history
+  simplemdm -> simplemdm_dashboard_snapshot
+  simplemdm_resource -> simplemdm_relationship_edge
 ```
 
 ### Webhook Flow
 
-```mermaid
-flowchart LR
-    A[SimpleMDM Webhook] --> B[/module/simplemdm/index?op=webhook]
-    B --> C[(simplemdm_webhook_event)]
-    B --> D[(simplemdm)]
-    B --> E[(simplemdm_command)]
-    B --> F[(simplemdm_relationship_edge)]
+```text
+SimpleMDM Webhook
+  -> /module/simplemdm/index?op=webhook
+    -> simplemdm_webhook_event
+    -> simplemdm
+    -> simplemdm_command
+    -> simplemdm_relationship_edge
 ```
 
 ## 5) Entry Points and Responsibilities

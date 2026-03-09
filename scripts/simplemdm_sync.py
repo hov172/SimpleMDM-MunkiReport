@@ -646,19 +646,69 @@ def transform_resource(resource, source_endpoint):
     }
 
 
-def fetch_recent_commands(api_key, max_records=250):
-    """Fetch command status records if endpoint is available."""
+def _inject_device_id(command, device_id):
+    """Ensure a command payload carries a device_id for downstream normalization."""
+    if not isinstance(command, dict):
+        return command
+    attrs = command.get('attributes')
+    if not isinstance(attrs, dict):
+        attrs = {}
+        command['attributes'] = attrs
+    if not attrs.get('device_id'):
+        attrs['device_id'] = str(device_id)
+    return command
+
+
+def fetch_recent_commands(api_key, max_records=250, device_ids=None):
+    """
+    Fetch command status records.
+
+    Strategy:
+    1) Try tenant-wide collection endpoint `/commands`.
+    2) Fallback to per-device endpoint `/devices/{id}/commands`.
+    """
     endpoint = 'commands'
-    if not probe_collection_endpoint(endpoint, api_key):
-        logger.info('Commands endpoint not available; skipping command sync.')
+    if probe_collection_endpoint(endpoint, api_key):
+        commands, unavailable = fetch_all_resources(endpoint, api_key)
+        if unavailable:
+            commands = []
+        if max_records > 0:
+            commands = commands[:max_records]
+        logger.info(f"Fetched {len(commands)} command records from /commands")
+        return commands
+
+    device_ids = [str(d).strip() for d in (device_ids or []) if str(d).strip() != '']
+    if not device_ids:
+        logger.info('Commands endpoint not available and no device IDs supplied; skipping command sync.')
         return []
 
-    commands, unavailable = fetch_all_resources(endpoint, api_key)
-    if unavailable:
-        return []
-    if max_records > 0:
-        commands = commands[:max_records]
-    logger.info(f"Fetched {len(commands)} command records")
+    logger.info('Global /commands endpoint not available; falling back to /devices/{id}/commands')
+    seen = set()
+    commands = []
+    for device_id in device_ids:
+        nested_endpoint = f'devices/{device_id}/commands'
+        rows, unavailable = fetch_all_resources(nested_endpoint, api_key)
+        if unavailable:
+            continue
+        for row in rows:
+            row = _inject_device_id(row, device_id)
+            cmd_id = ''
+            if isinstance(row, dict):
+                cmd_id = str(row.get('id') or '')
+                attrs = row.get('attributes', {})
+                if isinstance(attrs, dict):
+                    cmd_id = str(attrs.get('uuid') or attrs.get('command_uuid') or cmd_id)
+            dedupe_key = f'{device_id}:{cmd_id}'
+            if cmd_id and dedupe_key in seen:
+                continue
+            if cmd_id:
+                seen.add(dedupe_key)
+            commands.append(row)
+            if max_records > 0 and len(commands) >= max_records:
+                logger.info(f"Fetched {len(commands)} command records from per-device endpoints")
+                return commands
+
+    logger.info(f"Fetched {len(commands)} command records from per-device endpoints")
     return commands
 
 
@@ -1006,7 +1056,12 @@ def main():
 
     command_records = []
     if config.sync_commands:
-        raw_commands = fetch_recent_commands(config.api_key, config.commands_limit)
+        command_device_ids = [r.get('simplemdm_id') for r in records if r.get('simplemdm_id')]
+        raw_commands = fetch_recent_commands(
+            config.api_key,
+            config.commands_limit,
+            command_device_ids
+        )
         for command in raw_commands:
             transformed = transform_command(command)
             if transformed and transformed.get('command_uuid'):

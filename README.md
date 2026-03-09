@@ -236,7 +236,10 @@ Fallback auth option:
 2. Run sync or scheduled sync.
 3. Optionally cap API load with `--commands-limit`.
 4. Add `simplemdm_command_status` widget to dashboard.
-5. Validate by opening:
+5. Command fetch strategy:
+   - Primary: `GET /api/v1/commands` (tenant-wide).
+   - Fallback: `GET /api/v1/devices/{device_id}/commands` (per-device) when tenant-wide endpoint is unavailable.
+6. Validate by opening:
    - `module/simplemdm/get_command_status_stats`
 
 ### 5) Compliance + Sync Health Connection
@@ -629,7 +632,8 @@ Check browser console/network and confirm module route resolves:
 ### Command status widget is empty
 
 - Enable `sync_commands_enabled` in admin advanced settings, or run script with `--sync-commands`.
-- Confirm tenant/API exposes `commands` endpoint (script will skip if unavailable).
+- Script now attempts tenant-wide `commands` first, then falls back to per-device `devices/{id}/commands`.
+- If both are unavailable in your tenant/API, command status data cannot be collected and widget remains empty.
 
 ### Trend widget shows only one day / no history
 

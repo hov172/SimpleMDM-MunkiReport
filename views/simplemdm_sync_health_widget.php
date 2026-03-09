@@ -1,4 +1,20 @@
 <?php include_once __DIR__ . '/simplemdm_widget_modern_assets.php'; ?>
+<style>
+#simplemdm-sync-health-widget .simplemdm-metric-value {
+    margin-left: 8px;
+}
+
+#simplemdm-sync-health-widget .simplemdm-metric-value-long {
+    display: block;
+    margin-top: 6px;
+    margin-left: 0;
+    max-width: 100%;
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    text-align: left;
+}
+</style>
 
 <div class="col-lg-4 col-md-6">
     <div class="panel panel-default simplemdm-modern-widget" id="simplemdm-sync-health-widget">
@@ -28,16 +44,17 @@ $(document).on('appReady', function() {
             panelBody.find('#simplemdm-sync-status-pill').removeClass('text-success text-danger text-warning').addClass(statusClass).text(status);
 
             var rows = [
-                ['Last Sync', data.last_sync_time || '-'],
-                ['Duration (ms)', data.sync_last_duration_ms || '0'],
-                ['API Requests', data.sync_last_api_requests || '0'],
-                ['API Errors', data.sync_last_api_errors || '0'],
-                ['Rate Limits', data.sync_last_rate_limit_hits || '0'],
-                ['Delta Mode', String(data.sync_last_delta_mode || '0') === '1' ? 'Enabled' : 'Disabled'],
-                ['Scope', data.sync_last_scope || '-'],
+                { label: 'Last Sync', value: data.last_sync_time || '-', long: true },
+                { label: 'Duration (ms)', value: data.sync_last_duration_ms || '0' },
+                { label: 'API Requests', value: data.sync_last_api_requests || '0' },
+                { label: 'API Errors', value: data.sync_last_api_errors || '0' },
+                { label: 'Rate Limits', value: data.sync_last_rate_limit_hits || '0' },
+                { label: 'Delta Mode', value: String(data.sync_last_delta_mode || '0') === '1' ? 'Enabled' : 'Disabled' },
+                { label: 'Scope', value: data.sync_last_scope || '-' },
             ];
             rows.forEach(function(row) {
-                listGroup.append('<span class="list-group-item">' + row[0] + '<span class="badge pull-right">' + row[1] + '</span></span>');
+                var valueClass = row.long ? 'simplemdm-metric-value simplemdm-metric-value-long' : 'simplemdm-metric-value badge pull-right';
+                listGroup.append('<span class="list-group-item">' + row.label + '<span class="' + valueClass + '">' + row.value + '</span></span>');
             });
         }).fail(function() {
             $('#simplemdm-sync-health-widget .panel-body').html('<p class="text-danger text-center">Failed to load sync telemetry.</p>');

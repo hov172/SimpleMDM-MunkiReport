@@ -402,6 +402,21 @@ body.simplemdm-theme-dark.simplemdm-layout-compact {
     }
 }
 
+/* When report uses interactive dashboard-style grid, disable masonry columns. */
+body.simplemdm-report-interactive #simplemdm-report-grid {
+    column-count: 1 !important;
+    column-gap: 0 !important;
+    display: block;
+}
+
+body.simplemdm-report-interactive #simplemdm-report-grid > #simplemdm-dashboard-grid {
+    width: 100%;
+    display: block;
+    break-inside: avoid;
+    -webkit-column-break-inside: avoid;
+    page-break-inside: avoid;
+}
+
 #simplemdm-dashboard-grid {
     position: relative;
     min-height: 1px;
@@ -849,11 +864,25 @@ body.simplemdm-theme-dark #simplemdm-dashboard-grid > .simplemdm-dashboard-item 
 </style>
 <script>
 (function() {
+    function isSimplemdmReportPage() {
+        var p = String(window.location.pathname || '').toLowerCase();
+        var h = String(window.location.hash || '').toLowerCase();
+        var q = String(window.location.search || '').toLowerCase();
+        if (p.indexOf('/show/report/simplemdm') !== -1 || q.indexOf('/show/report/simplemdm') !== -1 || h.indexOf('/show/report/simplemdm') !== -1) {
+            return true;
+        }
+        return !!document.getElementById('simplemdm-report-grid');
+    }
+
     function isLikelyDashboardPage() {
         var p = String(window.location.pathname || '').toLowerCase();
         var h = String(window.location.hash || '').toLowerCase();
         var q = String(window.location.search || '').toLowerCase();
         if (p.indexOf('/show/dashboard') !== -1 || q.indexOf('/show/dashboard') !== -1 || h.indexOf('/show/dashboard') !== -1) {
+            return true;
+        }
+        // Treat SimpleMDM report pages as interactive grid contexts as well.
+        if (p.indexOf('/show/report/simplemdm') !== -1 || q.indexOf('/show/report/simplemdm') !== -1 || h.indexOf('/show/report/simplemdm') !== -1) {
             return true;
         }
         if (document.getElementById('dashboard')) {
@@ -886,13 +915,19 @@ body.simplemdm-theme-dark #simplemdm-dashboard-grid > .simplemdm-dashboard-item 
     var simplemdmGridMetrics = { cols: 1, colWidth: 0, gap: 18 };
     var activeDrag = null;
     var activeResize = null;
+    var activeDragAutoScrollRaf = null;
     var selectedWidgetKey = '';
     var simplemdmStateSaveTimer = null;
+    var simplemdmWidgetVisibilityCache = null;
+    var simplemdmWidgetVisibilityRequest = null;
     var SIMPLEMDM_SMALL_WIDGET_MIN_HEIGHT = 300;
 
     function isFeaturedWidgetKey(key) {
         var k = String(key || '').toLowerCase().trim();
-        return k === 'simplemdm_resource_types' || k === 'simplemdm_group_top' || k === 'simplemdm_group';
+        return k === 'simplemdm_resource_types'
+            || k === 'simplemdm_group_top'
+            || k === 'simplemdm_group'
+            || k === 'simplemdm_devices_table';
     }
 
     function getDashboardLayoutStorageKey() {
@@ -1014,6 +1049,93 @@ body.simplemdm-theme-dark #simplemdm-dashboard-grid > .simplemdm-dashboard-item 
             return '';
         }
         return String(item.getAttribute('data-simplemdm-key') || item.id || '').trim();
+    }
+
+    function normalizeSimplemdmWidgetKey(key) {
+        var k = String(key || '').toLowerCase().trim();
+        k = k.replace(/^widget[-_]/, '');
+        k = k.replace(/^simplemdm-widget-/, '');
+        k = k.replace(/-widget$/, '');
+        k = k.replace(/_widget$/, '');
+        return k;
+    }
+
+    function fetchSimplemdmWidgetVisibility() {
+        if (simplemdmWidgetVisibilityCache) {
+            return Promise.resolve(simplemdmWidgetVisibilityCache);
+        }
+        if (simplemdmWidgetVisibilityRequest) {
+            return simplemdmWidgetVisibilityRequest;
+        }
+        if (!window.jQuery || !window.jQuery.getJSON || typeof appUrl === 'undefined') {
+            simplemdmWidgetVisibilityCache = {};
+            return Promise.resolve(simplemdmWidgetVisibilityCache);
+        }
+
+        simplemdmWidgetVisibilityRequest = new Promise(function(resolve) {
+            window.jQuery.getJSON(appUrl + '/module/simplemdm/get_config', function(cfg) {
+                var out = {};
+                if (cfg && typeof cfg === 'object') {
+                    var keys = Object.keys(cfg);
+                    for (var i = 0; i < keys.length; i++) {
+                        var k = String(keys[i] || '');
+                        if (k.indexOf('widget_') !== 0) {
+                            continue;
+                        }
+                        var widgetKey = normalizeSimplemdmWidgetKey(k.substring(7));
+                        out[widgetKey] = String(cfg[k]) !== '0';
+                    }
+                }
+                simplemdmWidgetVisibilityCache = out;
+                simplemdmWidgetVisibilityRequest = null;
+                resolve(out);
+            }).fail(function() {
+                simplemdmWidgetVisibilityCache = {};
+                simplemdmWidgetVisibilityRequest = null;
+                resolve(simplemdmWidgetVisibilityCache);
+            });
+        });
+
+        return simplemdmWidgetVisibilityRequest;
+    }
+
+    function getRootWidgetKey(root) {
+        if (!root) {
+            return '';
+        }
+        var key = normalizeSimplemdmWidgetKey(getDashboardWidgetKey(root));
+        if (key) {
+            return key;
+        }
+        var heading = root.querySelector ? root.querySelector('.panel-heading[data-widget]') : null;
+        if (heading) {
+            key = normalizeSimplemdmWidgetKey(heading.getAttribute('data-widget'));
+            if (key) {
+                return key;
+            }
+        }
+        return '';
+    }
+
+    function applySimplemdmWidgetVisibility() {
+        return fetchSimplemdmWidgetVisibility().then(function(map) {
+            var roots = document.querySelectorAll('#simplemdm-dashboard-grid > .simplemdm-dashboard-item, #simplemdm-report-grid > [id^="simplemdm-widget-"]');
+            for (var i = 0; i < roots.length; i++) {
+                var root = roots[i];
+                var key = getRootWidgetKey(root);
+                if (!key) {
+                    continue;
+                }
+                var enabled = !Object.prototype.hasOwnProperty.call(map, key) || map[key] !== false;
+                if (enabled) {
+                    root.classList.remove('simplemdm-widget-hidden');
+                    root.style.display = '';
+                } else {
+                    root.classList.add('simplemdm-widget-hidden');
+                    root.style.display = 'none';
+                }
+            }
+        });
     }
 
     function getDashboardWidgetOrder(container) {
@@ -1391,6 +1513,27 @@ body.simplemdm-theme-dark #simplemdm-dashboard-grid > .simplemdm-dashboard-item 
         return target;
     }
 
+    function shouldSwapWithTarget(target, clientX, clientY) {
+        if (!target) {
+            return false;
+        }
+        var rect = target.getBoundingClientRect();
+        if (!rect || rect.width <= 0 || rect.height <= 0) {
+            return false;
+        }
+
+        // Swap only when dropped near center of target.
+        // Drops near edges favor insertion/reorder for flexible placement.
+        var centerBandX = Math.max(24, rect.width * 0.28);
+        var centerBandY = Math.max(24, rect.height * 0.28);
+        var left = rect.left + centerBandX;
+        var right = rect.right - centerBandX;
+        var top = rect.top + centerBandY;
+        var bottom = rect.bottom - centerBandY;
+
+        return clientX >= left && clientX <= right && clientY >= top && clientY <= bottom;
+    }
+
     function getDropInsertionIndex(container, draggingKey, clientX, clientY) {
         if (!container) {
             return -1;
@@ -1610,6 +1753,88 @@ body.simplemdm-theme-dark #simplemdm-dashboard-grid > .simplemdm-dashboard-item 
         }
         document.documentElement.setAttribute('data-simplemdm-interactions-bound', '1');
 
+        function autoScrollDuringDrag(clientY) {
+            var edge = 120;
+            var maxStep = 40;
+            var vh = window.innerHeight || (document.documentElement ? document.documentElement.clientHeight : 0) || 0;
+            if (vh <= 0) {
+                return 0;
+            }
+
+            var delta = 0;
+            if (clientY < edge) {
+                var ratioUp = (edge - clientY) / edge;
+                delta = -Math.max(8, Math.round(maxStep * ratioUp));
+            } else if (clientY > (vh - edge)) {
+                var ratioDown = (clientY - (vh - edge)) / edge;
+                delta = Math.max(8, Math.round(maxStep * ratioDown));
+            }
+
+            if (!delta) {
+                return 0;
+            }
+
+            var scrollTop = window.pageYOffset || (document.documentElement ? document.documentElement.scrollTop : 0) || 0;
+            var scrollHeight = document.documentElement ? document.documentElement.scrollHeight : 0;
+            var maxScroll = Math.max(0, scrollHeight - vh);
+
+            if ((delta < 0 && scrollTop <= 0) || (delta > 0 && scrollTop >= maxScroll)) {
+                return 0;
+            }
+
+            window.scrollBy(0, delta);
+            return delta;
+        }
+
+        function stopDragAutoScrollLoop() {
+            if (activeDragAutoScrollRaf === null) {
+                return;
+            }
+            if (window.cancelAnimationFrame) {
+                window.cancelAnimationFrame(activeDragAutoScrollRaf);
+            } else {
+                clearTimeout(activeDragAutoScrollRaf);
+            }
+            activeDragAutoScrollRaf = null;
+        }
+
+        function runDragAutoScrollLoop() {
+            if (!activeDrag) {
+                stopDragAutoScrollLoop();
+                return;
+            }
+            var y = (typeof activeDrag.lastY === 'number') ? activeDrag.lastY : 0;
+            var scrolled = autoScrollDuringDrag(y);
+            if (scrolled !== 0) {
+                if (typeof layoutSimplemdmDashboardGrid === 'function') {
+                    layoutSimplemdmDashboardGrid();
+                }
+                var container = document.getElementById('simplemdm-dashboard-grid');
+                var target = getHoveredDropTarget(container, activeDrag.item, activeDrag.lastX, activeDrag.lastY);
+                clearDropTargets(container);
+                activeDrag.target = target;
+                if (target) {
+                    target.classList.add('simplemdm-drop-target');
+                }
+            }
+            if (window.requestAnimationFrame) {
+                activeDragAutoScrollRaf = window.requestAnimationFrame(runDragAutoScrollLoop);
+            } else {
+                activeDragAutoScrollRaf = setTimeout(runDragAutoScrollLoop, 16);
+            }
+        }
+
+        function startDragAutoScrollLoop() {
+            if (activeDragAutoScrollRaf !== null) {
+                return;
+            }
+            if (window.requestAnimationFrame) {
+                activeDragAutoScrollRaf = window.requestAnimationFrame(runDragAutoScrollLoop);
+            } else {
+                activeDragAutoScrollRaf = setTimeout(runDragAutoScrollLoop, 16);
+            }
+        }
+
         document.addEventListener('mousedown', function(e) {
             if (!isDashboardGridEnabled()) {
                 return;
@@ -1654,6 +1879,7 @@ body.simplemdm-theme-dark #simplemdm-dashboard-grid > .simplemdm-dashboard-item 
             };
             item.classList.add('simplemdm-is-dragging');
             item.style.pointerEvents = 'none';
+            startDragAutoScrollLoop();
             return;
         });
 
@@ -1755,15 +1981,24 @@ body.simplemdm-theme-dark #simplemdm-dashboard-grid > .simplemdm-dashboard-item 
             if (!activeDrag) {
                 return;
             }
+            stopDragAutoScrollLoop();
             var container = document.getElementById('simplemdm-dashboard-grid');
             activeDrag.item.style.transform = '';
             activeDrag.item.style.pointerEvents = '';
             activeDrag.item.classList.remove('simplemdm-is-dragging');
+            var forceTopInsertion = false;
+            if (container && typeof activeDrag.lastY === 'number') {
+                var crect = container.getBoundingClientRect();
+                forceTopInsertion = activeDrag.lastY <= (crect.top + 42);
+            }
             var finalTarget = activeDrag.target;
-            if (!finalTarget && typeof activeDrag.lastX === 'number' && typeof activeDrag.lastY === 'number') {
+            if (!forceTopInsertion && !finalTarget && typeof activeDrag.lastX === 'number' && typeof activeDrag.lastY === 'number') {
                 finalTarget = resolveDropTarget(container, activeDrag.item, activeDrag.lastX, activeDrag.lastY);
             }
-            if (finalTarget) {
+            if (forceTopInsertion) {
+                moveDashboardWidgetToIndex(activeDrag.key, 0, 0, 0);
+                window.simplemdmReflowDashboardGrid();
+            } else if (finalTarget && shouldSwapWithTarget(finalTarget, activeDrag.lastX, activeDrag.lastY)) {
                 var targetKey = getDashboardWidgetKey(finalTarget);
                 swapDashboardWidgets(activeDrag.key, targetKey);
                 window.simplemdmReflowDashboardGrid();
@@ -2139,9 +2374,6 @@ function resizeChartsForMode(mode) {
         if (!isDashboardGridEnabled()) {
             return;
         }
-        if (document.getElementById('simplemdm-report-grid')) {
-            return;
-        }
 
         function normalizeWidgetKey(key) {
             var k = String(key || '').toLowerCase().trim();
@@ -2154,21 +2386,21 @@ function resizeChartsForMode(mode) {
 
         var explicitOrder = {
             simplemdm_resource_types: 1,
-            simplemdm_group_top: 2,
-            simplemdm_group: 3,
-            simplemdm_enrollment: 20,
-            simplemdm_dep: 30,
-            simplemdm_filevault: 40,
-            simplemdm_supervised: 50,
-            simplemdm_device_listing: 60,
-            simplemdm_resources_listing: 70,
-            simplemdm_trend: 110,
-            simplemdm_os_security: 120,
-            simplemdm_group_top_stats: 130,
-            simplemdm_resource_mix: 140,
-            simplemdm_command_status: 150,
-            simplemdm_compliance: 160,
-            simplemdm_sync_health: 170
+            simplemdm_group: 2,
+            simplemdm_devices_table: 3,
+            simplemdm_group_top: 10,
+            simplemdm_trend: 20,
+            simplemdm_os_security: 30,
+            simplemdm_resource_mix: 40,
+            simplemdm_command_status: 50,
+            simplemdm_compliance: 60,
+            simplemdm_sync_health: 70,
+            simplemdm_device_listing: 80,
+            simplemdm_resources_listing: 90,
+            simplemdm_enrollment: 100,
+            simplemdm_dep: 110,
+            simplemdm_filevault: 120,
+            simplemdm_supervised: 130
         };
 
         function getWidgetKey(root) {
@@ -2225,7 +2457,7 @@ function resizeChartsForMode(mode) {
         var seen = {};
         for (var i = 0; i < widgets.length; i++) {
             var w = widgets[i];
-            if (w.closest('#simplemdm-report-grid') || w.closest('#simplemdm-dashboard-grid')) {
+            if (w.closest('#simplemdm-dashboard-grid')) {
                 continue;
             }
 
@@ -2331,9 +2563,6 @@ function resizeChartsForMode(mode) {
             return;
         }
         if (activeDrag) {
-            return;
-        }
-        if (document.getElementById('simplemdm-report-grid')) {
             return;
         }
         var container = document.getElementById('simplemdm-dashboard-grid');
@@ -2547,12 +2776,22 @@ function resizeChartsForMode(mode) {
         var activeThemeName = detectBootswatchThemeName();
         applyThemeAccentTokens(activeThemeName, nextTheme);
         applyThemeSurfaceTokens(nextTheme);
+
+        // Report page can opt into dashboard-like interactive grid behavior.
+        if (isSimplemdmReportPage() && isDashboardGridEnabled()) {
+            b.classList.add('simplemdm-report-interactive');
+        } else {
+            b.classList.remove('simplemdm-report-interactive');
+        }
+
         collectSimplemdmDashboardWidgets();
+        applySimplemdmWidgetVisibility().then(function() {
+            scheduleDashboardGridLayout(0);
+            scheduleDashboardGridLayout(350);
+            scheduleDashboardGridLayout(900);
+        });
         ensureDashboardResetControl();
         resizeChartsForMode(nextLayout);
-        scheduleDashboardGridLayout(0);
-        scheduleDashboardGridLayout(350);
-        scheduleDashboardGridLayout(900);
 
         if (window.dispatchEvent) {
             if (typeof Event === 'function') {

@@ -1,4 +1,23 @@
 <?php include_once __DIR__ . '/simplemdm_widget_modern_assets.php'; ?>
+<style>
+#simplemdm-group-widget .simplemdm-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+#simplemdm-group-widget .simplemdm-section-title {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+#simplemdm-group-widget .simplemdm-section-toggle {
+    margin-left: auto;
+    flex: 0 0 auto;
+}
+</style>
 
 <div class="col-lg-12">
     <div class="panel panel-default simplemdm-modern-widget" id="simplemdm-group-widget">

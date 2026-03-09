@@ -193,6 +193,29 @@
     overflow-x: auto;
 }
 
+.simplemdm-source-badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 800;
+    border: 1px solid var(--simplemdm-border);
+    white-space: nowrap;
+}
+
+.simplemdm-source-direct {
+    color: #c7f5d2;
+    background: rgba(47, 158, 68, 0.18);
+    border-color: rgba(47, 158, 68, 0.35);
+}
+
+.simplemdm-source-derived {
+    color: #ffe0b2;
+    background: rgba(245, 159, 0, 0.18);
+    border-color: rgba(245, 159, 0, 0.35);
+}
+
 @media (max-width: 1200px) {
     .simplemdm-kpi-grid {
         grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
@@ -534,25 +557,26 @@ $(document).on('appReady', function() {
         $summary
             .append('<span class="simplemdm-device-chip"><strong>Installed Apps:</strong>&nbsp;' + esc(apps.length) + '</span>')
             .append('<span class="simplemdm-device-chip"><strong>Users:</strong>&nbsp;' + esc(users.length) + '</span>')
-            .append('<span class="simplemdm-device-chip"><strong>Profiles:</strong>&nbsp;' + esc(profiles.length) + '</span>');
+            .append('<span class="simplemdm-device-chip"><strong>Profiles:</strong>&nbsp;' + esc(profiles.length) + '</span>')
+            .append('<span class="simplemdm-source-badge simplemdm-source-direct">Direct per-device</span>');
 
         var appRows = apps.map(function(item) {
             var a = item.attributes || {};
-            return '<tr><td>' + esc(item.name || '-') + '</td><td>' + esc(a.identifier || '-') + '</td><td>' + esc(a.short_version || a.version || '-') + '</td><td>' + esc(a.managed === true || a.managed === 1 ? 'Yes' : (a.managed === false || a.managed === 0 ? 'No' : '-')) + '</td></tr>';
+            return '<tr><td>' + esc(item.name || '-') + '</td><td>' + esc(a.identifier || '-') + '</td><td>' + esc(a.short_version || a.version || '-') + '</td><td>' + esc(a.managed === true || a.managed === 1 ? 'Yes' : (a.managed === false || a.managed === 0 ? 'No' : '-')) + '</td><td><span class="simplemdm-source-badge simplemdm-source-direct">Direct per-device</span></td></tr>';
         });
-        $sections.append(createSectionHtml('sub_apps', 'Installed Apps (' + apps.length + ')', renderSimpleTable(['Name', 'Identifier', 'Version', 'Managed'], appRows), false));
+        $sections.append(createSectionHtml('sub_apps', 'Installed Apps (' + apps.length + ')', renderSimpleTable(['Name', 'Identifier', 'Version', 'Managed', 'Source'], appRows), false));
 
         var userRows = users.map(function(item) {
             var a = item.attributes || {};
-            return '<tr><td>' + esc(a.username || item.name || '-') + '</td><td>' + esc(a.full_name || '-') + '</td><td>' + esc(a.uid || '-') + '</td><td>' + esc(a.logged_in === true || a.logged_in === 1 ? 'Yes' : (a.logged_in === false || a.logged_in === 0 ? 'No' : '-')) + '</td></tr>';
+            return '<tr><td>' + esc(a.username || item.name || '-') + '</td><td>' + esc(a.full_name || '-') + '</td><td>' + esc(a.uid || '-') + '</td><td>' + esc(a.logged_in === true || a.logged_in === 1 ? 'Yes' : (a.logged_in === false || a.logged_in === 0 ? 'No' : '-')) + '</td><td><span class="simplemdm-source-badge simplemdm-source-direct">Direct per-device</span></td></tr>';
         });
-        $sections.append(createSectionHtml('sub_users', 'Users (' + users.length + ')', renderSimpleTable(['Username', 'Full Name', 'UID', 'Logged In'], userRows), false));
+        $sections.append(createSectionHtml('sub_users', 'Users (' + users.length + ')', renderSimpleTable(['Username', 'Full Name', 'UID', 'Logged In', 'Source'], userRows), false));
 
         var profileRows = profiles.map(function(item) {
             var a = item.attributes || {};
-            return '<tr><td>' + esc(item.name || a.name || '-') + '</td><td>' + esc(a.profile_identifier || '-') + '</td><td>' + esc(item.type || '-') + '</td></tr>';
+            return '<tr><td>' + esc(item.name || a.name || '-') + '</td><td>' + esc(a.profile_identifier || '-') + '</td><td>' + esc(item.type || '-') + '</td><td><span class="simplemdm-source-badge simplemdm-source-direct">Direct per-device</span></td></tr>';
         });
-        $sections.append(createSectionHtml('sub_profiles', 'Profiles (' + profiles.length + ')', renderSimpleTable(['Name', 'Identifier', 'Type'], profileRows), false));
+        $sections.append(createSectionHtml('sub_profiles', 'Profiles (' + profiles.length + ')', renderSimpleTable(['Name', 'Identifier', 'Type', 'Source'], profileRows), false));
     }
 
     var actionDefinitions = [
@@ -660,6 +684,8 @@ $(document).on('appReady', function() {
         }
 
         $summary.append('<span class="simplemdm-device-chip"><strong>Total:</strong>&nbsp;' + esc(connections.length) + '</span>');
+        $summary.append('<span class="simplemdm-source-badge simplemdm-source-direct">Direct per-device</span>');
+        $summary.append('<span class="simplemdm-source-badge simplemdm-source-derived">Derived relationship</span>');
         summary.forEach(function(item) {
             $summary.append(
                 '<a class="simplemdm-device-chip" href="' + resourcesListingUrl('type=' + encodeURIComponent(item.type)) + '">' +
@@ -684,11 +710,18 @@ $(document).on('appReady', function() {
                 var name = item.name || '-';
                 var reason = item.reason || '-';
                 var endpoint = item.endpoint || '-';
+                var sourceClass = 'simplemdm-source-derived';
+                var sourceLabel = 'Derived relationship';
+                if (/^devices\/\d+\/(profiles|installed_apps|users)(\/|$)/.test(String(endpoint))) {
+                    sourceClass = 'simplemdm-source-direct';
+                    sourceLabel = 'Direct per-device';
+                }
                 var itemUrl = resourcesListingUrl('type=' + encodeURIComponent(type) + '&resource_id=' + encodeURIComponent(id));
                 rows += '' +
                     '<tr>' +
                         '<td><a href="' + itemUrl + '">' + esc(name) + '</a></td>' +
                         '<td style="width:140px;"><a href="' + itemUrl + '">' + esc(id) + '</a></td>' +
+                        '<td style="width:170px;"><span class="simplemdm-source-badge ' + sourceClass + '">' + esc(sourceLabel) + '</span></td>' +
                         '<td style="width:220px;">' + esc(toTitle(reason)) + '</td>' +
                         '<td style="width:280px;"><a href="' + resourcesListingUrl('endpoint=' + encodeURIComponent(endpoint)) + '"><code>' + esc(endpoint) + '</code></a></td>' +
                     '</tr>';
@@ -701,6 +734,7 @@ $(document).on('appReady', function() {
                             '<tr>' +
                                 '<th>Name</th>' +
                                 '<th style="width:140px;">ID</th>' +
+                                '<th style="width:170px;">Source</th>' +
                                 '<th style="width:220px;">Match</th>' +
                                 '<th style="width:280px;">Endpoint</th>' +
                             '</tr>' +

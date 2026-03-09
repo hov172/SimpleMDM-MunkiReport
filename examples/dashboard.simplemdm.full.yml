@@ -5,15 +5,18 @@ hotkey: "m"
 # This keeps the template in-module for sharing/documentation.
 
 -
-  simplemdm_trend: {}
+  simplemdm_resource_types: {}
 
 -
-  simplemdm_os_security: {}
+  simplemdm_devices_table: {}
+
+-
   simplemdm_group_top: {}
 
 -
+  simplemdm_trend: {}
+  simplemdm_os_security: {}
   simplemdm_resource_mix: {}
-  simplemdm_resource_types: {}
 
 -
   simplemdm_command_status: {}

@@ -195,39 +195,21 @@ docker compose version
 git --version
 ```
 
-One-shot bootstrap (fresh or existing MunkiReport checkout):
-
-```bash
-if [ -d munkireport-php/.git ]; then
-  :
-elif [ -e munkireport-php ]; then
-  echo "ERROR: ./munkireport-php exists but is not a MunkiReport git checkout. Rename or remove it first." >&2
-  exit 1
-else
-  git clone https://github.com/munkireport/munkireport-php.git munkireport-php || exit 1
-fi
-cd munkireport-php || exit 1
-cp -n .env.example .env
-cp -n docker-compose.yml.example docker-compose.yml
-mkdir -p local/modules
-if [ ! -d local/modules/simplemdm/.git ]; then
-  git clone https://github.com/hov172/SimpleMDM-MunkiReport local/modules/simplemdm || exit 1
-fi
-if grep -q '^MODULES=' .env; then
-  perl -i.bak -pe 's/^MODULES=.*/MODULES="munkireport,managedinstalls,disk_report,simplemdm"/' .env
-else
-  echo 'MODULES="munkireport,managedinstalls,disk_report,simplemdm"' >> .env
-fi
-docker compose up -d --build
-docker compose exec munkireport php please migrate
-```
+Use the step-by-step commands below. Avoid chaining this setup into a single `&&`/`||` one-liner, because a pre-existing invalid `munkireport-php` folder can cause later commands to run in the wrong directory.
 
 These steps assume the standard MunkiReport compose setup where the service name is `munkireport` and the app is exposed on port `8888`.
 
 1. Clone MunkiReport and enter the repo:
 
 ```bash
-git clone https://github.com/munkireport/munkireport-php.git
+if [ -d munkireport-php/.git ]; then
+  echo "Using existing MunkiReport checkout"
+elif [ -e munkireport-php ]; then
+  echo "ERROR: ./munkireport-php exists but is not a MunkiReport git checkout. Rename or remove it first." >&2
+  exit 1
+else
+  git clone https://github.com/munkireport/munkireport-php.git munkireport-php
+fi
 cd munkireport-php
 ```
 
@@ -249,7 +231,9 @@ cp docker-compose.yml.example docker-compose.yml
 
 ```bash
 mkdir -p local/modules
-git clone https://github.com/hov172/SimpleMDM-MunkiReport local/modules/simplemdm
+if [ ! -d local/modules/simplemdm/.git ]; then
+  git clone https://github.com/hov172/SimpleMDM-MunkiReport local/modules/simplemdm
+fi
 ```
 
 5. Enable `simplemdm` before starting containers:

@@ -356,6 +356,13 @@ Typical use cases:
 ![SimpleMDM Device Listing](docs/images/device-listing.png)
 ![SimpleMDM API Resources Listing](docs/images/api-resources-listing.png)
 
+### Additional UI Screenshots
+
+![Dashboard Overview - Part 1](docs/images/dashboard-overview-part1.png)
+![Dashboard Overview - Part 2](docs/images/dashboard-overview-part2.png)
+![Device Actions Runner](docs/images/device-actions-runner.png)
+![Device Custom Attributes](docs/images/device-custom-attributes.png)
+
 UI modernization scope:
 - Module pages now use the same modern theme tokens/components as SimpleMDM widgets:
   - `module/simplemdm/admin`

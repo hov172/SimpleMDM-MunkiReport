@@ -195,6 +195,14 @@ docker compose version
 git --version
 ```
 
+Additional host requirement for SimpleMDM data sync:
+
+```bash
+python3 --version
+```
+
+`python3` is required for the host-side `simplemdm_sync.py` runs shown later in this section. It is not required just to clone the repos and start the Docker containers.
+
 Use the step-by-step commands below. Avoid chaining this setup into a single `&&`/`||` one-liner, because a pre-existing invalid `munkireport-php` folder can cause later commands to run in the wrong directory.
 
 These steps assume the standard MunkiReport compose setup where the service name is `munkireport` and the app is exposed on port `8888`.

@@ -24,6 +24,7 @@ Developer docs:
 ## Table of Contents
 
 - [Key Points](#key-points)
+- [Developer Guide](docs/DEVELOPER_GUIDE.md)
 - [Quick Start (5 Minutes)](#quick-start-5-minutes)
 - [From Scratch Setup (Hosted + Docker)](#from-scratch-setup-hosted--docker)
 - [Hosted / VM Setup](#a-hosted--vm-munkireport-non-docker)

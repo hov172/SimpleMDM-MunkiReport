@@ -198,15 +198,22 @@ git --version
 One-shot bootstrap (fresh or existing MunkiReport checkout):
 
 ```bash
-[ -d munkireport-php/.git ] || git clone https://github.com/munkireport/munkireport-php.git && \
-cd munkireport-php && \
-cp -n .env.example .env && \
-cp -n docker-compose.yml.example docker-compose.yml && \
-mkdir -p local/modules && \
-[ -d local/modules/simplemdm/.git ] || git clone https://github.com/hov172/SimpleMDM-MunkiReport local/modules/simplemdm && \
-perl -i.bak -pe 's/^MODULES=.*/MODULES="munkireport,managedinstalls,disk_report,simplemdm"/' .env && \
-grep -q '^MODULES=' .env || echo 'MODULES="munkireport,managedinstalls,disk_report,simplemdm"' >> .env && \
-docker compose up -d --build && \
+if [ ! -d munkireport-php/.git ]; then
+  git clone https://github.com/munkireport/munkireport-php.git munkireport-php || exit 1
+fi
+cd munkireport-php || exit 1
+cp -n .env.example .env
+cp -n docker-compose.yml.example docker-compose.yml
+mkdir -p local/modules
+if [ ! -d local/modules/simplemdm/.git ]; then
+  git clone https://github.com/hov172/SimpleMDM-MunkiReport local/modules/simplemdm || exit 1
+fi
+if grep -q '^MODULES=' .env; then
+  perl -i.bak -pe 's/^MODULES=.*/MODULES="munkireport,managedinstalls,disk_report,simplemdm"/' .env
+else
+  echo 'MODULES="munkireport,managedinstalls,disk_report,simplemdm"' >> .env
+fi
+docker compose up -d --build
 docker compose exec munkireport php please migrate
 ```
 

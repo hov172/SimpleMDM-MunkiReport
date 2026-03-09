@@ -166,6 +166,17 @@ if (is_readable($provides_path)) {
                                 Enable command status sync
                             </label>
                         </div>
+                        <div class="checkbox">
+                            <label>
+                                <input type="checkbox" id="sync_device_subresources_enabled" name="sync_device_subresources_enabled" value="1">
+                                Enable deep per-device subresource sync (profiles/apps/users)
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label for="device_subresource_limit">Per-device deep sync limit</label>
+                            <input type="number" min="0" step="1" class="form-control" id="device_subresource_limit" name="device_subresource_limit" placeholder="0 = all devices">
+                            <p class="help-block">Set `0` for all devices, or cap the number of devices to reduce API load.</p>
+                        </div>
                         <button type="submit" class="btn btn-primary">Save Advanced Settings</button>
                         <span id="advanced-save-status" style="margin-left: 10px;"></span>
                     </form>
@@ -196,6 +207,8 @@ $(document).on('appReady', function() {
         $('#compliance_min_os').val(data.compliance_min_os || '');
         $('#sync_delta_enabled').prop('checked', String(data.sync_delta_enabled || '0') === '1');
         $('#sync_commands_enabled').prop('checked', String(data.sync_commands_enabled || '0') === '1');
+        $('#sync_device_subresources_enabled').prop('checked', String(data.sync_device_subresources_enabled || '0') === '1');
+        $('#device_subresource_limit').val(String(data.device_subresource_limit || '0'));
     });
 
     // Handle form submission
@@ -253,7 +266,9 @@ $(document).on('appReady', function() {
             webhook_secret: $('#webhook_secret').val() || '',
             compliance_min_os: $('#compliance_min_os').val() || '',
             sync_delta_enabled: $('#sync_delta_enabled').is(':checked') ? '1' : '0',
-            sync_commands_enabled: $('#sync_commands_enabled').is(':checked') ? '1' : '0'
+            sync_commands_enabled: $('#sync_commands_enabled').is(':checked') ? '1' : '0',
+            sync_device_subresources_enabled: $('#sync_device_subresources_enabled').is(':checked') ? '1' : '0',
+            device_subresource_limit: String($('#device_subresource_limit').val() || '0')
         };
 
         $.post(appUrl + '/module/simplemdm/save_config', payload, function(data) {

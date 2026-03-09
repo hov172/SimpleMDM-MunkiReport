@@ -77,6 +77,160 @@ class Simplemdm_controller extends Module_controller
     }
 
     /**
+     * Ensure current user has global admin authorization.
+     *
+     * @return bool
+     **/
+    private function require_global_authorized()
+    {
+        if (! $this->authorized('global')) {
+            jsonView(['status' => 'error', 'message' => 'Unauthorized'], 401);
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Proxy an HTTP request to SimpleMDM API.
+     *
+     * @param string $endpoint API endpoint relative to /api/v1
+     * @param string $method HTTP method
+     * @param array $query query parameters
+     * @param string $body request body
+     * @param string $content_type request content type
+     * @return array
+     **/
+    private function simplemdm_api_proxy_request($endpoint, $method = 'GET', $query = [], $body = '', $content_type = '')
+    {
+        $api_key = $this->get_stored_api_key();
+        if ($api_key === '') {
+            return ['ok' => false, 'status' => 400, 'body' => json_encode(['status' => 'error', 'message' => 'SimpleMDM API key is not configured'])];
+        }
+
+        $base = 'https://a.simplemdm.com/api/v1/';
+        $endpoint = ltrim((string)$endpoint, '/');
+        $url = $base . $endpoint;
+        if (is_array($query) && ! empty($query)) {
+            $qs = http_build_query($query);
+            if ($qs !== '') {
+                $url .= (strpos($url, '?') !== false ? '&' : '?') . $qs;
+            }
+        }
+
+        $method = strtoupper(trim((string)$method));
+        if ($method === '') {
+            $method = 'GET';
+        }
+
+        $headers = [
+            'Accept: application/json',
+            'Authorization: Basic ' . base64_encode($api_key . ':'),
+        ];
+        if ($content_type !== '') {
+            $headers[] = 'Content-Type: ' . $content_type;
+        }
+
+        $opts = [
+            'http' => [
+                'method' => $method,
+                'ignore_errors' => true,
+                'timeout' => 45,
+                'header' => implode("\r\n", $headers),
+            ],
+        ];
+        if ($body !== '' && ! in_array($method, ['GET', 'HEAD'], true)) {
+            $opts['http']['content'] = $body;
+        }
+
+        $context = stream_context_create($opts);
+        $response = @file_get_contents($url, false, $context);
+
+        $status = 500;
+        $response_headers = isset($http_response_header) && is_array($http_response_header) ? $http_response_header : [];
+        foreach ($response_headers as $line) {
+            if (preg_match('#^HTTP/\S+\s+(\d{3})#i', (string)$line, $m)) {
+                $status = (int)$m[1];
+                break;
+            }
+        }
+
+        if ($response === false) {
+            $response = '';
+        }
+
+        return [
+            'ok' => $status >= 200 && $status < 300,
+            'status' => $status,
+            'body' => $response,
+            'headers' => $response_headers,
+        ];
+    }
+
+    /**
+     * Return whitelist rules for /devices passthrough.
+     *
+     * @return array
+     **/
+    private function simplemdm_device_passthrough_rules()
+    {
+        return [
+            '' => ['GET', 'POST'],
+            ':id' => ['GET', 'PATCH', 'DELETE'],
+            'profiles' => ['GET'],
+            'installed_apps' => ['GET'],
+            'users' => ['GET'],
+            'users/:id' => ['DELETE'],
+            'push_apps' => ['POST'],
+            'refresh' => ['POST'],
+            'restart' => ['POST'],
+            'shutdown' => ['POST'],
+            'lock' => ['POST'],
+            'clear_passcode' => ['POST'],
+            'clear_firmware_password' => ['POST'],
+            'rotate_firmware_password' => ['POST'],
+            'clear_recovery_lock_password' => ['POST'],
+            'clear_restrictions_password' => ['POST'],
+            'rotate_recovery_lock_password' => ['POST'],
+            'rotate_filevault_key' => ['POST'],
+            'set_admin_password' => ['POST'],
+            'rotate_admin_password' => ['POST'],
+            'wipe' => ['POST'],
+            'update_os' => ['POST'],
+            'remote_desktop' => ['POST', 'DELETE'],
+            'bluetooth' => ['POST', 'DELETE'],
+            'set_time_zone' => ['POST'],
+            'unenroll' => ['POST'],
+        ];
+    }
+
+    /**
+     * Build allowed method list for a /devices request pattern.
+     *
+     * @param string $device_id
+     * @param string $subpath
+     * @param string $subpath_id
+     * @return array
+     **/
+    private function simplemdm_allowed_methods_for_device_path($device_id, $subpath, $subpath_id)
+    {
+        $rules = $this->simplemdm_device_passthrough_rules();
+        $device_id = trim((string)$device_id);
+        $subpath = trim((string)$subpath);
+        $subpath_id = trim((string)$subpath_id);
+
+        if ($device_id === '') {
+            return isset($rules['']) ? $rules[''] : [];
+        }
+        if ($subpath === '') {
+            return isset($rules[':id']) ? $rules[':id'] : [];
+        }
+        if ($subpath === 'users' && $subpath_id !== '') {
+            return isset($rules['users/:id']) ? $rules['users/:id'] : [];
+        }
+        return isset($rules[$subpath]) ? $rules[$subpath] : [];
+    }
+
+    /**
      * Default method
      *
      **/
@@ -266,6 +420,8 @@ class Simplemdm_controller extends Module_controller
             'compliance_min_os',
             'sync_delta_enabled',
             'sync_commands_enabled',
+            'sync_device_subresources_enabled',
+            'device_subresource_limit',
             'last_sync_cursor',
             'sync_last_duration_ms',
             'sync_last_api_requests',
@@ -277,8 +433,19 @@ class Simplemdm_controller extends Module_controller
         foreach ($config_keys as $key) {
             if (array_key_exists($key, $post)) {
                 $value = (string)$post[$key];
-                if ($key === 'sync_delta_enabled' || $key === 'sync_last_delta_mode') {
+                if (
+                    $key === 'sync_delta_enabled'
+                    || $key === 'sync_last_delta_mode'
+                    || $key === 'sync_commands_enabled'
+                    || $key === 'sync_device_subresources_enabled'
+                ) {
                     $value = $value === '1' ? '1' : '0';
+                } elseif ($key === 'device_subresource_limit') {
+                    $v = (int)$value;
+                    if ($v < 0) {
+                        $v = 0;
+                    }
+                    $value = (string)$v;
                 }
                 Simplemdm_config_model::updateOrCreate(
                     ['name' => $key],
@@ -1776,6 +1943,106 @@ class Simplemdm_controller extends Module_controller
 
         jsonView($rows);
     }
+
+    /**
+     * Authenticated passthrough for SimpleMDM /devices endpoints and actions.
+     *
+     * Examples:
+     * - GET    /module/simplemdm/api_devices
+     * - GET    /module/simplemdm/api_devices/{id}
+     * - POST   /module/simplemdm/api_devices/{id}/restart
+     * - DELETE /module/simplemdm/api_devices/{id}/users/{user_id}
+     *
+     * @param string $device_id
+     * @param string $subpath
+     * @param string $subpath_id
+     * @return void
+     **/
+    public function api_devices($device_id = '', $subpath = '', $subpath_id = '')
+    {
+        $this->connectDB();
+        if (! $this->require_global_authorized()) {
+            return;
+        }
+
+        $method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper((string)$_SERVER['REQUEST_METHOD']) : 'GET';
+        $allowed = $this->simplemdm_allowed_methods_for_device_path($device_id, $subpath, $subpath_id);
+        if (empty($allowed) || ! in_array($method, $allowed, true)) {
+            jsonView(
+                [
+                    'status' => 'error',
+                    'message' => 'Method/path not allowed for device passthrough',
+                    'allowed_methods' => array_values($allowed),
+                ],
+                405
+            );
+            return;
+        }
+
+        $endpoint = 'devices';
+        $device_id = trim((string)$device_id);
+        $subpath = trim((string)$subpath);
+        $subpath_id = trim((string)$subpath_id);
+
+        if ($device_id !== '') {
+            $endpoint .= '/' . rawurlencode($device_id);
+        }
+        if ($subpath !== '') {
+            $endpoint .= '/' . rawurlencode($subpath);
+        }
+        if ($subpath_id !== '') {
+            $endpoint .= '/' . rawurlencode($subpath_id);
+        }
+
+        $query = $_GET;
+        unset($query['op']);
+
+        $input = file_get_contents('php://input');
+        if ($input === false) {
+            $input = '';
+        }
+
+        $content_type = '';
+        if (isset($_SERVER['CONTENT_TYPE'])) {
+            $content_type = trim((string)$_SERVER['CONTENT_TYPE']);
+        } elseif (isset($_SERVER['HTTP_CONTENT_TYPE'])) {
+            $content_type = trim((string)$_SERVER['HTTP_CONTENT_TYPE']);
+        }
+        if ($content_type !== '' && strpos($content_type, ';') !== false) {
+            $content_type = trim((string)explode(';', $content_type, 2)[0]);
+        }
+
+        if ($input === '' && ! empty($_POST) && $method !== 'GET') {
+            $input = http_build_query($_POST);
+            if ($content_type === '') {
+                $content_type = 'application/x-www-form-urlencoded';
+            }
+        }
+
+        $res = $this->simplemdm_api_proxy_request($endpoint, $method, $query, $input, $content_type);
+
+        http_response_code((int)$res['status']);
+        header('Content-Type: application/json');
+
+        $body = isset($res['body']) ? (string)$res['body'] : '';
+        if ($body === '' || (int)$res['status'] === 204) {
+            echo json_encode(['status' => $res['ok'] ? 'success' : 'error', 'http_status' => (int)$res['status']]);
+            return;
+        }
+
+        $decoded = json_decode($body, true);
+        if (is_array($decoded)) {
+            echo $body;
+            return;
+        }
+
+        echo json_encode([
+            'status' => $res['ok'] ? 'success' : 'error',
+            'http_status' => (int)$res['status'],
+            'raw' => $body,
+        ]);
+    }
+
     /**
      * Trigger a sync for a specific device.
      *

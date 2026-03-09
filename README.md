@@ -225,6 +225,8 @@ python3 /path/to/munkireport/local/modules/simplemdm/scripts/simplemdm_sync.py \
 - `--last-sync-cursor`: override cursor used for delta sync
 - `--sync-commands`: fetch/submit command status records
 - `--commands-limit N`: cap command fetch count
+- `--sync-device-subresources`: fetch `devices/{id}/profiles`, `devices/{id}/installed_apps`, and `devices/{id}/users`
+- `--device-subresource-limit N`: cap deep per-device subresource fetch (0 = all)
 
 ### Auto-config behavior
 
@@ -235,6 +237,9 @@ Sync mode decisions:
 - If admin toggle `sync_delta_enabled=1`, script uses delta mode for scheduled/default runs.
 - Manual `--sync-commands` enables commands even if admin toggle is off.
 - If admin toggle `sync_commands_enabled=1`, script includes commands for scheduled/default runs.
+- Manual `--sync-device-subresources` enables per-device subresource sync even if admin toggle is off.
+- If admin toggle `sync_device_subresources_enabled=1`, script includes per-device subresources for scheduled/default runs.
+- If `device_subresource_limit` is set in admin config, script applies it unless CLI overrides it.
 
 Telemetry written back on sync status updates:
 - API request count
@@ -254,6 +259,12 @@ Example with delta + commands:
 
 ```bash
 python3 .../simplemdm_sync.py --api-key 'KEY' --munkireport-url 'https://mr' --delta --sync-commands --commands-limit 250
+```
+
+Example with per-device subresources:
+
+```bash
+python3 .../simplemdm_sync.py --api-key 'KEY' --munkireport-url 'https://mr' --sync-device-subresources --device-subresource-limit 200
 ```
 
 ### Scheduling
@@ -277,7 +288,8 @@ Example cron (delta frequent + deep nightly):
 ```cron
 */15 * * * * /usr/bin/python3 /path/to/.../simplemdm_sync.py --api-key 'KEY' --munkireport-url 'https://mr' --delta --max-parent-resources 25 >> /var/log/simplemdm_sync.log 2>&1
 15 2 * * * /usr/bin/python3 /path/to/.../simplemdm_sync.py --api-key 'KEY' --munkireport-url 'https://mr' --sync-commands --commands-limit 500 >> /var/log/simplemdm_sync_commands.log 2>&1
-0 3 * * * /usr/bin/python3 /path/to/.../simplemdm_sync.py --api-key 'KEY' --munkireport-url 'https://mr' >> /var/log/simplemdm_sync_deep.log 2>&1
+0 3 * * * /usr/bin/python3 /path/to/.../simplemdm_sync.py --api-key 'KEY' --munkireport-url 'https://mr' --sync-device-subresources --device-subresource-limit 500 >> /var/log/simplemdm_sync_device_subresources.log 2>&1
+30 3 * * * /usr/bin/python3 /path/to/.../simplemdm_sync.py --api-key 'KEY' --munkireport-url 'https://mr' >> /var/log/simplemdm_sync_deep.log 2>&1
 ```
 
 ## Widgets

@@ -121,6 +121,17 @@ def get_config():
         help='Fetch and submit command status records'
     )
     parser.add_argument(
+        '--sync-device-subresources',
+        action='store_true',
+        help='Fetch per-device subresources (profiles, installed_apps, users)'
+    )
+    parser.add_argument(
+        '--device-subresource-limit',
+        type=int,
+        default=0,
+        help='Limit per-device deep sync to first N devices (0 = all)'
+    )
+    parser.add_argument(
         '--commands-limit',
         type=int,
         default=250,
@@ -151,6 +162,14 @@ def get_config():
                     args.last_sync_cursor = str(config_data.get('last_sync_cursor', '') or '')
                 if not args.sync_commands and str(config_data.get('sync_commands_enabled', '0')) == '1':
                     args.sync_commands = True
+                if not args.sync_device_subresources and str(config_data.get('sync_device_subresources_enabled', '0')) == '1':
+                    args.sync_device_subresources = True
+                if args.device_subresource_limit == 0:
+                    try:
+                        cfg_limit = int(config_data.get('device_subresource_limit', '0') or 0)
+                        args.device_subresource_limit = max(0, cfg_limit)
+                    except Exception:
+                        args.device_subresource_limit = 0
                 if args.api_key:
                     logger.info('Successfully retrieved API key from MunkiReport.')
         except Exception as e:
@@ -845,6 +864,33 @@ def main():
                     continue
 
                 nested_supported = True
+                for item in items:
+                    transformed = transform_resource(item, nested_endpoint)
+                    if transformed:
+                        resource_records.append(transformed)
+
+    # Optional deep sync for per-device child resources.
+    if config.sync_device_subresources:
+        device_children = ['profiles', 'installed_apps', 'users']
+        device_source = records
+        if config.device_subresource_limit > 0:
+            device_source = device_source[:config.device_subresource_limit]
+
+        logger.info(
+            f"Deep syncing device subresources for {len(device_source)} devices "
+            f"({', '.join(device_children)})"
+        )
+
+        for device in device_source:
+            device_id = device.get('simplemdm_id')
+            if device_id in (None, ''):
+                continue
+            for child in device_children:
+                nested_endpoint = f'devices/{device_id}/{child}'
+                items, unavailable = fetch_all_resources(nested_endpoint, config.api_key, since_cursor)
+                if unavailable:
+                    logger.debug(f"Nested endpoint not available: devices/{{id}}/{child}")
+                    continue
                 for item in items:
                     transformed = transform_resource(item, nested_endpoint)
                     if transformed:

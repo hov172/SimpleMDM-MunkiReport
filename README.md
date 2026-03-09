@@ -85,6 +85,7 @@ Assumptions:
 Path behavior:
 - Commands below are written to work from any folder.
 - After you `cd` into the MunkiReport repo, use relative paths so you do not need to hardcode full filesystem paths.
+- For Docker, run `docker compose` commands from the MunkiReport repo root (where `docker-compose.yml` lives).
 - Exception: cron entries should use an absolute script path.
 
 Choose one path:
@@ -92,6 +93,9 @@ Choose one path:
 2. Docker Compose
 
 ### A) Hosted / VM MunkiReport (non-Docker)
+
+Important working directory:
+- Run commands in this section from the MunkiReport repo root (the directory containing `.env`, `app/`, and `local/`), not from `local/modules/simplemdm`.
 
 One-shot bootstrap (clone + module clone + deps + migrate):
 
@@ -170,6 +174,15 @@ Use the printed path in crontab:
 ```
 
 ### B) Docker MunkiReport (docker compose)
+
+Important working directory:
+- Run `docker compose` commands from the MunkiReport repo root (the directory containing `docker-compose.yml`), not from `local/modules/simplemdm`.
+- Preferred pattern:
+
+```bash
+cd ~/your-preferred-folder/munkireport-php
+docker compose up -d --build
+```
 
 One-shot bootstrap (clone + module clone + build/start + migrate):
 

@@ -53,6 +53,11 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
 ## 4) Docker Smoke Test
 
 Run from MunkiReport root.
+If you are not in repo root, switch first:
+
+```bash
+cd ~/your-preferred-folder/munkireport-php
+```
 
 1. Ensure containers up:
 

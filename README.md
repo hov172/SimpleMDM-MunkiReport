@@ -9,6 +9,7 @@ This module syncs devices and API resources from SimpleMDM server-side, stores t
 - No MunkiReport core patch required.
 - Sync auth and routing are handled inside this module.
 - Supports API-key protected ingest routes and optional webhook secret protected route.
+- Supports role + action-secret protected device API passthrough routes (`api_devices`).
 - Supports deep API resource sync (apps/profiles/groups/etc. where available).
 - Provides device-level connected resource mapping.
 - Supports dashboard add/remove widgets for all SimpleMDM widgets, including per-resource-type widgets.
@@ -17,6 +18,29 @@ This module syncs devices and API resources from SimpleMDM server-side, stores t
 - Modern widget UI assets are loaded inline from `views/simplemdm_widget_modern_assets.php` (no separate module CSS/JS build step required).
 - Optional delta-sync, command-status sync, and sync telemetry reporting are built into the sync script + module.
 
+## Quick Start (5 Minutes)
+
+1. Install and migrate:
+   - Copy module to `local/modules/simplemdm`
+   - Add `simplemdm` to `MODULES` in `.env`
+   - Run `php /path/to/munkireport/please migrate`
+2. Configure API/auth:
+   - Open `Admin -> SimpleMDM Settings`
+   - Save `api_key`
+   - (Recommended) set `webhook_secret` and `action_api_secret`
+3. Configure sync behavior (recommended defaults):
+   - Enable `enable_scheduled_sync`
+   - Set `sync_interval_minutes` to `15`
+   - Enable `sync_delta_enabled`
+   - Enable `sync_device_subresources_enabled`
+   - Set `device_subresource_limit` to `100` (test) or `0` (all devices)
+4. Add schedule runner (cron):
+   - `* * * * * /usr/bin/python3 /path/to/.../simplemdm_sync.py --munkireport-url 'https://mr' --respect-schedule --max-parent-resources 25 >> /var/log/simplemdm_sync.log 2>&1`
+5. Verify:
+   - `reports/simplemdm` renders widgets
+   - `show/listing/simplemdm/simplemdm` has devices
+   - `module/simplemdm/device/{serial}` shows attributes, connected resources, subresources, and actions
+
 ## What This Module Does
 
 SimpleMDM module is used to:
@@ -24,6 +48,8 @@ SimpleMDM module is used to:
 - Pull SimpleMDM device inventory into MunkiReport for centralized visibility.
 - Pull SimpleMDM resource objects (apps, profiles, groups, scripts, and related objects) for reporting.
 - Show connected resources per device so admins can see which profiles/apps/groups are tied to endpoints.
+- Show synced per-device subresource tables (installed apps, users, profiles) on device detail pages.
+- Provide a device action runner UI on device detail pages with action-secret enforcement.
 - Provide dashboard widgets for enrollment, DEP, supervision, FileVault, resource mix, command status, compliance, and sync health.
 - Track historical trends with snapshots and per-device history for change over time.
 - Ingest webhooks for near-real-time updates and maintain event audit records.
@@ -116,9 +142,14 @@ php /path/to/munkireport/please migrate
 3. Optional: toggle report widgets on/off in the same admin page.
 4. Optional: in Advanced Sync & Compliance, set:
    - `webhook_secret`
+   - `action_api_secret`
    - `compliance_min_os`
+   - `enable_scheduled_sync`
+   - `sync_interval_minutes`
    - `sync_delta_enabled`
    - `sync_commands_enabled`
+   - `sync_device_subresources_enabled`
+   - `device_subresource_limit`
 
 Current admin scope:
 - Admin currently manages API/auth, widget visibility, and advanced sync/compliance settings.
@@ -130,20 +161,32 @@ Current admin scope:
 - `webhook_secret`
   - Shared secret used by the webhook ingest route.
   - If set, webhook senders should include `X-SIMPLEMDM-WEBHOOK-SECRET: <secret>`.
+- `action_api_secret`
+  - Shared secret required for mutating device passthrough calls (`POST/PATCH/DELETE/PUT`).
+  - Pass via header: `X-SIMPLEMDM-ACTION-SECRET: <secret>`.
 - `compliance_min_os`
   - Minimum OS baseline used by compliance calculations.
   - Format should be dotted versions, for example `14.4` or `15.1.2`.
+- `enable_scheduled_sync`
+  - Master enable/disable for schedule-gated sync runs.
+- `sync_interval_minutes`
+  - Schedule cadence in minutes (minimum `1`).
 - `sync_delta_enabled`
   - Enables cursor/delta attempt in the sync script.
   - If endpoint does not support delta parameters, script falls back to full for that scope.
 - `sync_commands_enabled`
   - Enables command status sync during regular sync runs.
   - Can still be overridden manually by running script with `--sync-commands`.
+- `sync_device_subresources_enabled`
+  - Enables per-device deep subresource sync (`profiles`, `installed_apps`, `users`) during regular sync runs.
+- `device_subresource_limit`
+  - Caps per-device deep subresource sync scope (`0` means all devices).
 
 Security behavior:
 - `api_key` is only returned by `get_config` for global admins.
 - Non-global callers receive `api_key_set` only.
 - `webhook_secret` is not returned to non-global callers; only `webhook_secret_set` flag is exposed.
+- `action_api_secret` is not returned to non-global callers; only `action_api_secret_set` flag is exposed.
 
 ## Connect New Features (End-to-End)
 
@@ -206,6 +249,16 @@ Fallback auth option:
    - `module/simplemdm/get_compliance_stats`
    - `module/simplemdm/get_sync_telemetry`
 
+### 6) Device Action Passthrough Connection
+
+1. In admin advanced settings, set `action_api_secret`.
+2. Open a device detail page (`module/simplemdm/device/{serial}`).
+3. In `Device Actions`, enter the same secret and run a safe action first (recommended: `refresh`).
+4. Confirm success response in action output panel.
+5. For API-only usage, send header:
+   - `X-SIMPLEMDM-ACTION-SECRET: <action_api_secret>`
+   - to `module/simplemdm/api_devices/...` for mutating methods.
+
 ## Sync Script
 
 ### Run manually
@@ -227,6 +280,9 @@ python3 /path/to/munkireport/local/modules/simplemdm/scripts/simplemdm_sync.py \
 - `--commands-limit N`: cap command fetch count
 - `--sync-device-subresources`: fetch `devices/{id}/profiles`, `devices/{id}/installed_apps`, and `devices/{id}/users`
 - `--device-subresource-limit N`: cap deep per-device subresource fetch (0 = all)
+- `--respect-schedule`: honor admin schedule controls (`enable_scheduled_sync` + `sync_interval_minutes`)
+- `--force-run`: bypass `--respect-schedule` gate and run immediately
+- `--sync-interval-minutes N`: override schedule interval for this run (`0` uses admin config value)
 
 ### Auto-config behavior
 
@@ -240,6 +296,9 @@ Sync mode decisions:
 - Manual `--sync-device-subresources` enables per-device subresource sync even if admin toggle is off.
 - If admin toggle `sync_device_subresources_enabled=1`, script includes per-device subresources for scheduled/default runs.
 - If `device_subresource_limit` is set in admin config, script applies it unless CLI overrides it.
+- `--respect-schedule` only runs when admin schedule is enabled and due by interval.
+- `--force-run` overrides schedule gating.
+- Scheduling enable/disable is controlled by `enable_scheduled_sync`; interval controls cadence when enabled.
 
 Telemetry written back on sync status updates:
 - API request count
@@ -279,19 +338,9 @@ Example cron:
 * * * * * /usr/bin/python3 /path/to/.../simplemdm_sync.py --munkireport-url 'https://mr' --respect-schedule --max-parent-resources 25 >> /var/log/simplemdm_sync.log 2>&1
 ```
 
-Recommended production pattern:
-- Every 10-15 minutes: delta-enabled sync with moderate resource cap.
-- Once nightly: full deep sync with no cap.
-- Enable commands sync at least on the nightly run if command volume is high.
-
-Example cron (delta frequent + deep nightly):
-
-```cron
-*/15 * * * * /usr/bin/python3 /path/to/.../simplemdm_sync.py --api-key 'KEY' --munkireport-url 'https://mr' --delta --max-parent-resources 25 >> /var/log/simplemdm_sync.log 2>&1
-15 2 * * * /usr/bin/python3 /path/to/.../simplemdm_sync.py --api-key 'KEY' --munkireport-url 'https://mr' --sync-commands --commands-limit 500 >> /var/log/simplemdm_sync_commands.log 2>&1
-0 3 * * * /usr/bin/python3 /path/to/.../simplemdm_sync.py --api-key 'KEY' --munkireport-url 'https://mr' --sync-device-subresources --device-subresource-limit 500 >> /var/log/simplemdm_sync_device_subresources.log 2>&1
-30 3 * * * /usr/bin/python3 /path/to/.../simplemdm_sync.py --api-key 'KEY' --munkireport-url 'https://mr' >> /var/log/simplemdm_sync_deep.log 2>&1
-```
+Optional production additions:
+- Keep the schedule-gated runner above as your default.
+- Add explicit off-schedule deep jobs only if you want separate heavy windows (for example command backfill or larger per-device subresource sweeps).
 
 ## Widgets
 
@@ -304,6 +353,7 @@ Example cron (delta frequent + deep nightly):
 - `simplemdm_group`
 - `simplemdm_resource_types`
 - `simplemdm_device_listing`
+- `simplemdm_devices_table` (dashboard mini-table of devices with links to detail pages)
 - `simplemdm_resources_listing`
 - `simplemdm_trend` (historical trend line from sync snapshots)
 - `simplemdm_os_security` (stacked enrollment/supervision/FileVault by OS)
@@ -394,6 +444,10 @@ Resource/Group expand-collapse behavior:
   - `Assignment Group List` (`+ Expand` / `- Collapse`)
 - In collapsed mode, list/card areas are intentionally scrollable.
 - Collapsed section scrolling is handled by the section body (single scroll container) to avoid nested-scroll conflicts.
+- Collapsed toggles show hidden-count labels when applicable:
+  - `+ Expand (N more)` for Resource Cards
+  - `+ Expand (N more)` for Assignment Group List
+- Resource Cards collapsed state uses row-aligned height to avoid half-cut cards, plus fade/hint when more content is available.
 - In expanded mode, each area grows to full height and triggers dashboard reflow so lower widgets are pushed down.
 - Empty assignment group values are labeled as `No Assignment Group` in group stats.
 
@@ -466,6 +520,7 @@ Expected behavior:
 - `GET /index.php?/module/simplemdm/get_sync_telemetry`
 - `GET /index.php?/module/simplemdm/get_resource_type_stats`
 - `GET /index.php?/module/simplemdm/get_resource_type_count/{type}`
+- `GET /index.php?/module/simplemdm/get_device_subresources/{serial_number}`
 
 ### Device API passthrough endpoints
 
@@ -473,7 +528,7 @@ The module also exposes authenticated passthrough routes to the SimpleMDM device
 
 Auth requirement:
 - Global MunkiReport admin session (`authorized('global')`).
-- Mutating methods (`POST/PATCH/DELETE`) additionally require `X-SIMPLEMDM-ACTION-SECRET` matching `action_api_secret` in module admin settings.
+- Mutating methods (`POST/PATCH/DELETE/PUT`) additionally require `X-SIMPLEMDM-ACTION-SECRET` matching `action_api_secret` in module admin settings.
 
 Coverage:
 - Device CRUD/list:
@@ -587,6 +642,13 @@ Check browser console/network and confirm module route resolves:
 - Configure `webhook_secret` in module admin advanced settings.
 - Send header `X-SIMPLEMDM-WEBHOOK-SECRET: <secret>`.
 - Or use `X-SIMPLEMDM-API-KEY` with stored module API key.
+
+### Device action returns “Invalid or missing action secret”
+
+- Set `action_api_secret` in `Admin -> SimpleMDM Settings -> Advanced Sync & Compliance`.
+- For device detail action runner, ensure the same secret is entered in the `Action Secret` field.
+- For API calls, send header `X-SIMPLEMDM-ACTION-SECRET`.
+- Mutating methods (`POST/PATCH/DELETE/PUT`) require this secret even for global admins.
 
 ### Delta sync appears to do full sync
 

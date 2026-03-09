@@ -51,6 +51,7 @@ $(document).on('appReady', function(e, lang) {
     function applyListState() {
         var listBody = $('#simplemdm-group-list-body');
         var listGroup = listBody.find('.list-group');
+        var listItems = listGroup.children('.list-group-item');
         var toggleBtn = $(widgetId + ' .simplemdm-section-toggle[data-target="#simplemdm-group-list-body"]');
         if (!listBody.length || !toggleBtn.length) {
             return;
@@ -59,16 +60,32 @@ $(document).on('appReady', function(e, lang) {
         listBody.attr('data-collapsed', collapsedState ? '1' : '0');
         listBody.css({
             maxHeight: collapsedState ? '260px' : 'none',
+            height: collapsedState ? '260px' : 'auto',
             overflowY: collapsedState ? 'auto' : 'visible',
             overflowX: 'hidden',
             display: 'block'
         });
         listGroup.css({
-            maxHeight: collapsedState ? '260px' : 'none',
-            overflowY: collapsedState ? 'auto' : 'visible',
-            overflowX: 'hidden'
+            maxHeight: 'none',
+            overflowY: 'visible',
+            overflowX: 'visible'
         });
-        toggleBtn.html(collapsedState ? '<i class="fa fa-plus"></i> Expand' : '<i class="fa fa-minus"></i> Collapse');
+        if (collapsedState) {
+            var visibleHeight = listBody.innerHeight();
+            var visibleCount = 0;
+            listItems.each(function() {
+                var $item = $(this);
+                var bottom = Math.round($item.position().top + $item.outerHeight(true));
+                if (bottom <= visibleHeight + 1) {
+                    visibleCount++;
+                }
+            });
+            var hiddenCount = Math.max(0, listItems.length - visibleCount);
+            var expandLabel = hiddenCount > 0 ? ('Expand (' + hiddenCount + ' more)') : 'Expand';
+            toggleBtn.html('<i class="fa fa-plus"></i> ' + expandLabel);
+        } else {
+            toggleBtn.html('<i class="fa fa-minus"></i> Collapse');
+        }
     }
 
     $(widgetId).off('click.simplemdmGroupToggle', '.simplemdm-section-toggle[data-target="#simplemdm-group-list-body"]')

@@ -46,6 +46,8 @@ widgets:
         view: simplemdm_sync_health_widget
     simplemdm_device_listing:
         view: simplemdm_device_listing_widget
+    simplemdm_devices_table:
+        view: simplemdm_devices_table_widget
     simplemdm_resources_listing:
         view: simplemdm_resources_listing_widget
     simplemdm_rt_installed_app:

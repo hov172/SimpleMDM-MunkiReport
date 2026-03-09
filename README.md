@@ -184,6 +184,14 @@ cd ~/your-preferred-folder/munkireport-php
 docker compose up -d --build
 ```
 
+Compose file requirement:
+- `docker-compose.yml` belongs to the main MunkiReport repo, not this module repo.
+- If missing in your MunkiReport checkout, create it from the example:
+
+```bash
+cp docker-compose.yml.example docker-compose.yml
+```
+
 One-shot bootstrap (clone + module clone + build/start + migrate):
 
 ```bash

@@ -20,11 +20,19 @@ This module syncs devices and API resources from SimpleMDM server-side, stores t
 
 Developer docs:
 - See `docs/DEVELOPER_GUIDE.md` for architecture, code map, flow charts, and extension workflows.
+- Security: `docs/SECURITY.md`
+- Upgrade runbook: `docs/UPGRADE.md`
+- API routes/auth reference: `docs/API_REFERENCE.md`
+- Testing and QA: `docs/TESTING.md`
 
 ## Table of Contents
 
 - [Key Points](#key-points)
 - [Developer Guide](docs/DEVELOPER_GUIDE.md)
+- [Security Guide](docs/SECURITY.md)
+- [Upgrade Guide](docs/UPGRADE.md)
+- [API Reference](docs/API_REFERENCE.md)
+- [Testing Guide](docs/TESTING.md)
 - [Quick Start (5 Minutes)](#quick-start-5-minutes)
 - [From Scratch Setup (Hosted + Docker)](#from-scratch-setup-hosted--docker)
 - [Hosted / VM Setup](#a-hosted--vm-munkireport-non-docker)

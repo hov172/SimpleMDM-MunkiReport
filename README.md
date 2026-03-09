@@ -53,10 +53,10 @@ Developer docs:
 
 ## Quick Start (5 Minutes)
 
-1. Install and migrate:
+1. Install and migrate (from MunkiReport repo root):
    - Copy module to `local/modules/simplemdm`
    - Add `simplemdm` to `MODULES` in `.env`
-   - Run `php /path/to/munkireport/please migrate`
+   - Run `php please migrate`
 2. Configure API/auth:
    - Open `Admin -> SimpleMDM Settings`
    - Save `api_key`
@@ -68,7 +68,7 @@ Developer docs:
    - Enable `sync_device_subresources_enabled`
    - Set `device_subresource_limit` to `100` (test) or `0` (all devices)
 4. Add schedule runner (cron):
-   - `* * * * * /usr/bin/python3 /path/to/.../simplemdm_sync.py --munkireport-url 'https://mr' --respect-schedule --max-parent-resources 25 >> /var/log/simplemdm_sync.log 2>&1`
+   - `* * * * * /usr/bin/python3 <ABSOLUTE_MR_ROOT>/local/modules/simplemdm/scripts/simplemdm_sync.py --munkireport-url 'https://mr' --respect-schedule --max-parent-resources 25 >> /var/log/simplemdm_sync.log 2>&1`
 5. Verify:
    - `reports/simplemdm` renders widgets
    - `show/listing/simplemdm/simplemdm` has devices
@@ -97,15 +97,23 @@ Choose one path:
 Important working directory:
 - Run commands in this section from the MunkiReport repo root (the directory containing `.env`, `app/`, and `local/`), not from `local/modules/simplemdm`.
 
+Prerequisite check:
+
+```bash
+php -v
+composer --version
+python3 --version
+```
+
 One-shot bootstrap (clone + module clone + deps + migrate):
 
 ```bash
-cd ~/your-preferred-folder && \
 git clone https://github.com/munkireport/munkireport-php.git && \
 cd munkireport-php && \
 cp -n .env.example .env && \
 composer install && \
-git clone https://github.com/hov172/SimpleMDM-MunkiReport local/modules/simplemdm && \
+mkdir -p local/modules && \
+[ -d local/modules/simplemdm/.git ] || git clone https://github.com/hov172/SimpleMDM-MunkiReport local/modules/simplemdm && \
 php please migrate
 ```
 
@@ -120,12 +128,14 @@ composer install
    - Skip this step if you already ran the one-shot bootstrap above.
 
 ```bash
-git clone https://github.com/hov172/SimpleMDM-MunkiReport local/modules/simplemdm
+mkdir -p local/modules
+[ -d local/modules/simplemdm/.git ] || git clone https://github.com/hov172/SimpleMDM-MunkiReport local/modules/simplemdm
 ```
 
 3. Enable the module in `.env`:
    - Open `.env`
    - Ensure `MODULES=` contains `simplemdm` (comma-separated with your other modules)
+   - `cp -n .env.example .env` does not overwrite existing values; edit `.env` directly if needed.
 
 Example:
 
@@ -180,7 +190,7 @@ Important working directory:
 - Preferred pattern:
 
 ```bash
-cd ~/your-preferred-folder/munkireport-php
+cd "$(git rev-parse --show-toplevel)"
 docker compose up -d --build
 ```
 
@@ -192,14 +202,21 @@ Compose file requirement:
 cp docker-compose.yml.example docker-compose.yml
 ```
 
+Prerequisite check:
+
+```bash
+docker --version
+docker compose version
+```
+
 One-shot bootstrap (clone + module clone + build/start + migrate):
 
 ```bash
-cd ~/your-preferred-folder && \
 git clone https://github.com/munkireport/munkireport-php.git && \
 cd munkireport-php && \
 cp -n .env.example .env && \
-git clone https://github.com/hov172/SimpleMDM-MunkiReport local/modules/simplemdm && \
+mkdir -p local/modules && \
+[ -d local/modules/simplemdm/.git ] || git clone https://github.com/hov172/SimpleMDM-MunkiReport local/modules/simplemdm && \
 docker compose up -d --build && \
 docker compose exec munkireport php please migrate
 ```
@@ -216,7 +233,8 @@ cp -n .env.example .env
    - Skip this step if you already ran the one-shot bootstrap above.
 
 ```bash
-git clone https://github.com/hov172/SimpleMDM-MunkiReport local/modules/simplemdm
+mkdir -p local/modules
+[ -d local/modules/simplemdm/.git ] || git clone https://github.com/hov172/SimpleMDM-MunkiReport local/modules/simplemdm
 ```
 
 3. Ensure module is enabled for container runtime:

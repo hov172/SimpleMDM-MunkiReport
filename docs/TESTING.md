@@ -56,7 +56,7 @@ Run from MunkiReport root.
 If you are not in repo root, switch first:
 
 ```bash
-cd ~/your-preferred-folder/munkireport-php
+cd "$(git rev-parse --show-toplevel)"
 ```
 
 1. Ensure containers up:

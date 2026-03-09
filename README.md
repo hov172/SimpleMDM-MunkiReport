@@ -353,15 +353,10 @@ Typical use cases:
   - Links into filtered API resources listing.
 
 ![SimpleMDM Report Widgets](docs/images/dashboard-widgets.png)
-![SimpleMDM Device Listing](docs/images/device-listing.png)
-![SimpleMDM API Resources Listing](docs/images/api-resources-listing.png)
-
-### Additional UI Screenshots
-
 ![Dashboard Overview - Part 1](docs/images/dashboard-overview-part1.png)
 ![Dashboard Overview - Part 2](docs/images/dashboard-overview-part2.png)
-![Device Actions Runner](docs/images/device-actions-runner.png)
-![Device Custom Attributes](docs/images/device-custom-attributes.png)
+![SimpleMDM Device Listing](docs/images/device-listing.png)
+![SimpleMDM API Resources Listing](docs/images/api-resources-listing.png)
 
 UI modernization scope:
 - Module pages now use the same modern theme tokens/components as SimpleMDM widgets:
@@ -1028,6 +1023,7 @@ Main panels:
 `Relationships`
 - Direct render of `relationships_json` payload by key.
 - Designed for API-level inspection/troubleshooting, not only human-friendly labels.
+![Device Custom Attributes](docs/images/device-custom-attributes.png)
 
 `Connected Resources`
 - Normalized relationship graph view from `simplemdm_relationship_edge`.
@@ -1073,6 +1069,7 @@ Main panels:
   - clear_passcode
   - clear_firmware_password
   - rotate_firmware_password
+![Device Actions Runner](docs/images/device-actions-runner.png)
   - clear_recovery_lock_password
   - clear_restrictions_password
   - rotate_recovery_lock_password

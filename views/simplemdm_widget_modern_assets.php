@@ -2384,7 +2384,7 @@ function resizeChartsForMode(mode) {
             return k;
         }
 
-        var explicitOrder = {
+        var dashboardExplicitOrder = {
             simplemdm_resource_types: 1,
             simplemdm_group: 2,
             simplemdm_devices_table: 3,
@@ -2402,6 +2402,47 @@ function resizeChartsForMode(mode) {
             simplemdm_filevault: 120,
             simplemdm_supervised: 130
         };
+
+        var reportExplicitOrder = {
+            simplemdm_resource_types: 1,
+            simplemdm_group: 2,
+            simplemdm_devices_table: 3,
+            simplemdm_group_top: 10,
+            // Report-only compact ordering for smaller column widgets.
+            simplemdm_enrollment: 100,
+            simplemdm_dep: 110,
+            simplemdm_filevault: 120,
+            simplemdm_supervised: 130,
+            simplemdm_os_security: 140,
+            simplemdm_trend: 150,
+            simplemdm_resource_mix: 160,
+            simplemdm_compliance: 170,
+            simplemdm_sync_health: 180,
+            simplemdm_command_status: 190,
+            simplemdm_device_listing: 200,
+            simplemdm_resources_listing: 210,
+            simplemdm_rt_installed_app: 300,
+            simplemdm_rt_app: 310,
+            simplemdm_rt_assignment_group: 320,
+            simplemdm_rt_custom_configuration_profile: 330,
+            simplemdm_rt_device_group: 340,
+            simplemdm_rt_enrollment: 350,
+            simplemdm_rt_script: 360,
+            simplemdm_rt_restrictions: 370,
+            simplemdm_rt_privacy_preference: 380,
+            simplemdm_rt_software_update_policyformac_os: 390,
+            simplemdm_rt_home_screen_layout: 400,
+            simplemdm_rt_lock_screen_message: 410,
+            simplemdm_rt_managed_software_updates: 420,
+            simplemdm_rt_notification_settings: 430,
+            simplemdm_rt_disk_management_settings: 440,
+            simplemdm_rt_gatekeeper_policy: 450,
+            simplemdm_rt_kernel_extension_policy: 460,
+            simplemdm_rt_login_window: 470,
+            simplemdm_rt_system_extension_policy: 480,
+            simplemdm_rt_wallpaper: 490
+        };
+        var explicitOrder = isSimplemdmReportPage() ? reportExplicitOrder : dashboardExplicitOrder;
 
         function getWidgetKey(root) {
             if (!root) {

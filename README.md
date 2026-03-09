@@ -443,12 +443,16 @@ Interactive layout behavior (module-wide):
 - Custom dashboard widget order/size is persisted in browser `localStorage` per dashboard URL.
 - You can reset custom layout state from browser console with `window.simplemdmResetDashboardLayout()`.
 - A floating `Reset Layout` button is available on supported pages.
+- `Reset Layout` restores defaults for the current page context only:
+  - On `show/report/simplemdm/simplemdm`, it restores the report-specific default layout.
+  - On dashboard pages, it restores dashboard defaults.
 - Long list-heavy widgets automatically get internal list scrolling for readability and to avoid oversized columns.
 - Current featured full-width widgets (within the SimpleMDM widget set) are ordered as:
   - `simplemdm_resource_types`
   - `simplemdm_group`
   - `simplemdm_devices_table`
   - `simplemdm_group_top`
+- Report page default ordering keeps the full-width widgets above unchanged and applies a cleaner default sequence for small column widgets below them.
 
 Scope notes:
 - This behavior is module-only and applies to all users loading SimpleMDM widgets.
@@ -651,7 +655,7 @@ Check browser console/network and confirm module route resolves:
 - `Widget Visibility` controls whether a widget may render.
 - Dashboard/report pages only show widgets that exist in that page layout.
 - Confirm the widget is present in your active dashboard YAML (`local/dashboards/*.yml`) or on the SimpleMDM report page.
-- If needed, click `Reset Layout` to clear stale per-page localStorage layout state.
+- If needed, click `Reset Layout` to clear stale per-page localStorage layout state (report reset does not overwrite dashboard defaults, and dashboard reset does not overwrite report defaults).
 
 ### Command status widget is empty
 

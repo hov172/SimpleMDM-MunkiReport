@@ -105,10 +105,10 @@ composer --version
 python3 --version
 ```
 
-One-shot bootstrap (clone + module clone + deps + migrate):
+One-shot bootstrap (new or existing MunkiReport checkout + module clone + deps + migrate):
 
 ```bash
-git clone https://github.com/munkireport/munkireport-php.git && \
+[ -d munkireport-php/.git ] || git clone https://github.com/munkireport/munkireport-php.git && \
 cd munkireport-php && \
 cp -n .env.example .env && \
 composer install && \
@@ -209,12 +209,13 @@ docker --version
 docker compose version
 ```
 
-One-shot bootstrap (clone + module clone + build/start + migrate):
+One-shot bootstrap (new or existing MunkiReport checkout + module clone + build/start + migrate):
 
 ```bash
-git clone https://github.com/munkireport/munkireport-php.git && \
+[ -d munkireport-php/.git ] || git clone https://github.com/munkireport/munkireport-php.git && \
 cd munkireport-php && \
 cp -n .env.example .env && \
+cp -n docker-compose.yml.example docker-compose.yml && \
 mkdir -p local/modules && \
 [ -d local/modules/simplemdm/.git ] || git clone https://github.com/hov172/SimpleMDM-MunkiReport local/modules/simplemdm && \
 docker compose up -d --build && \

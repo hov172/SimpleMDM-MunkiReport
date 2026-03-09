@@ -347,6 +347,21 @@ Dashboard layout behavior (module-wide):
 - Widget width honors intended span:
   - Full-width for designated featured widgets.
   - Multi-column for regular widgets.
+- Click a widget to select it; selection reveals move/order controls and resize affordances.
+- Each widget can be minimized to title-only and expanded again from the header control.
+- Selected widgets can be moved by dragging the move handle in the widget header (drop over another widget to swap positions).
+- Dragging to empty dashboard space inserts the widget at that visual position (not swap-only).
+- Empty-space drops persist both column and vertical position so intentional blank gaps can be kept between widgets.
+- Selected widgets can be resized smaller or larger using edge handles:
+  - Right edge: width
+  - Bottom edge: height
+  - Bottom-right corner: width + height
+- Featured widgets (such as `simplemdm_group` and `simplemdm_resource_types`) are also resizable.
+- Non-featured widgets default to a uniform baseline footprint (single-column span + baseline min-height) while still expanding for larger content.
+- Fallback ordering controls are included in each widget header (`top`, `up`, `down`) for precise keyboard/mouse operation.
+- Custom dashboard widget order/size is persisted in browser `localStorage` per dashboard URL.
+- You can reset custom layout state from browser console with `window.simplemdmResetDashboardLayout()`.
+- A floating `Reset Layout` button is available on dashboard pages.
 - Long list-heavy widgets automatically get internal list scrolling for readability and to avoid oversized columns.
 - Current featured full-width widgets (within the SimpleMDM widget set) are ordered as:
   - `simplemdm_resource_types`
@@ -365,6 +380,7 @@ Resource/Group expand-collapse behavior:
   - `Top Groups Chart`
   - `Assignment Group List` (`+ Expand` / `- Collapse`)
 - In collapsed mode, list/card areas are intentionally scrollable.
+- Collapsed section scrolling is handled by the section body (single scroll container) to avoid nested-scroll conflicts.
 - In expanded mode, each area grows to full height and triggers dashboard reflow so lower widgets are pushed down.
 - Empty assignment group values are labeled as `No Assignment Group` in group stats.
 
@@ -437,6 +453,58 @@ Expected behavior:
 - `GET /index.php?/module/simplemdm/get_sync_telemetry`
 - `GET /index.php?/module/simplemdm/get_resource_type_stats`
 - `GET /index.php?/module/simplemdm/get_resource_type_count/{type}`
+
+### Device API passthrough endpoints
+
+The module also exposes authenticated passthrough routes to the SimpleMDM device API so admins can query and invoke device actions from MunkiReport without exposing the SimpleMDM API key to browsers/clients.
+
+Auth requirement:
+- Global MunkiReport admin session (`authorized('global')`).
+
+Coverage:
+- Device CRUD/list:
+  - `GET /index.php?/module/simplemdm/api_devices`
+  - `GET /index.php?/module/simplemdm/api_devices/{device_id}`
+  - `POST /index.php?/module/simplemdm/api_devices`
+  - `PATCH /index.php?/module/simplemdm/api_devices/{device_id}`
+  - `DELETE /index.php?/module/simplemdm/api_devices/{device_id}`
+- Device related lists:
+  - `GET /index.php?/module/simplemdm/api_devices/{device_id}/profiles`
+  - `GET /index.php?/module/simplemdm/api_devices/{device_id}/installed_apps`
+  - `GET /index.php?/module/simplemdm/api_devices/{device_id}/users`
+- Device user action:
+  - `DELETE /index.php?/module/simplemdm/api_devices/{device_id}/users/{user_id}`
+- Device actions:
+  - `POST /index.php?/module/simplemdm/api_devices/{device_id}/push_apps`
+  - `POST /index.php?/module/simplemdm/api_devices/{device_id}/refresh`
+  - `POST /index.php?/module/simplemdm/api_devices/{device_id}/restart`
+  - `POST /index.php?/module/simplemdm/api_devices/{device_id}/shutdown`
+  - `POST /index.php?/module/simplemdm/api_devices/{device_id}/lock`
+  - `POST /index.php?/module/simplemdm/api_devices/{device_id}/clear_passcode`
+  - `POST /index.php?/module/simplemdm/api_devices/{device_id}/clear_firmware_password`
+  - `POST /index.php?/module/simplemdm/api_devices/{device_id}/rotate_firmware_password`
+  - `POST /index.php?/module/simplemdm/api_devices/{device_id}/clear_recovery_lock_password`
+  - `POST /index.php?/module/simplemdm/api_devices/{device_id}/clear_restrictions_password`
+  - `POST /index.php?/module/simplemdm/api_devices/{device_id}/rotate_recovery_lock_password`
+  - `POST /index.php?/module/simplemdm/api_devices/{device_id}/rotate_filevault_key`
+  - `POST /index.php?/module/simplemdm/api_devices/{device_id}/set_admin_password`
+  - `POST /index.php?/module/simplemdm/api_devices/{device_id}/rotate_admin_password`
+  - `POST /index.php?/module/simplemdm/api_devices/{device_id}/wipe`
+  - `POST /index.php?/module/simplemdm/api_devices/{device_id}/update_os`
+  - `POST /index.php?/module/simplemdm/api_devices/{device_id}/remote_desktop` (enable)
+  - `DELETE /index.php?/module/simplemdm/api_devices/{device_id}/remote_desktop` (disable)
+  - `POST /index.php?/module/simplemdm/api_devices/{device_id}/bluetooth` (enable)
+  - `DELETE /index.php?/module/simplemdm/api_devices/{device_id}/bluetooth` (disable)
+  - `POST /index.php?/module/simplemdm/api_devices/{device_id}/set_time_zone`
+  - `POST /index.php?/module/simplemdm/api_devices/{device_id}/unenroll`
+
+Query/body passthrough:
+- Query parameters and request body are passed through to SimpleMDM.
+- JSON and `application/x-www-form-urlencoded` payloads are supported.
+
+Notes:
+- The module continues storing a curated flat subset in `simplemdm` plus full raw device payload in `attributes_json` and `relationships_json`.
+- Per-device subresource sync (`devices/{id}/profiles`, `installed_apps`, `users`) can be enabled in sync script to persist these records in `simplemdm_resource`.
 
 ## Validation Checklist
 

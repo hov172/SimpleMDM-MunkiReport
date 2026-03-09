@@ -240,6 +240,17 @@ mkdir -p local/modules
 3. Ensure module is enabled for container runtime:
    - In `docker-compose.yml`, ensure `MODULES` includes `simplemdm`
    - Or set it in `.env` if your compose setup reads env substitutions
+   - Example `.env` command (replace existing `MODULES=` value):
+
+```bash
+perl -i.bak -pe 's/^MODULES=.*/MODULES="munkireport,managedinstalls,disk_report,simplemdm"/' .env
+```
+
+   - If `.env` does not have `MODULES=`, append it:
+
+```bash
+grep -q '^MODULES=' .env || echo 'MODULES="munkireport,managedinstalls,disk_report,simplemdm"' >> .env
+```
 
 Example `docker-compose.yml` environment line:
 

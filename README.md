@@ -41,6 +41,252 @@ This module syncs devices and API resources from SimpleMDM server-side, stores t
    - `show/listing/simplemdm/simplemdm` has devices
    - `module/simplemdm/device/{serial}` shows attributes, connected resources, subresources, and actions
 
+## From Scratch Setup (Hosted + Docker)
+
+Use this section when setting up the module on a brand new environment.
+
+Assumptions:
+- You have a valid SimpleMDM API key
+- You can run commands from your preferred working folder
+
+Path behavior:
+- Commands below are written to work from any folder.
+- After you `cd` into the MunkiReport repo, use relative paths so you do not need to hardcode full filesystem paths.
+- Exception: cron entries should use an absolute script path.
+
+Choose one path:
+1. Hosted/VM (non-Docker)
+2. Docker Compose
+
+### A) Hosted / VM MunkiReport (non-Docker)
+
+One-shot bootstrap (clone + module clone + deps + migrate):
+
+```bash
+cd ~/your-preferred-folder && \
+git clone https://github.com/munkireport/munkireport-php.git && \
+cd munkireport-php && \
+cp -n .env.example .env && \
+composer install && \
+git clone https://github.com/hov172/SimpleMDM-MunkiReport local/modules/simplemdm && \
+php please migrate
+```
+
+1. Prepare MunkiReport and dependencies (if not already running):
+
+```bash
+cp -n .env.example .env
+composer install
+```
+
+2. Install the module into MunkiReport local modules:
+   - Skip this step if you already ran the one-shot bootstrap above.
+
+```bash
+git clone https://github.com/hov172/SimpleMDM-MunkiReport local/modules/simplemdm
+```
+
+3. Enable the module in `.env`:
+   - Open `.env`
+   - Ensure `MODULES=` contains `simplemdm` (comma-separated with your other modules)
+
+Example:
+
+```env
+MODULES="munkireport,managedinstalls,disk_report,simplemdm"
+```
+
+4. Run database migrations:
+
+```bash
+php please migrate
+```
+
+5. Start MunkiReport with your normal local runtime (Apache/Nginx/PHP setup).
+
+6. Configure module settings in UI:
+   - Open `Admin -> SimpleMDM Settings`
+   - Save `api_key`
+   - Optional but recommended: configure `webhook_secret`, `action_api_secret`, and sync toggles
+
+7. Run a manual sync test:
+
+```bash
+python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
+  --api-key 'YOUR_SIMPLEMDM_API_KEY' \
+  --munkireport-url 'http://127.0.0.1' \
+  --verbose
+```
+
+8. Verify module data:
+   - `show/listing/simplemdm/simplemdm` shows devices
+   - `show/listing/simplemdm/simplemdm_resources` shows resources
+   - `reports/simplemdm` shows widgets
+
+9. Add schedule runner (recommended):
+
+```bash
+# Run from MunkiReport repo root to print your absolute path:
+pwd
+```
+
+Use the printed path in crontab:
+
+```bash
+* * * * * /usr/bin/python3 <ABSOLUTE_MR_ROOT>/local/modules/simplemdm/scripts/simplemdm_sync.py --munkireport-url 'http://127.0.0.1' --respect-schedule --max-parent-resources 25 >> /var/log/simplemdm_sync.log 2>&1
+```
+
+### B) Docker MunkiReport (docker compose)
+
+One-shot bootstrap (clone + module clone + build/start + migrate):
+
+```bash
+cd ~/your-preferred-folder && \
+git clone https://github.com/munkireport/munkireport-php.git && \
+cd munkireport-php && \
+cp -n .env.example .env && \
+git clone https://github.com/hov172/SimpleMDM-MunkiReport local/modules/simplemdm && \
+docker compose up -d --build && \
+docker compose exec munkireport php please migrate
+```
+
+These steps match the compose setup in the MunkiReport repo (`docker-compose.yml`) where service name is `munkireport` and app is exposed on port `8888`.
+
+1. Prepare MunkiReport compose environment:
+
+```bash
+cp -n .env.example .env
+```
+
+2. Install/copy module to host `local/modules` (mounted into container):
+   - Skip this step if you already ran the one-shot bootstrap above.
+
+```bash
+git clone https://github.com/hov172/SimpleMDM-MunkiReport local/modules/simplemdm
+```
+
+3. Ensure module is enabled for container runtime:
+   - In `docker-compose.yml`, ensure `MODULES` includes `simplemdm`
+   - Or set it in `.env` if your compose setup reads env substitutions
+
+Example `docker-compose.yml` environment line:
+
+```yaml
+- MODULES=munkireport,managedinstalls,disk_report,simplemdm
+```
+
+4. Build and start containers:
+
+```bash
+docker compose up -d --build
+```
+
+5. Run migrations inside container:
+
+```bash
+docker compose exec munkireport php please migrate
+```
+
+6. Open MunkiReport in browser:
+   - `http://localhost:8888`
+
+7. Configure module settings in UI:
+   - Open `Admin -> SimpleMDM Settings`
+   - Save `api_key`
+   - Optional but recommended: set `webhook_secret`, `action_api_secret`, and sync toggles
+
+8. Run a manual sync from host:
+
+```bash
+python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
+  --api-key 'YOUR_SIMPLEMDM_API_KEY' \
+  --munkireport-url 'http://localhost:8888' \
+  --verbose
+```
+
+9. Verify module data:
+   - `http://localhost:8888/show/listing/simplemdm/simplemdm`
+   - `http://localhost:8888/show/listing/simplemdm/simplemdm_resources`
+   - `http://localhost:8888/reports/simplemdm`
+
+10. Add schedule runner on host (recommended):
+
+```bash
+# Run from MunkiReport repo root to print your absolute path:
+pwd
+```
+
+Use the printed path in crontab:
+
+```bash
+* * * * * /usr/bin/python3 <ABSOLUTE_MR_ROOT>/local/modules/simplemdm/scripts/simplemdm_sync.py --munkireport-url 'http://localhost:8888' --respect-schedule --max-parent-resources 25 >> /var/log/simplemdm_sync.log 2>&1
+```
+
+### Common Validation Checklist
+
+1. `Admin -> SimpleMDM Settings` is visible in top nav under Admin.
+2. `last_sync_status` changes to `success` after manual sync.
+3. Device listing and resource listing are not empty.
+4. `reports/simplemdm` renders widgets without auth or API errors.
+
+### Troubleshooting First Run
+
+1. `git clone ... local/modules/simplemdm` fails with "destination path already exists":
+   - Cause: module folder already present.
+   - Fix:
+
+```bash
+cd local/modules/simplemdm
+git pull
+```
+
+2. `python3: command not found`:
+   - Cause: Python 3 is missing or not in PATH.
+   - Fix: install Python 3 and verify:
+
+```bash
+python3 --version
+```
+
+3. Manual sync fails with connection/refused/404 errors:
+   - Cause: wrong `--munkireport-url` or MunkiReport not running.
+   - Fix:
+     - Hosted/VM: verify your actual URL and use that in `--munkireport-url`.
+     - Docker example in this doc: use `http://localhost:8888`.
+     - Confirm app is reachable in browser before rerunning sync.
+
+4. Sync fails with unauthorized/forbidden:
+   - Cause: invalid SimpleMDM API key or auth mismatch.
+   - Fix:
+     - Save a valid API key in `Admin -> SimpleMDM Settings`.
+     - Re-run sync with `--api-key 'YOUR_SIMPLEMDM_API_KEY'` for explicit test.
+     - If MunkiReport API token auth is enabled in your environment, pass `--munkireport-token`.
+
+5. `Admin -> SimpleMDM Settings` is missing:
+   - Cause: module not enabled or metadata not reloaded.
+   - Fix:
+     - Confirm `.env` (or compose env) `MODULES` contains `simplemdm`.
+     - Run migrations again: `php please migrate`.
+     - Restart app/web container, then refresh browser.
+
+6. Docker migration command fails (`docker compose exec munkireport php please migrate`):
+   - Cause: service not started or different compose service name.
+   - Fix:
+
+```bash
+docker compose ps
+docker compose up -d --build
+```
+
+   - Then rerun migration using your actual service name if not `munkireport`.
+
+7. Cron runs but no new data appears:
+   - Cause: bad absolute path, environment mismatch, or schedule gate settings.
+   - Fix:
+     - Ensure cron command uses a real absolute path to `simplemdm_sync.py`.
+     - Test the same command manually in terminal first.
+     - If using `--respect-schedule`, confirm schedule toggles in `Admin -> SimpleMDM Settings` are enabled as expected.
+
 ## What This Module Does
 
 SimpleMDM module is used to:

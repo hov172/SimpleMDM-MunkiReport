@@ -258,34 +258,71 @@ Example `docker-compose.yml` environment line if compose is not reading `.env`:
 - MODULES=munkireport,managedinstalls,disk_report,simplemdm
 ```
 
-6. Verify compose resolves the expected module list:
+6. Set a non-empty database password in `docker-compose.yml` before first startup:
+   - The MunkiReport compose example may leave MariaDB passwords blank
+   - The `db` service needs a non-empty `MYSQL_ROOT_PASSWORD` or `MARIADB_ROOT_PASSWORD`
+   - The app service password and DB service user password must match
+
+Example:
+
+```yaml
+munkireport:
+  environment:
+    - CONNECTION_HOST=db
+    - CONNECTION_DATABASE=munkireport
+    - CONNECTION_USERNAME=munkireport
+    - CONNECTION_PASSWORD=change_me
+
+db:
+  environment:
+    - MYSQL_ROOT_PASSWORD=change_me_root
+    - MYSQL_DATABASE=munkireport
+    - MYSQL_USER=munkireport
+    - MYSQL_PASSWORD=change_me
+```
+
+Verify the file before startup:
+
+```bash
+grep -n "CONNECTION_PASSWORD\\|MYSQL_ROOT_PASSWORD\\|MYSQL_PASSWORD\\|MARIADB_ROOT_PASSWORD" docker-compose.yml
+```
+
+7. Verify compose resolves the expected module list:
 
 ```bash
 docker compose config | grep -n MODULES
 ```
 
-7. Build and start containers:
+8. Build and start containers:
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
 docker compose up -d --build
 ```
 
-8. Run migrations inside the app container:
+9. Confirm both containers are up:
+
+```bash
+docker compose ps
+```
+
+The `db` service must show `Up`, not `Restarting`.
+
+10. Run migrations inside the app container:
 
 ```bash
 docker compose exec munkireport php please migrate
 ```
 
-9. Open MunkiReport in the browser:
+11. Open MunkiReport in the browser:
    - `http://localhost:8888`
 
-10. Configure module settings in UI:
+12. Configure module settings in UI:
    - Open `Admin -> SimpleMDM Settings`
    - Save `api_key`
    - Optional but recommended: set `webhook_secret`, `action_api_secret`, and sync toggles
 
-8. Run a manual sync from host:
+13. Run a manual sync from host:
 
 ```bash
 python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
@@ -294,13 +331,13 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
   --verbose
 ```
 
-9. Verify module data:
+14. Verify module data:
    - `http://localhost:8888/show/listing/simplemdm/simplemdm`
    - `http://localhost:8888/show/listing/simplemdm/simplemdm_resources`
    - `http://localhost:8888/reports/simplemdm`
    - If the first URL returns data, module enablement is working in runtime.
 
-10. Add schedule runner on host (recommended):
+15. Add schedule runner on host (recommended):
 
 ```bash
 # Run from MunkiReport repo root to print your absolute path:

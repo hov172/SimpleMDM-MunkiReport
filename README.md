@@ -252,6 +252,14 @@ perl -i.bak -pe 's/^MODULES=.*/MODULES="munkireport,managedinstalls,disk_report,
 grep -q '^MODULES=' .env || echo 'MODULES="munkireport,managedinstalls,disk_report,simplemdm"' >> .env
 ```
 
+   - Verify compose resolves the expected value:
+
+```bash
+docker compose config | grep -n MODULES
+```
+
+   - If output still shows old/hardcoded modules, update `docker-compose.yml` directly.
+
 Example `docker-compose.yml` environment line:
 
 ```yaml
@@ -291,6 +299,7 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
    - `http://localhost:8888/show/listing/simplemdm/simplemdm`
    - `http://localhost:8888/show/listing/simplemdm/simplemdm_resources`
    - `http://localhost:8888/reports/simplemdm`
+   - If the first URL returns data, module enablement is working in runtime.
 
 10. Add schedule runner on host (recommended):
 

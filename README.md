@@ -187,15 +187,6 @@ Use the printed path in crontab:
 
 Use this sequence for a completely new Docker-based MunkiReport setup.
 
-Important working directory:
-- Run `docker compose` commands from the MunkiReport repo root (the directory containing `docker-compose.yml`), not from `local/modules/simplemdm`.
-- Preferred pattern after setup:
-
-```bash
-cd "$(git rev-parse --show-toplevel)"
-docker compose up -d --build
-```
-
 Prerequisite check:
 
 ```bash
@@ -227,6 +218,8 @@ These steps assume the standard MunkiReport compose setup where the service name
 git clone https://github.com/munkireport/munkireport-php.git
 cd munkireport-php
 ```
+
+After this point, run `docker compose` commands from the MunkiReport repo root (the directory containing `docker-compose.yml`), not from `local/modules/simplemdm`.
 
 2. Create the env file:
 
@@ -278,6 +271,7 @@ docker compose config | grep -n MODULES
 7. Build and start containers:
 
 ```bash
+cd "$(git rev-parse --show-toplevel)"
 docker compose up -d --build
 ```
 

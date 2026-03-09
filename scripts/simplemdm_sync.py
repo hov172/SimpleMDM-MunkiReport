@@ -150,7 +150,7 @@ def get_config():
     parser.add_argument(
         '--sync-interval-minutes',
         type=int,
-        default=0,
+        default=-1,
         help='Override schedule interval minutes when --respect-schedule is used (0 = use admin setting)'
     )
 

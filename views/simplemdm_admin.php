@@ -180,7 +180,7 @@ if (is_readable($provides_path)) {
                         <div class="form-group">
                             <label for="sync_interval_minutes">Scheduled sync interval (minutes)</label>
                             <input type="number" min="1" step="1" class="form-control" id="sync_interval_minutes" name="sync_interval_minutes" placeholder="15">
-                            <p class="help-block">Used when script runs with <code>--respect-schedule</code>.</p>
+                            <p class="help-block">Used when script runs with <code>--respect-schedule</code>. Scheduling is enabled/disabled by the checkbox above.</p>
                         </div>
                         <div class="checkbox">
                             <label>
@@ -215,6 +215,9 @@ $(document).on('appReady', function() {
         function isEnabled(v) {
             return v === undefined || v === null || String(v) !== '0';
         }
+        function pickValue(v, fallback) {
+            return (v === undefined || v === null || String(v) === '') ? String(fallback) : String(v);
+        }
         $('.simplemdm-widget-toggle').each(function() {
             var key = $(this).data('widget-key');
             $(this).prop('checked', isEnabled(data[key]));
@@ -225,9 +228,9 @@ $(document).on('appReady', function() {
         $('#sync_delta_enabled').prop('checked', String(data.sync_delta_enabled || '0') === '1');
         $('#sync_commands_enabled').prop('checked', String(data.sync_commands_enabled || '0') === '1');
         $('#enable_scheduled_sync').prop('checked', String(data.enable_scheduled_sync || '0') === '1');
-        $('#sync_interval_minutes').val(String(data.sync_interval_minutes || '15'));
+        $('#sync_interval_minutes').val(pickValue(data.sync_interval_minutes, '15'));
         $('#sync_device_subresources_enabled').prop('checked', String(data.sync_device_subresources_enabled || '0') === '1');
-        $('#device_subresource_limit').val(String(data.device_subresource_limit || '0'));
+        $('#device_subresource_limit').val(pickValue(data.device_subresource_limit, '0'));
     });
 
     // Handle form submission

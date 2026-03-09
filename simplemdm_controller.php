@@ -77,6 +77,108 @@ class Simplemdm_controller extends Module_controller
     }
 
     /**
+     * Validate the action secret used for mutating device passthrough routes.
+     *
+     * @param string $provided
+     * @return bool
+     **/
+    private function is_valid_action_secret($provided = '')
+    {
+        $provided = trim((string)$provided);
+        if ($provided === '') {
+            return false;
+        }
+        $setting = Simplemdm_config_model::where('name', 'action_api_secret')->first();
+        $stored = $setting ? trim((string)$setting->value) : '';
+        if ($stored === '') {
+            return false;
+        }
+        return hash_equals($stored, $provided);
+    }
+
+    /**
+     * Return action secret from request headers or payload.
+     *
+     * @param string $raw_input
+     * @param string $content_type
+     * @return string
+     **/
+    private function extract_action_secret_from_request($raw_input = '', $content_type = '')
+    {
+        $header_keys = [
+            'HTTP_X_SIMPLEMDM_ACTION_SECRET',
+            'HTTP_X_ACTION_SECRET',
+            'HTTP_X_SIMPLEMDM_API_ACTION_SECRET',
+        ];
+        foreach ($header_keys as $key) {
+            if (isset($_SERVER[$key]) && trim((string)$_SERVER[$key]) !== '') {
+                return trim((string)$_SERVER[$key]);
+            }
+        }
+
+        if (isset($_POST['action_secret']) && trim((string)$_POST['action_secret']) !== '') {
+            return trim((string)$_POST['action_secret']);
+        }
+        if (isset($_GET['action_secret']) && trim((string)$_GET['action_secret']) !== '') {
+            return trim((string)$_GET['action_secret']);
+        }
+
+        if (stripos((string)$content_type, 'application/json') !== false && trim((string)$raw_input) !== '') {
+            $decoded = json_decode((string)$raw_input, true);
+            if (is_array($decoded) && isset($decoded['action_secret']) && trim((string)$decoded['action_secret']) !== '') {
+                return trim((string)$decoded['action_secret']);
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * Remove action_secret from passthrough query/body before sending to SimpleMDM.
+     *
+     * @param array $query
+     * @param string $raw_input
+     * @param string $content_type
+     * @return array
+     **/
+    private function sanitize_passthrough_payload($query, $raw_input, $content_type)
+    {
+        if (! is_array($query)) {
+            $query = [];
+        }
+        unset($query['op'], $query['action_secret']);
+
+        $body = (string)$raw_input;
+        if (trim($body) === '') {
+            return [$query, $body, $content_type];
+        }
+
+        if (stripos((string)$content_type, 'application/json') !== false) {
+            $decoded = json_decode($body, true);
+            if (is_array($decoded) && array_key_exists('action_secret', $decoded)) {
+                unset($decoded['action_secret']);
+                $body = json_encode($decoded);
+            }
+            return [$query, $body, $content_type];
+        }
+
+        if (stripos((string)$content_type, 'application/x-www-form-urlencoded') !== false || strpos($body, '=') !== false) {
+            $parsed = [];
+            parse_str($body, $parsed);
+            if (is_array($parsed) && array_key_exists('action_secret', $parsed)) {
+                unset($parsed['action_secret']);
+                $body = http_build_query($parsed);
+            }
+            if ($content_type === '') {
+                $content_type = 'application/x-www-form-urlencoded';
+            }
+            return [$query, $body, $content_type];
+        }
+
+        return [$query, $body, $content_type];
+    }
+
+    /**
      * Ensure current user has global admin authorization.
      *
      * @return bool
@@ -385,6 +487,10 @@ class Simplemdm_controller extends Module_controller
                 $config['webhook_secret_set'] = trim((string)$setting->value) !== '' ? '1' : '0';
                 continue;
             }
+            if ($setting->name === 'action_api_secret' && ! $is_global) {
+                $config['action_api_secret_set'] = trim((string)$setting->value) !== '' ? '1' : '0';
+                continue;
+            }
             $config[$setting->name] = $setting->value;
         }
         jsonView($config);
@@ -417,6 +523,7 @@ class Simplemdm_controller extends Module_controller
 
         $config_keys = [
             'webhook_secret',
+            'action_api_secret',
             'compliance_min_os',
             'enable_scheduled_sync',
             'sync_interval_minutes',
@@ -1699,6 +1806,72 @@ class Simplemdm_controller extends Module_controller
     }
 
     /**
+     * Retrieve per-device nested subresources synced under /devices/{id}/...
+     *
+     * @param string $serial_number
+     * @return void
+     **/
+    public function get_device_subresources($serial_number = '')
+    {
+        $serial_number = trim((string)$serial_number);
+        if ($serial_number === '') {
+            jsonView(['status' => 'error', 'message' => 'No serial number provided'], 400);
+            return;
+        }
+
+        $device = Simplemdm_model::where('serial_number', $serial_number)->first();
+        if (! $device || ! $device->simplemdm_id) {
+            jsonView([
+                'status' => 'success',
+                'device_id' => '',
+                'installed_apps' => [],
+                'users' => [],
+                'profiles' => [],
+            ]);
+            return;
+        }
+
+        $device_id = (string)$device->simplemdm_id;
+        $fetch = function ($suffix) use ($device_id) {
+            return Simplemdm_resource_model::where('source_endpoint', 'devices/' . $device_id . '/' . $suffix)
+                ->orderBy('name', 'asc')
+                ->get();
+        };
+
+        $map_rows = function ($rows) {
+            $out = [];
+            foreach ($rows as $row) {
+                $attrs = [];
+                if ($row->attributes_json) {
+                    $attrs = json_decode($row->attributes_json, true);
+                    if (! is_array($attrs)) {
+                        $attrs = [];
+                    }
+                }
+                $out[] = [
+                    'type' => (string)$row->resource_type,
+                    'id' => (string)$row->resource_id,
+                    'name' => $this->derive_resource_name_from_row($row),
+                    'attributes' => $attrs,
+                ];
+            }
+            return $out;
+        };
+
+        $installed_apps = $map_rows($fetch('installed_apps'));
+        $users = $map_rows($fetch('users'));
+        $profiles = $map_rows($fetch('profiles'));
+
+        jsonView([
+            'status' => 'success',
+            'device_id' => $device_id,
+            'installed_apps' => $installed_apps,
+            'users' => $users,
+            'profiles' => $profiles,
+        ]);
+    }
+
+    /**
      * Retrieve resource type counts for widget/listing filters.
      *
      * @return void
@@ -2004,7 +2177,6 @@ class Simplemdm_controller extends Module_controller
         }
 
         $query = $_GET;
-        unset($query['op']);
 
         $input = file_get_contents('php://input');
         if ($input === false) {
@@ -2027,6 +2199,17 @@ class Simplemdm_controller extends Module_controller
                 $content_type = 'application/x-www-form-urlencoded';
             }
         }
+
+        $mutating_methods = ['POST', 'PATCH', 'DELETE', 'PUT'];
+        if (in_array($method, $mutating_methods, true)) {
+            $provided_secret = $this->extract_action_secret_from_request($input, $content_type);
+            if (! $this->is_valid_action_secret($provided_secret)) {
+                jsonView(['status' => 'error', 'message' => 'Invalid or missing action secret'], 401);
+                return;
+            }
+        }
+
+        list($query, $input, $content_type) = $this->sanitize_passthrough_payload($query, $input, $content_type);
 
         $res = $this->simplemdm_api_proxy_request($endpoint, $method, $query, $input, $content_type);
 

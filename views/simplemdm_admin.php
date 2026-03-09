@@ -150,6 +150,11 @@ if (is_readable($provides_path)) {
                             <p class="help-block">Used by `module/simplemdm/index?op=webhook` via `X-SIMPLEMDM-WEBHOOK-SECRET`.</p>
                         </div>
                         <div class="form-group">
+                            <label for="action_api_secret">Action API Secret</label>
+                            <input type="password" class="form-control" id="action_api_secret" name="action_api_secret" placeholder="Required for mutating device passthrough actions">
+                            <p class="help-block">Required header for `POST/PATCH/DELETE` under `module/simplemdm/api_devices/...` via `X-SIMPLEMDM-ACTION-SECRET`.</p>
+                        </div>
+                        <div class="form-group">
                             <label for="compliance_min_os">Compliance Minimum OS</label>
                             <input type="text" class="form-control" id="compliance_min_os" name="compliance_min_os" placeholder="e.g. 14.0">
                             <p class="help-block">Optional minimum OS target for compliance widget calculations.</p>
@@ -215,6 +220,7 @@ $(document).on('appReady', function() {
             $(this).prop('checked', isEnabled(data[key]));
         });
         $('#webhook_secret').val(data.webhook_secret || '');
+        $('#action_api_secret').val(data.action_api_secret || '');
         $('#compliance_min_os').val(data.compliance_min_os || '');
         $('#sync_delta_enabled').prop('checked', String(data.sync_delta_enabled || '0') === '1');
         $('#sync_commands_enabled').prop('checked', String(data.sync_commands_enabled || '0') === '1');
@@ -277,6 +283,7 @@ $(document).on('appReady', function() {
 
         var payload = {
             webhook_secret: $('#webhook_secret').val() || '',
+            action_api_secret: $('#action_api_secret').val() || '',
             compliance_min_os: $('#compliance_min_os').val() || '',
             sync_delta_enabled: $('#sync_delta_enabled').is(':checked') ? '1' : '0',
             sync_commands_enabled: $('#sync_commands_enabled').is(':checked') ? '1' : '0',

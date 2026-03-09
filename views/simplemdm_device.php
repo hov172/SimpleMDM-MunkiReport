@@ -302,6 +302,49 @@
                 </div>
             </div>
         </div>
+
+        <div class="simplemdm-modern-widget" style="margin-bottom:12px;">
+            <div class="panel-heading"><h3 class="panel-title"><i class="fa fa-database"></i> Synced Device Subresources</h3></div>
+            <div class="panel-body">
+                <div id="simplemdm-subresource-summary" class="simplemdm-list-pills">
+                    <span class="text-muted">Loading...</span>
+                </div>
+                <div id="simplemdm-subresource-sections">
+                    <div class="text-muted">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="simplemdm-modern-widget" style="margin-bottom:12px;">
+            <div class="panel-heading"><h3 class="panel-title"><i class="fa fa-terminal"></i> Device Actions</h3></div>
+            <div class="panel-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <label for="simplemdm-action-secret">Action Secret</label>
+                        <input type="password" id="simplemdm-action-secret" class="form-control" placeholder="Set in Admin settings">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="simplemdm-action-name">Action</label>
+                        <select id="simplemdm-action-name" class="form-control"></select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="simplemdm-action-method">Method</label>
+                        <input type="text" id="simplemdm-action-method" class="form-control" readonly>
+                    </div>
+                </div>
+                <div style="margin-top:10px;">
+                    <label for="simplemdm-action-payload">JSON Payload (optional)</label>
+                    <textarea id="simplemdm-action-payload" class="form-control" rows="5" placeholder='{"notify_user": true}'></textarea>
+                </div>
+                <div style="margin-top:10px;">
+                    <button id="simplemdm-run-action" class="btn btn-primary">Run Action</button>
+                    <span id="simplemdm-action-status" style="margin-left:10px;"></span>
+                </div>
+                <div style="margin-top:10px;">
+                    <pre id="simplemdm-action-result" style="max-height:260px;overflow:auto;display:none;"></pre>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -313,6 +356,7 @@ $(document).on('appReady', function() {
     var showTechnical = false;
     var currentAttrs = {};
     var currentRels = {};
+    var simplemdmDeviceId = '';
 
     function esc(val) {
         return $('<div>').text(String(val)).html();
@@ -468,6 +512,87 @@ $(document).on('appReady', function() {
                     bodyHtml +
                 '</div>' +
             '</div>';
+    }
+
+    function renderSimpleTable(columns, rows) {
+        var thead = '<tr>' + columns.map(function(col) { return '<th>' + esc(col) + '</th>'; }).join('') + '</tr>';
+        var tbody = rows.length ? rows.join('') : '<tr><td colspan="' + columns.length + '" class="text-muted">No rows</td></tr>';
+        return '<div class="simplemdm-table-wrap"><table class="simplemdm-table-modern"><thead>' + thead + '</thead><tbody>' + tbody + '</tbody></table></div>';
+    }
+
+    function renderSubresources(data) {
+        var apps = (data && data.installed_apps) ? data.installed_apps : [];
+        var users = (data && data.users) ? data.users : [];
+        var profiles = (data && data.profiles) ? data.profiles : [];
+        var $summary = $('#simplemdm-subresource-summary').empty();
+        var $sections = $('#simplemdm-subresource-sections').empty();
+
+        if (data && data.device_id) {
+            simplemdmDeviceId = String(data.device_id);
+        }
+
+        $summary
+            .append('<span class="simplemdm-device-chip"><strong>Installed Apps:</strong>&nbsp;' + esc(apps.length) + '</span>')
+            .append('<span class="simplemdm-device-chip"><strong>Users:</strong>&nbsp;' + esc(users.length) + '</span>')
+            .append('<span class="simplemdm-device-chip"><strong>Profiles:</strong>&nbsp;' + esc(profiles.length) + '</span>');
+
+        var appRows = apps.map(function(item) {
+            var a = item.attributes || {};
+            return '<tr><td>' + esc(item.name || '-') + '</td><td>' + esc(a.identifier || '-') + '</td><td>' + esc(a.short_version || a.version || '-') + '</td><td>' + esc(a.managed === true || a.managed === 1 ? 'Yes' : (a.managed === false || a.managed === 0 ? 'No' : '-')) + '</td></tr>';
+        });
+        $sections.append(createSectionHtml('sub_apps', 'Installed Apps (' + apps.length + ')', renderSimpleTable(['Name', 'Identifier', 'Version', 'Managed'], appRows), false));
+
+        var userRows = users.map(function(item) {
+            var a = item.attributes || {};
+            return '<tr><td>' + esc(a.username || item.name || '-') + '</td><td>' + esc(a.full_name || '-') + '</td><td>' + esc(a.uid || '-') + '</td><td>' + esc(a.logged_in === true || a.logged_in === 1 ? 'Yes' : (a.logged_in === false || a.logged_in === 0 ? 'No' : '-')) + '</td></tr>';
+        });
+        $sections.append(createSectionHtml('sub_users', 'Users (' + users.length + ')', renderSimpleTable(['Username', 'Full Name', 'UID', 'Logged In'], userRows), false));
+
+        var profileRows = profiles.map(function(item) {
+            var a = item.attributes || {};
+            return '<tr><td>' + esc(item.name || a.name || '-') + '</td><td>' + esc(a.profile_identifier || '-') + '</td><td>' + esc(item.type || '-') + '</td></tr>';
+        });
+        $sections.append(createSectionHtml('sub_profiles', 'Profiles (' + profiles.length + ')', renderSimpleTable(['Name', 'Identifier', 'Type'], profileRows), false));
+    }
+
+    var actionDefinitions = [
+        { key: 'refresh', label: 'Refresh', method: 'POST', path: 'refresh' },
+        { key: 'push_apps', label: 'Push Assigned Apps', method: 'POST', path: 'push_apps' },
+        { key: 'restart', label: 'Restart', method: 'POST', path: 'restart' },
+        { key: 'shutdown', label: 'Shutdown', method: 'POST', path: 'shutdown' },
+        { key: 'lock', label: 'Lock', method: 'POST', path: 'lock' },
+        { key: 'clear_passcode', label: 'Clear Passcode', method: 'POST', path: 'clear_passcode' },
+        { key: 'clear_firmware_password', label: 'Clear Firmware Password', method: 'POST', path: 'clear_firmware_password' },
+        { key: 'rotate_firmware_password', label: 'Rotate Firmware Password', method: 'POST', path: 'rotate_firmware_password' },
+        { key: 'clear_recovery_lock_password', label: 'Clear Recovery Lock Password', method: 'POST', path: 'clear_recovery_lock_password' },
+        { key: 'clear_restrictions_password', label: 'Clear Restrictions Password', method: 'POST', path: 'clear_restrictions_password' },
+        { key: 'rotate_recovery_lock_password', label: 'Rotate Recovery Lock Password', method: 'POST', path: 'rotate_recovery_lock_password' },
+        { key: 'rotate_filevault_key', label: 'Rotate FileVault Key', method: 'POST', path: 'rotate_filevault_key' },
+        { key: 'set_admin_password', label: 'Set Admin Password', method: 'POST', path: 'set_admin_password' },
+        { key: 'rotate_admin_password', label: 'Rotate Admin Password', method: 'POST', path: 'rotate_admin_password' },
+        { key: 'wipe', label: 'Wipe', method: 'POST', path: 'wipe' },
+        { key: 'update_os', label: 'Update OS', method: 'POST', path: 'update_os' },
+        { key: 'remote_desktop_enable', label: 'Enable Remote Desktop', method: 'POST', path: 'remote_desktop' },
+        { key: 'remote_desktop_disable', label: 'Disable Remote Desktop', method: 'DELETE', path: 'remote_desktop' },
+        { key: 'bluetooth_enable', label: 'Enable Bluetooth', method: 'POST', path: 'bluetooth' },
+        { key: 'bluetooth_disable', label: 'Disable Bluetooth', method: 'DELETE', path: 'bluetooth' },
+        { key: 'set_time_zone', label: 'Set Time Zone', method: 'POST', path: 'set_time_zone' },
+        { key: 'unenroll', label: 'Unenroll', method: 'POST', path: 'unenroll' },
+        { key: 'delete_device', label: 'Delete Device', method: 'DELETE', path: '' }
+    ];
+
+    function initActionControls() {
+        var $sel = $('#simplemdm-action-name').empty();
+        actionDefinitions.forEach(function(a) {
+            $sel.append('<option value="' + esc(a.key) + '">' + esc(a.label) + '</option>');
+        });
+        function syncMethod() {
+            var key = String($sel.val() || '');
+            var def = actionDefinitions.find(function(a) { return a.key === key; }) || actionDefinitions[0];
+            $('#simplemdm-action-method').val(def ? def.method : '');
+        }
+        $sel.on('change', syncMethod);
+        syncMethod();
     }
 
     function renderAttributeSections(attrs) {
@@ -627,6 +752,9 @@ $(document).on('appReady', function() {
         if (d.assignment_group) {
             $('#simplemdm-group-badge').text(String(d.assignment_group)).show();
         }
+        if (d.simplemdm_id) {
+            simplemdmDeviceId = String(d.simplemdm_id);
+        }
 
         setKpi('#simplemdm-kpi-enrollment', String(d.status || '').toLowerCase() === 'enrolled' ? '1' : '0');
         setKpi('#simplemdm-kpi-dep', d.is_dep_enrollment);
@@ -663,6 +791,12 @@ $(document).on('appReady', function() {
             $('#simplemdm-connected-summary').html('<span class="text-danger">Failed to load connected resources.</span>');
             $('#simplemdm-connected-groups').html('<div class="text-danger">Connected resource lookup failed.</div>');
         });
+        $.getJSON(appUrl + '/module/simplemdm/get_device_subresources/' + encodeURIComponent(serial), function(subresourceData) {
+            renderSubresources(subresourceData || {});
+        }).fail(function() {
+            $('#simplemdm-subresource-summary').html('<span class="text-danger">Failed to load subresources.</span>');
+            $('#simplemdm-subresource-sections').html('<div class="text-danger">Subresource lookup failed.</div>');
+        });
 
         $('#simplemdm-layout').show();
     }).fail(function(xhr) {
@@ -677,6 +811,60 @@ $(document).on('appReady', function() {
         showTechnical = $(this).is(':checked');
         renderAttributeSections(currentAttrs);
         renderRelationships(currentRels);
+    });
+
+    initActionControls();
+    $('#simplemdm-run-action').on('click', function() {
+        var secret = String($('#simplemdm-action-secret').val() || '').trim();
+        var actionKey = String($('#simplemdm-action-name').val() || '');
+        var def = actionDefinitions.find(function(a) { return a.key === actionKey; }) || null;
+        if (!def) {
+            $('#simplemdm-action-status').text('Unknown action').removeClass().addClass('text-danger');
+            return;
+        }
+        if (!simplemdmDeviceId) {
+            $('#simplemdm-action-status').text('Device ID not loaded').removeClass().addClass('text-danger');
+            return;
+        }
+        if (!secret) {
+            $('#simplemdm-action-status').text('Action secret required').removeClass().addClass('text-danger');
+            return;
+        }
+
+        var payloadText = String($('#simplemdm-action-payload').val() || '').trim();
+        var body = null;
+        if (payloadText) {
+            try {
+                body = JSON.parse(payloadText);
+            } catch (e) {
+                $('#simplemdm-action-status').text('Invalid JSON payload').removeClass().addClass('text-danger');
+                return;
+            }
+        }
+
+        var endpoint = appUrl + '/module/simplemdm/api_devices/' + encodeURIComponent(simplemdmDeviceId);
+        if (def.path) {
+            endpoint += '/' + encodeURIComponent(def.path);
+        }
+
+        $('#simplemdm-action-status').text('Running...').removeClass().addClass('text-info');
+        $('#simplemdm-action-result').hide().text('');
+
+        $.ajax({
+            url: endpoint,
+            method: def.method,
+            headers: { 'X-SIMPLEMDM-ACTION-SECRET': secret },
+            contentType: 'application/json',
+            dataType: 'json',
+            data: body ? JSON.stringify(body) : null
+        }).done(function(res) {
+            $('#simplemdm-action-status').text('Success').removeClass().addClass('text-success');
+            $('#simplemdm-action-result').text(JSON.stringify(res, null, 2)).show();
+        }).fail(function(xhr) {
+            var out = xhr && xhr.responseText ? xhr.responseText : ('HTTP ' + (xhr ? xhr.status : 'unknown'));
+            $('#simplemdm-action-status').text('Failed').removeClass().addClass('text-danger');
+            $('#simplemdm-action-result').text(out).show();
+        });
     });
 });
 </script>

@@ -473,6 +473,7 @@ The module also exposes authenticated passthrough routes to the SimpleMDM device
 
 Auth requirement:
 - Global MunkiReport admin session (`authorized('global')`).
+- Mutating methods (`POST/PATCH/DELETE`) additionally require `X-SIMPLEMDM-ACTION-SECRET` matching `action_api_secret` in module admin settings.
 
 Coverage:
 - Device CRUD/list:
@@ -514,10 +515,14 @@ Coverage:
 Query/body passthrough:
 - Query parameters and request body are passed through to SimpleMDM.
 - JSON and `application/x-www-form-urlencoded` payloads are supported.
+- Security parameter `action_secret` is accepted for validation but stripped before upstream passthrough.
 
 Notes:
 - The module continues storing a curated flat subset in `simplemdm` plus full raw device payload in `attributes_json` and `relationships_json`.
 - Per-device subresource sync (`devices/{id}/profiles`, `installed_apps`, `users`) can be enabled in sync script to persist these records in `simplemdm_resource`.
+- Device detail page includes:
+  - Synced per-device subresource tables (installed apps, users, profiles)
+  - Action runner UI for supported device action routes (uses action secret header)
 
 ## Validation Checklist
 

@@ -18,6 +18,9 @@ This module syncs devices and API resources from SimpleMDM server-side, stores t
 - Modern widget UI assets are loaded inline from `views/simplemdm_widget_modern_assets.php` (no separate module CSS/JS build step required).
 - Optional delta-sync, command-status sync, and sync telemetry reporting are built into the sync script + module.
 
+Developer docs:
+- See `docs/DEVELOPER_GUIDE.md` for architecture, code map, flow charts, and extension workflows.
+
 ## Quick Start (5 Minutes)
 
 1. Install and migrate:

@@ -26,6 +26,8 @@ Developer docs:
 - [Key Points](#key-points)
 - [Quick Start (5 Minutes)](#quick-start-5-minutes)
 - [From Scratch Setup (Hosted + Docker)](#from-scratch-setup-hosted--docker)
+- [Hosted / VM Setup](#a-hosted--vm-munkireport-non-docker)
+- [Docker Setup](#b-docker-munkireport-docker-compose)
 - [What This Module Does](#what-this-module-does)
 - [Architecture](#architecture)
 - [Features](#features)

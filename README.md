@@ -205,12 +205,20 @@ These steps assume the standard MunkiReport compose setup where the service name
 if [ -d munkireport-php/.git ]; then
   echo "Using existing MunkiReport checkout"
 elif [ -e munkireport-php ]; then
-  echo "ERROR: ./munkireport-php exists but is not a MunkiReport git checkout. Rename or remove it first." >&2
-  exit 1
+  mv munkireport-php munkireport-php.bad
+  git clone https://github.com/munkireport/munkireport-php.git munkireport-php
 else
   git clone https://github.com/munkireport/munkireport-php.git munkireport-php
 fi
 cd munkireport-php
+```
+
+This step automatically moves an invalid pre-existing `munkireport-php` folder aside to `munkireport-php.bad` before cloning the real MunkiReport repo.
+
+If you want to inspect the invalid folder before it is renamed:
+
+```bash
+ls -la munkireport-php
 ```
 
 After this point, run `docker compose` commands from the MunkiReport repo root (the directory containing `docker-compose.yml`), not from `local/modules/simplemdm`.

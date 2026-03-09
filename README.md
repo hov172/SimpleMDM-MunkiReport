@@ -198,7 +198,12 @@ git --version
 One-shot bootstrap (fresh or existing MunkiReport checkout):
 
 ```bash
-if [ ! -d munkireport-php/.git ]; then
+if [ -d munkireport-php/.git ]; then
+  :
+elif [ -e munkireport-php ]; then
+  echo "ERROR: ./munkireport-php exists but is not a MunkiReport git checkout. Rename or remove it first." >&2
+  exit 1
+else
   git clone https://github.com/munkireport/munkireport-php.git munkireport-php || exit 1
 fi
 cd munkireport-php || exit 1

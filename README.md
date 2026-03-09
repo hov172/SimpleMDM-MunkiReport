@@ -113,7 +113,10 @@ UI modernization scope:
   - `show/listing/simplemdm/simplemdm_resources`
   - `module/simplemdm/device/{serial}`
   - `#tab_simplemdm-tab`
-- Dashboard masonry/grid behavior is limited to dashboard contexts and does not apply to listing/admin/device pages.
+- Interactive widget grid behavior applies to:
+  - Dashboard pages that contain SimpleMDM widgets
+  - `show/report/simplemdm/simplemdm`
+- Interactive widget grid behavior does not apply to listing/admin/device pages.
 
 ## Installation
 
@@ -139,7 +142,7 @@ php /path/to/munkireport/please migrate
 
 1. Open `Admin -> SimpleMDM Settings`.
 2. Enter SimpleMDM API key and save.
-3. Optional: toggle report widgets on/off in the same admin page.
+3. Optional: toggle SimpleMDM widgets on/off in the same admin page (applies on dashboard/report pages where those widgets are present).
 4. Optional: in Advanced Sync & Compliance, set:
    - `webhook_secret`
    - `action_api_secret`
@@ -366,6 +369,10 @@ Optional production additions:
 - `simplemdm_compliance` (compliant vs noncompliant + reasons)
 - `simplemdm_sync_health` (latest sync telemetry + scope/delta/rate-limit stats)
 
+Widget purpose note:
+- `simplemdm_group` = full groups widget (top chart + expandable assignment group list + drilldown links)
+- `simplemdm_group_top` = compact top-groups summary widget
+
 ### Per-resource-type widgets (individually add/remove)
 
 - `simplemdm_rt_installed_app`
@@ -407,16 +414,24 @@ Theme/Layout-aware styling:
   - `data-simplemdm-theme-name="{bootswatch-name|auto}"`
 - Widgets re-render on `simplemdm:modechange` to keep chart colors synchronized after theme/layout changes.
 
-Dashboard layout behavior (module-wide):
-- On dashboard pages, SimpleMDM widgets are automatically grouped into a module-managed grid container (`#simplemdm-dashboard-grid`).
+Interactive layout behavior (module-wide):
+- On supported pages, SimpleMDM widgets are automatically grouped into a module-managed grid container (`#simplemdm-dashboard-grid`).
+- Supported pages:
+  - Dashboard pages containing SimpleMDM widgets
+  - `show/report/simplemdm/simplemdm`
 - Grid uses balanced masonry placement (shortest-column algorithm) to reduce empty vertical gaps.
 - Widget width honors intended span:
   - Full-width for designated featured widgets.
   - Multi-column for regular widgets.
 - Click a widget to select it; selection reveals move/order controls and resize affordances.
 - Each widget can be minimized to title-only and expanded again from the header control.
-- Selected widgets can be moved by dragging the move handle in the widget header (drop over another widget to swap positions).
-- Dragging to empty dashboard space inserts the widget at that visual position (not swap-only).
+- Selected widgets can be moved by dragging the move handle in the widget header.
+- Drop behavior:
+  - Drop near center of another widget: swap
+  - Drop near edges/empty space: insert/reorder
+  - Drop near top edge: force insert at top
+- Drag auto-scroll is enabled when dragging near top/bottom viewport edges.
+- Dragging to empty dashboard/report space inserts the widget at that visual position (not swap-only).
 - Empty-space drops persist both column and vertical position so intentional blank gaps can be kept between widgets.
 - Selected widgets can be resized smaller or larger using edge handles:
   - Right edge: width
@@ -427,12 +442,13 @@ Dashboard layout behavior (module-wide):
 - Fallback ordering controls are included in each widget header (`top`, `up`, `down`) for precise keyboard/mouse operation.
 - Custom dashboard widget order/size is persisted in browser `localStorage` per dashboard URL.
 - You can reset custom layout state from browser console with `window.simplemdmResetDashboardLayout()`.
-- A floating `Reset Layout` button is available on dashboard pages.
+- A floating `Reset Layout` button is available on supported pages.
 - Long list-heavy widgets automatically get internal list scrolling for readability and to avoid oversized columns.
 - Current featured full-width widgets (within the SimpleMDM widget set) are ordered as:
   - `simplemdm_resource_types`
-  - `simplemdm_group_top`
   - `simplemdm_group`
+  - `simplemdm_devices_table`
+  - `simplemdm_group_top`
 
 Scope notes:
 - This behavior is module-only and applies to all users loading SimpleMDM widgets.
@@ -445,6 +461,7 @@ Resource/Group expand-collapse behavior:
 - `simplemdm_group` has two sections:
   - `Top Groups Chart`
   - `Assignment Group List` (`+ Expand` / `- Collapse`)
+- `simplemdm_devices_table` has a `Device Rows` section (`+ Expand` / `- Collapse`)
 - In collapsed mode, list/card areas are intentionally scrollable.
 - Collapsed section scrolling is handled by the section body (single scroll container) to avoid nested-scroll conflicts.
 - Collapsed toggles show hidden-count labels when applicable:
@@ -491,13 +508,13 @@ Widgets are theme-aware and layout-aware by design:
   - `data-simplemdm-theme-name`
   - `data-simplemdm-layout`
 - Emits `simplemdm:modechange` when theme/layout changes are detected so charts can rerender with correct axis/text/palette colors.
-- Triggers repeated post-render grid reflow on dashboard pages so async-loaded widget content settles into balanced columns.
+- Triggers repeated post-render grid reflow on supported pages so async-loaded widget content settles into balanced columns.
 
 Expected behavior:
 - Switching Bootswatch theme (for example Cerulean to Darkly) updates widget accent + chart colors.
 - Switching layout mode updates spacing/typography/card density.
 - Dark themes keep axis labels and legends readable.
-- Featured widgets (`resource_types`, `groups`) render as full-width rows for visibility.
+- Featured widgets (`resource_types`, `groups`, `devices_table`, `group_top`) render as full-width rows for visibility.
 
 ## API/Endpoint Use
 
@@ -628,6 +645,13 @@ Check browser console/network and confirm module route resolves:
 - Run manual sync with `--verbose`.
 - Check `Admin -> SimpleMDM Settings` for `last_sync_status` and `last_sync_time`.
 - Confirm `simplemdm` and `simplemdm_resource` rows exist.
+
+### Widget is enabled but not visible
+
+- `Widget Visibility` controls whether a widget may render.
+- Dashboard/report pages only show widgets that exist in that page layout.
+- Confirm the widget is present in your active dashboard YAML (`local/dashboards/*.yml`) or on the SimpleMDM report page.
+- If needed, click `Reset Layout` to clear stale per-page localStorage layout state.
 
 ### Command status widget is empty
 

@@ -2052,6 +2052,17 @@ body.simplemdm-theme-dark #simplemdm-dashboard-grid > .simplemdm-dashboard-item 
         };
     };
 
+    window.simplemdmModuleUrl = function(path) {
+        var normalizedPath = String(path || '').replace(/^\/+/, '');
+        if (appUrl.indexOf('index.php?') !== -1) {
+            return appUrl + '/module/simplemdm/' + normalizedPath;
+        }
+        if (window.location.pathname.indexOf('/index.php') !== -1) {
+            return appUrl + '/index.php?/module/simplemdm/' + normalizedPath;
+        }
+        return appUrl + '/module/simplemdm/' + normalizedPath;
+    };
+
     var simplemdmThemeAccents = {
         cerulean: { accent: '#2fa4e7', accentAlt: '#5bb8ee', accentStrong: '#1f8fd3', accentSoft: '#deeffa' },
         cosmo: { accent: '#2780e3', accentAlt: '#4a95ea', accentStrong: '#1f6fca', accentSoft: '#e1ecfa' },

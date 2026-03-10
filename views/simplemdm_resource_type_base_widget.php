@@ -27,6 +27,17 @@ $(document).on('appReady', function() {
     var pieChart = null;
     var typePalette = ['#4ecdc4', '#ffd166', '#ff6b6b', '#6ea8fe', '#c77dff', '#f4a261', '#7bd389', '#ff9f1c', '#72ddf7', '#f07167'];
 
+    function simplemdmModuleUrl(path) {
+        var normalizedPath = String(path || '').replace(/^\/+/, '');
+        if (appUrl.indexOf('index.php?') !== -1) {
+            return appUrl + '/module/simplemdm/' + normalizedPath;
+        }
+        if (window.location.pathname.indexOf('/index.php') !== -1) {
+            return appUrl + '/index.php?/module/simplemdm/' + normalizedPath;
+        }
+        return appUrl + '/module/simplemdm/' + normalizedPath;
+    }
+
     function stableTypeColor(type) {
         var t = String(type || '');
         var hash = 0;
@@ -58,8 +69,8 @@ $(document).on('appReady', function() {
         var accent = stableTypeColor(resourceType) || palette.accentAlt || palette.accent || '#2da3cf';
         var otherColor = themeName === 'dark' ? '#14283a' : '#d7e3ef';
         $.when(
-            $.getJSON(appUrl + '/module/simplemdm/get_resource_type_count/' + encodeURIComponent(resourceType)),
-            $.getJSON(appUrl + '/module/simplemdm/get_resource_type_stats')
+            $.getJSON(simplemdmModuleUrl('get_resource_type_count/' + encodeURIComponent(resourceType))),
+            $.getJSON(simplemdmModuleUrl('get_resource_type_stats'))
         ).done(function(countRes, statsRes) {
         var countData = countRes && countRes[0] ? countRes[0] : {};
         var statsRows = statsRes && statsRes[0] ? statsRes[0] : [];

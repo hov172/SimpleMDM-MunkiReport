@@ -42,10 +42,10 @@ $(document).on('appReady', function() {
     function renderDeviceListing() {
         var palette = window.simplemdmThemePalette ? window.simplemdmThemePalette() : {};
         $.when(
-            $.getJSON(appUrl + '/module/simplemdm/get_enrollment_stats'),
-            $.getJSON(appUrl + '/module/simplemdm/get_dep_stats'),
-            $.getJSON(appUrl + '/module/simplemdm/get_supervised_stats'),
-            $.getJSON(appUrl + '/module/simplemdm/get_filevault_stats')
+            $.getJSON(window.simplemdmModuleUrl('get_enrollment_stats')),
+            $.getJSON(window.simplemdmModuleUrl('get_dep_stats')),
+            $.getJSON(window.simplemdmModuleUrl('get_supervised_stats')),
+            $.getJSON(window.simplemdmModuleUrl('get_filevault_stats'))
         ).done(function(enrollmentRes, depRes, supervisedRes, filevaultRes) {
         var enrollment = enrollmentRes && enrollmentRes[0] ? enrollmentRes[0] : [];
         var dep = depRes && depRes[0] ? depRes[0] : [];

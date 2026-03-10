@@ -23,7 +23,7 @@ $(document).on('appReady', function() {
     var widgetId = '#simplemdm-trend-widget';
     function renderTrend() {
         var palette = window.simplemdmThemePalette ? window.simplemdmThemePalette() : {};
-        $.getJSON(appUrl + '/module/simplemdm/get_dashboard_trend?days=30', function(payload) {
+        $.getJSON(window.simplemdmModuleUrl('get_dashboard_trend?days=30'), function(payload) {
         var panelBody = $(widgetId + ' .panel-body');
         var note = panelBody.find('.simplemdm-chart-note');
         var meta = panelBody.find('.simplemdm-meta-row');

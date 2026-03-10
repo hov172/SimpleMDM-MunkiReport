@@ -33,7 +33,7 @@ $(document).on('appReady', function() {
 
     function renderOsSecurity() {
         var palette = window.simplemdmThemePalette ? window.simplemdmThemePalette() : {};
-        $.getJSON(appUrl + '/module/simplemdm/get_os_security_stats', function(rows) {
+        $.getJSON(window.simplemdmModuleUrl('get_os_security_stats'), function(rows) {
         var panelBody = $(widgetId + ' .panel-body');
         var listGroup = panelBody.find('.list-group');
         listGroup.empty();

@@ -21,7 +21,7 @@
 $(document).on('appReady', function() {
     function renderCompliance() {
         var palette = window.simplemdmThemePalette ? window.simplemdmThemePalette() : {};
-        $.getJSON(appUrl + '/module/simplemdm/get_compliance_stats', function(data) {
+        $.getJSON(window.simplemdmModuleUrl('get_compliance_stats'), function(data) {
             var panelBody = $('#simplemdm-compliance-widget .panel-body');
             var listGroup = panelBody.find('.list-group');
             listGroup.empty();

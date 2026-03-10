@@ -33,7 +33,7 @@ $(document).on('appReady', function(e, lang) {
 
     function renderEnrollment() {
         var palette = window.simplemdmThemePalette ? window.simplemdmThemePalette() : {};
-        $.getJSON(appUrl + '/module/simplemdm/get_enrollment_stats', function(data) {
+        $.getJSON(window.simplemdmModuleUrl('get_enrollment_stats'), function(data) {
         var panelBody = $(widgetId + ' .panel-body');
         var listGroup = panelBody.find('.list-group');
         listGroup.empty();

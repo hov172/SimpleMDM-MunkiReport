@@ -56,6 +56,17 @@ $(document).on('appReady', function(e, lang) {
     var widgetId = '#simplemdm-group-widget';
     var collapsedState = true;
 
+    function simplemdmModuleUrl(path) {
+        var normalizedPath = String(path || '').replace(/^\/+/, '');
+        if (appUrl.indexOf('index.php?') !== -1) {
+            return appUrl + '/module/simplemdm/' + normalizedPath;
+        }
+        if (window.location.pathname.indexOf('/index.php') !== -1) {
+            return appUrl + '/index.php?/module/simplemdm/' + normalizedPath;
+        }
+        return appUrl + '/module/simplemdm/' + normalizedPath;
+    }
+
     function simplemdmListingUrl(query) {
         var path = '/show/listing/simplemdm/simplemdm';
         if (appUrl.indexOf('index.php?') !== -1) {
@@ -140,7 +151,7 @@ $(document).on('appReady', function(e, lang) {
             (palette.danger || '#d35b52'),
             (palette.s5 || '#c98b8b')
         ];
-        $.getJSON(appUrl + '/module/simplemdm/get_assignment_group_stats', function(data) {
+        $.getJSON(simplemdmModuleUrl('get_assignment_group_stats'), function(data) {
         var panelBody = $(widgetId + ' .panel-body');
         var listGroup = panelBody.find('.list-group');
         listGroup.empty();

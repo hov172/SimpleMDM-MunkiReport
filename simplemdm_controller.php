@@ -366,6 +366,10 @@ class Simplemdm_controller extends Module_controller
                 $this->update_sync_status();
                 return;
             }
+            if ($op === 'begin_sync_run') {
+                $this->begin_sync_run();
+                return;
+            }
             if ($op === 'ingest_commands') {
                 $this->ingest_commands();
                 return;
@@ -1070,13 +1074,16 @@ class Simplemdm_controller extends Module_controller
      **/
     public function get_assignment_group_stats()
     {
-        jsonView(
-            Simplemdm_model::selectRaw("COALESCE(NULLIF(TRIM(assignment_group), ''), 'No Assignment Group') AS label, COUNT(*) AS count")
-                ->groupByRaw("COALESCE(NULLIF(TRIM(assignment_group), ''), 'No Assignment Group')")
-                ->orderBy('count', 'desc')
-                ->get()
-                ->toArray()
-        );
+        $sql = "
+            SELECT
+                COALESCE(NULLIF(TRIM(assignment_group), ''), 'No Assignment Group') AS label,
+                COUNT(*) AS count
+            FROM simplemdm
+            GROUP BY COALESCE(NULLIF(TRIM(assignment_group), ''), 'No Assignment Group')
+            ORDER BY count DESC
+        ";
+
+        jsonView(getdbh()->query($sql)->fetchAll(\PDO::FETCH_ASSOC));
     }
 
     /**
@@ -2187,17 +2194,19 @@ class Simplemdm_controller extends Module_controller
      **/
     public function get_os_security_stats()
     {
-        $rows = Simplemdm_model::selectRaw(
-            "COALESCE(NULLIF(TRIM(os_version), ''), 'Unknown') AS os_version"
-        )
-            ->selectRaw('COUNT(*) AS total')
-            ->selectRaw("SUM(CASE WHEN status = 'enrolled' THEN 1 ELSE 0 END) AS enrolled_total")
-            ->selectRaw("SUM(CASE WHEN is_supervised = 1 THEN 1 ELSE 0 END) AS supervised_total")
-            ->selectRaw("SUM(CASE WHEN filevault_enabled = 1 THEN 1 ELSE 0 END) AS filevault_total")
-            ->groupByRaw("COALESCE(NULLIF(TRIM(os_version), ''), 'Unknown')")
-            ->orderBy('total', 'desc')
-            ->get()
-            ->toArray();
+        $sql = "
+            SELECT
+                COALESCE(NULLIF(TRIM(os_version), ''), 'Unknown') AS os_version,
+                COUNT(*) AS total,
+                SUM(CASE WHEN status = 'enrolled' THEN 1 ELSE 0 END) AS enrolled_total,
+                SUM(CASE WHEN is_supervised = 1 THEN 1 ELSE 0 END) AS supervised_total,
+                SUM(CASE WHEN filevault_enabled = 1 THEN 1 ELSE 0 END) AS filevault_total
+            FROM simplemdm
+            GROUP BY COALESCE(NULLIF(TRIM(os_version), ''), 'Unknown')
+            ORDER BY total DESC
+        ";
+
+        $rows = getdbh()->query($sql)->fetchAll(\PDO::FETCH_ASSOC);
 
         $limit = 8;
         if (count($rows) > $limit) {

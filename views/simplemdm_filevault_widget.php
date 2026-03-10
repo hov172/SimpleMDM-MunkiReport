@@ -33,7 +33,7 @@ $(document).on('appReady', function(e, lang) {
 
     function renderFilevault() {
         var palette = window.simplemdmThemePalette ? window.simplemdmThemePalette() : {};
-        $.getJSON(appUrl + '/module/simplemdm/get_filevault_stats', function(data) {
+        $.getJSON(window.simplemdmModuleUrl('get_filevault_stats'), function(data) {
         var panelBody = $(widgetId + ' .panel-body');
         var listGroup = panelBody.find('.list-group');
         listGroup.empty();

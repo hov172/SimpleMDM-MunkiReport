@@ -21,7 +21,7 @@
 $(document).on('appReady', function() {
     function renderCommandStatus() {
         var palette = window.simplemdmThemePalette ? window.simplemdmThemePalette() : {};
-        $.getJSON(appUrl + '/module/simplemdm/get_command_status_stats', function(rows) {
+        $.getJSON(window.simplemdmModuleUrl('get_command_status_stats'), function(rows) {
             var panelBody = $('#simplemdm-command-status-widget .panel-body');
             var listGroup = panelBody.find('.list-group');
             listGroup.empty();

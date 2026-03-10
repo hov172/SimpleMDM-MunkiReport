@@ -201,7 +201,7 @@ $(document).on('appReady', function() {
         var chartPrimary = (window.simplemdmThemeVar ? window.simplemdmThemeVar('--simplemdm-info', '') : '') || palette.info || palette.accentAlt || '#5ec8ff';
         var chartMuted = (window.simplemdmThemeVar ? window.simplemdmThemeVar('--simplemdm-border', '') : '') || palette.border || '#4c5a67';
         var chartSecondary = palette.warning || '#f0b45f';
-        $.getJSON(appUrl + '/module/simplemdm/get_resource_type_stats', function(data) {
+        $.getJSON(window.simplemdmModuleUrl('get_resource_type_stats'), function(data) {
         var panelBody = $(widgetId + ' .panel-body');
         var cards = $('#simplemdm-resource-type-cards');
         cards.empty();

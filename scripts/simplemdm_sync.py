@@ -165,7 +165,7 @@ def get_config():
             logger.info('API key not found in environment. Attempting to fetch from MunkiReport...')
         try:
             # We call the get_config endpoint of the simplemdm module
-            config_url = f"{args.munkireport_url}/index.php?/module/simplemdm/get_config"
+            config_url = f"{args.munkireport_url.rstrip('/')}/module/simplemdm/get_config"
             req = urllib.request.Request(config_url)
             if args.munkireport_token:
                 req.add_header('X-API-Token', args.munkireport_token)
@@ -743,7 +743,7 @@ def transform_command(command):
 
 def submit_to_munkireport(records, munkireport_url, api_key, token=''):
     """Submit device records to MunkiReport's SimpleMDM processor."""
-    url = f"{munkireport_url.rstrip('/')}/index.php?/module/simplemdm/index?op=ingest"
+    url = f"{munkireport_url.rstrip('/')}/module/simplemdm/index?op=ingest"
 
     data = json.dumps(records).encode('utf-8')
 
@@ -779,7 +779,7 @@ def submit_to_munkireport(records, munkireport_url, api_key, token=''):
 
 def submit_resources_to_munkireport(records, munkireport_url, api_key, token=''):
     """Submit generic resource records to MunkiReport."""
-    url = f"{munkireport_url.rstrip('/')}/index.php?/module/simplemdm/index?op=ingest_resources"
+    url = f"{munkireport_url.rstrip('/')}/module/simplemdm/index?op=ingest_resources"
     data = json.dumps(records).encode('utf-8')
 
     req = urllib.request.Request(url, data=data, method='POST')
@@ -812,7 +812,7 @@ def submit_resources_to_munkireport(records, munkireport_url, api_key, token='')
 
 def submit_commands_to_munkireport(records, munkireport_url, api_key, token=''):
     """Submit command records to MunkiReport."""
-    url = f"{munkireport_url.rstrip('/')}/index.php?/module/simplemdm/index?op=ingest_commands"
+    url = f"{munkireport_url.rstrip('/')}/module/simplemdm/index?op=ingest_commands"
     data = json.dumps(records).encode('utf-8')
 
     req = urllib.request.Request(url, data=data, method='POST')
@@ -844,7 +844,7 @@ def submit_commands_to_munkireport(records, munkireport_url, api_key, token=''):
 
 def update_sync_status(munkireport_url, api_key, status, message, token='', extra=None):
     """Update sync status values in the module config table."""
-    url = f"{munkireport_url.rstrip('/')}/index.php?/module/simplemdm/index?op=update_sync_status"
+    url = f"{munkireport_url.rstrip('/')}/module/simplemdm/index?op=update_sync_status"
     payload = {
         'last_sync_status': status,
         'last_sync_time': message,
@@ -870,7 +870,7 @@ def update_sync_status(munkireport_url, api_key, status, message, token='', extr
 
 def begin_sync_run(munkireport_url, api_key, token=''):
     """Claim the sync slot before starting expensive work."""
-    url = f"{munkireport_url.rstrip('/')}/index.php?/module/simplemdm/index?op=begin_sync_run"
+    url = f"{munkireport_url.rstrip('/')}/module/simplemdm/index?op=begin_sync_run"
     req = urllib.request.Request(url, data=b'', method='POST')
     req.add_header('X-SIMPLEMDM-API-KEY', api_key)
     if token:

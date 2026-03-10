@@ -34,7 +34,7 @@
 <script>
 $(document).on('appReady', function() {
     function renderSyncHealth() {
-        $.getJSON(appUrl + '/module/simplemdm/get_sync_telemetry', function(data) {
+        $.getJSON(window.simplemdmModuleUrl('get_sync_telemetry'), function(data) {
             var panelBody = $('#simplemdm-sync-health-widget .panel-body');
             var listGroup = panelBody.find('.list-group');
             listGroup.empty();

@@ -20,6 +20,18 @@
 <script>
 $(document).on('appReady', function() {
     var widgetId = '#simplemdm-group-top-widget';
+
+    function simplemdmModuleUrl(path) {
+        var normalizedPath = String(path || '').replace(/^\/+/, '');
+        if (appUrl.indexOf('index.php?') !== -1) {
+            return appUrl + '/module/simplemdm/' + normalizedPath;
+        }
+        if (window.location.pathname.indexOf('/index.php') !== -1) {
+            return appUrl + '/index.php?/module/simplemdm/' + normalizedPath;
+        }
+        return appUrl + '/module/simplemdm/' + normalizedPath;
+    }
+
     function simplemdmListingUrl(query) {
         var path = '/show/listing/simplemdm/simplemdm';
         if (appUrl.indexOf('index.php?') !== -1) {
@@ -33,7 +45,7 @@ $(document).on('appReady', function() {
 
     function renderGroupTop() {
         var palette = window.simplemdmThemePalette ? window.simplemdmThemePalette() : {};
-        $.getJSON(appUrl + '/module/simplemdm/get_assignment_group_stats', function(rows) {
+        $.getJSON(simplemdmModuleUrl('get_assignment_group_stats'), function(rows) {
         var panelBody = $(widgetId + ' .panel-body');
         var listGroup = panelBody.find('.list-group');
         listGroup.empty();

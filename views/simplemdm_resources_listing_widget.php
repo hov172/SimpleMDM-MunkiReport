@@ -41,7 +41,7 @@ $(document).on('appReady', function() {
 
     function renderResourcesListing() {
         var palette = window.simplemdmThemePalette ? window.simplemdmThemePalette() : {};
-        $.getJSON(appUrl + '/module/simplemdm/get_resource_type_stats', function(rows) {
+        $.getJSON(window.simplemdmModuleUrl('get_resource_type_stats'), function(rows) {
         var total = 0;
         var sorted = (rows || []).slice().sort(function(a, b) {
             return Number(b.count || 0) - Number(a.count || 0);

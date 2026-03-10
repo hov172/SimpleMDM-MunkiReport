@@ -33,7 +33,7 @@ $(document).on('appReady', function() {
 
     function renderResourceMix() {
         var palette = window.simplemdmThemePalette ? window.simplemdmThemePalette() : {};
-        $.getJSON(appUrl + '/module/simplemdm/get_resource_type_stats', function(rows) {
+        $.getJSON(window.simplemdmModuleUrl('get_resource_type_stats'), function(rows) {
         var panelBody = $(widgetId + ' .panel-body');
         var listGroup = panelBody.find('.list-group');
         listGroup.empty();

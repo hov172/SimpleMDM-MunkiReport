@@ -88,6 +88,14 @@ if (is_readable($provides_path)) {
                 <div class="panel-body">
                     <table class="table table-striped">
                         <tr>
+                            <th>Queue State</th>
+                            <td id="sync-request-state">idle</td>
+                        </tr>
+                        <tr>
+                            <th>Requested At</th>
+                            <td id="sync-requested-at">-</td>
+                        </tr>
+                        <tr>
                             <th>Last Sync Status</th>
                             <td id="sync-status">-</td>
                         </tr>
@@ -96,7 +104,9 @@ if (is_readable($provides_path)) {
                             <td id="sync-time">-</td>
                         </tr>
                     </table>
-                    <p class="text-muted small">The sync script should be configured via crontab on your server.</p>
+                    <button type="button" class="btn btn-default" id="simplemdm-sync-now">Sync Now</button>
+                    <span id="sync-request-message" style="margin-left: 10px;"></span>
+                    <p class="text-muted small" style="margin-top:10px;">This queues a sync request. The host-side cron or manual runner still executes <code>simplemdm_sync.py</code>.</p>
                 </div>
             </div>
         </div>
@@ -204,13 +214,51 @@ if (is_readable($provides_path)) {
 
 <script>
 $(document).on('appReady', function() {
-    // Load existing config
-    $.getJSON(appUrl + '/module/simplemdm/get_config', function(data) {
+    function setSyncMessage(text, cssClass) {
+        $('#sync-request-message').text(text).removeClass().addClass(cssClass || 'text-muted');
+    }
+
+    function updateSyncMessageFromState(data) {
+        var state = String(data.sync_request_state || 'idle');
+        var requestedAt = String(data.sync_requested_at || '').trim();
+        var lastStatus = String(data.last_sync_status || '').trim();
+        var lastTime = String(data.last_sync_time || '').trim();
+
+        if (state === 'queued') {
+            setSyncMessage(
+                requestedAt ? 'Sync is queued and waiting for cron/manual runner. Requested at ' + requestedAt + '.' : 'Sync is queued and waiting for cron/manual runner.',
+                'text-info'
+            );
+            return;
+        }
+
+        if (state === 'running') {
+            setSyncMessage('Sync is currently running.', 'text-info');
+            return;
+        }
+
+        if (lastStatus !== '' && lastTime !== '') {
+            setSyncMessage('Last completed status: ' + lastStatus + ' at ' + lastTime + '.', 'text-muted');
+            return;
+        }
+
+        setSyncMessage('No sync is currently queued.', 'text-muted');
+    }
+
+    function renderSyncStatus(data) {
+        $('#sync-status').text(data.last_sync_status || 'Never');
+        $('#sync-time').text(data.last_sync_time || '-');
+        $('#sync-request-state').text(data.sync_request_state || 'idle');
+        $('#sync-requested-at').text(data.sync_requested_at || '-');
+        $('#simplemdm-sync-now').prop('disabled', String(data.sync_request_state || 'idle') === 'running');
+        updateSyncMessageFromState(data);
+    }
+
+    function renderConfig(data) {
         if (data.api_key) {
             $('#api_key').val(data.api_key);
         }
-        $('#sync-status').text(data.last_sync_status || 'Never');
-        $('#sync-time').text(data.last_sync_time || '-');
+        renderSyncStatus(data);
 
         function isEnabled(v) {
             return v === undefined || v === null || String(v) !== '0';
@@ -231,6 +279,44 @@ $(document).on('appReady', function() {
         $('#sync_interval_minutes').val(pickValue(data.sync_interval_minutes, '15'));
         $('#sync_device_subresources_enabled').prop('checked', String(data.sync_device_subresources_enabled || '0') === '1');
         $('#device_subresource_limit').val(pickValue(data.device_subresource_limit, '0'));
+    }
+
+    function loadConfig() {
+        $.getJSON(appUrl + '/module/simplemdm/get_config', function(data) {
+            renderConfig(data);
+        });
+    }
+
+    function refreshSyncStatus() {
+        $.getJSON(appUrl + '/module/simplemdm/get_config', function(data) {
+            renderSyncStatus(data);
+        });
+    }
+
+    // Load existing config
+    loadConfig();
+    window.setInterval(refreshSyncStatus, 15000);
+
+    $('#simplemdm-sync-now').on('click', function() {
+        var $btn = $(this);
+        $btn.prop('disabled', true);
+        setSyncMessage('Queueing sync request...', 'text-info');
+
+        $.post(appUrl + '/module/simplemdm/request_sync', {}, function(data) {
+            if (data.status === 'success') {
+                refreshSyncStatus();
+            } else {
+                setSyncMessage('Error: ' + (data.message || 'Unknown'), 'text-danger');
+                $btn.prop('disabled', false);
+            }
+        }, 'json').fail(function(xhr) {
+            var msg = 'Request failed';
+            if (xhr && xhr.responseJSON && (xhr.responseJSON.message || xhr.responseJSON.error)) {
+                msg = xhr.responseJSON.message || xhr.responseJSON.error;
+            }
+            setSyncMessage('Error: ' + msg, 'text-danger');
+            $btn.prop('disabled', false);
+        });
     });
 
     // Handle form submission

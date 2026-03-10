@@ -196,6 +196,7 @@ def get_config():
 
     args.schedule_enabled = str(config_data.get('enable_scheduled_sync', '0')) == '1'
     args.schedule_last_sync_time = str(config_data.get('last_sync_time', '') or '')
+    args.sync_request_state = str(config_data.get('sync_request_state', 'idle') or 'idle')
     if args.sync_interval_minutes <= 0:
         try:
             args.sync_interval_minutes = int(config_data.get('sync_interval_minutes', '15') or 15)
@@ -244,6 +245,9 @@ def should_run_now(config):
     """Decide if scheduled sync should run now."""
     if config.force_run:
         return True, 'force-run enabled'
+
+    if str(getattr(config, 'sync_request_state', '')).lower() == 'queued':
+        return True, 'admin sync request is queued'
 
     if not config.schedule_enabled:
         return False, 'admin schedule is disabled'
@@ -864,6 +868,28 @@ def update_sync_status(munkireport_url, api_key, status, message, token='', extr
         logger.debug(f"Failed to report sync status: {e}")
 
 
+def begin_sync_run(munkireport_url, api_key, token=''):
+    """Claim the sync slot before starting expensive work."""
+    url = f"{munkireport_url.rstrip('/')}/index.php?/module/simplemdm/index?op=begin_sync_run"
+    req = urllib.request.Request(url, data=b'', method='POST')
+    req.add_header('X-SIMPLEMDM-API-KEY', api_key)
+    if token:
+        req.add_header('Authorization', f'Bearer {token}')
+
+    try:
+        ctx = ssl.create_default_context()
+        with urllib.request.urlopen(req, context=ctx, timeout=REQUEST_TIMEOUT) as response:
+            payload = json.loads(response.read().decode() or '{}')
+            return payload.get('status') == 'success', payload
+    except urllib.error.HTTPError as e:
+        if e.code == 409:
+            return False, {'status': 'busy'}
+        logger.debug(f"Failed to claim sync run: HTTP {e.code} {e.reason}")
+    except Exception as e:
+        logger.debug(f"Failed to claim sync run: {e}")
+    return False, {'status': 'error'}
+
+
 def main():
     """Main sync routine."""
     config = get_config()
@@ -874,6 +900,28 @@ def main():
             logger.info(f"Skipping sync (--respect-schedule): {reason}")
             return
         logger.info(f"Schedule check passed: {reason}")
+
+    if not config.dry_run:
+        claimed, claim_result = begin_sync_run(
+            config.munkireport_url,
+            config.api_key,
+            config.munkireport_token
+        )
+        if not claimed:
+            if claim_result.get('status') == 'busy':
+                logger.info('Another sync is already running; skipping this run.')
+                return
+            logger.error('Unable to claim sync run state in MunkiReport.')
+            sys.exit(1)
+
+        update_sync_status(
+            config.munkireport_url,
+            config.api_key,
+            'Running',
+            f"{datetime.now(timezone.utc).isoformat()} - sync started",
+            config.munkireport_token,
+            extra={'sync_request_state': 'running'}
+        )
 
     start = time.time()
     logger.info("Starting SimpleMDM sync...")
@@ -903,6 +951,7 @@ def main():
                 f"{datetime.now(timezone.utc).isoformat()} - 0 devices, 0 resources synced",
                 config.munkireport_token,
                 extra={
+                    'sync_request_state': 'idle',
                     'sync_last_scope': scope,
                     'sync_last_delta_mode': '1' if config.delta else '0',
                     'last_sync_cursor': datetime.now(timezone.utc).isoformat(),
@@ -946,6 +995,7 @@ def main():
                 f"{datetime.now(timezone.utc).isoformat()} - submission failure",
                 config.munkireport_token,
                 extra={
+                    'sync_request_state': 'idle',
                     'sync_last_duration_ms': int((time.time() - start) * 1000),
                     'sync_last_api_requests': REQUEST_METRICS['api_requests'],
                     'sync_last_api_errors': REQUEST_METRICS['api_errors'],
@@ -1044,6 +1094,7 @@ def main():
                     f"{datetime.now(timezone.utc).isoformat()} - resource submission failure",
                     config.munkireport_token,
                     extra={
+                        'sync_request_state': 'idle',
                         'sync_last_duration_ms': int((time.time() - start) * 1000),
                         'sync_last_api_requests': REQUEST_METRICS['api_requests'],
                         'sync_last_api_errors': REQUEST_METRICS['api_errors'],
@@ -1088,6 +1139,7 @@ def main():
         f"{datetime.now(timezone.utc).isoformat()} - {len(records)} devices, {len(resource_records)} resources, {len(command_records)} commands synced",
         config.munkireport_token,
         extra={
+            'sync_request_state': 'idle',
             'sync_last_duration_ms': duration_ms,
             'sync_last_api_requests': REQUEST_METRICS['api_requests'],
             'sync_last_api_errors': REQUEST_METRICS['api_errors'],

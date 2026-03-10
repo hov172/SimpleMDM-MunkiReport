@@ -24,6 +24,7 @@ php please migrate
 3. `api_key` configured in `Admin -> SimpleMDM Settings`.
 4. For webhook tests: `webhook_secret` configured.
 5. For mutating action tests: `action_api_secret` configured.
+6. If validating scheduled sync behavior, add a real cron entry or install one with `local/modules/simplemdm/scripts/install_cron.sh --munkireport-url '<url>' --install`.
 
 ## 3) Hosted / VM Smoke Test
 

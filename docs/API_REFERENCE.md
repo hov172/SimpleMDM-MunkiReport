@@ -12,7 +12,8 @@ Base path examples use MunkiReport default front controller format:
 | Report/listing/stats/data routes | Authenticated MunkiReport session |
 | Config read (`get_config`) | Auth session (global gets full values; non-global gets masked secret flags) |
 | Config write (`save_config`) | Global admin session OR sync token header |
-| Ingest routes (`op=ingest*`, `op=update_sync_status`) | Sync token header |
+| Admin sync queue (`request_sync`) | Global admin session |
+| Ingest routes (`op=ingest*`, `op=update_sync_status`, `op=begin_sync_run`) | Sync token header |
 | Webhook (`op=webhook`) | Webhook secret header OR sync token header |
 | Device passthrough (`api_devices`) | Global admin session; mutating methods also require action secret |
 
@@ -40,6 +41,7 @@ All are called via:
 |---|---|---|---|
 | `/module/simplemdm/get_config` | GET | Read module settings | Auth session |
 | `/module/simplemdm/save_config` | POST | Save module settings | Global admin OR sync token |
+| `/module/simplemdm/request_sync` | POST | Queue a sync run from the admin UI | Global admin |
 
 `save_config` supports keys including:
 - `api_key`, `webhook_secret`, `action_api_secret`
@@ -50,8 +52,11 @@ All are called via:
 - `sync_commands_enabled`
 - `sync_device_subresources_enabled`
 - `device_subresource_limit`
+- sync queue keys (`sync_request_state`, `sync_requested_at`, `sync_started_at`, `sync_request_source`)
 - telemetry/status keys (`last_sync_status`, `last_sync_time`, `last_sync_cursor`, etc.)
 - widget visibility config keys discovered from `provides.yml`
+
+`request_sync` only queues the request. A host-side or manual `simplemdm_sync.py` run still claims and executes the sync.
 
 ## 4) Listing and Data Endpoints
 

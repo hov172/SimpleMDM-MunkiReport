@@ -18,6 +18,7 @@ fi
 echo ""
 echo "Note: To completely uninstall, you should also:"
 echo "1. Remove the crontab entry for simplemdm_sync.py"
+echo "   Example: $SCRIPT_DIR/remove_cron.sh"
 echo "2. Remove 'simplemdm' from your MODULES list in .env"
 echo "3. (Optional) Run database migration rollback if needed"
 echo ""

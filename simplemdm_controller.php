@@ -8,7 +8,7 @@
  **/
 class Simplemdm_controller extends Module_controller
 {
-    private $sync_actions = ['ingest', 'ingest_resources', 'ingest_commands', 'webhook', 'update_sync_status'];
+    private $sync_actions = ['ingest', 'ingest_resources', 'ingest_commands', 'webhook', 'update_sync_status', 'begin_sync_run'];
 
     function __construct()
     {
@@ -46,6 +46,20 @@ class Simplemdm_controller extends Module_controller
         $this->connectDB();
         $setting = Simplemdm_config_model::where('name', 'api_key')->first();
         return $setting ? trim((string)$setting->value) : '';
+    }
+
+    private function get_config_value($name, $default = '')
+    {
+        $row = Simplemdm_config_model::where('name', (string)$name)->first();
+        return $row ? (string)$row->value : (string)$default;
+    }
+
+    private function set_config_value($name, $value)
+    {
+        Simplemdm_config_model::updateOrCreate(
+            ['name' => (string)$name],
+            ['value' => (string)$value]
+        );
     }
 
     private function is_valid_sync_token()
@@ -608,6 +622,73 @@ class Simplemdm_controller extends Module_controller
     }
 
     /**
+     * Queue a sync request from the admin UI.
+     *
+     * @return void
+     **/
+    public function request_sync()
+    {
+        $this->connectDB();
+        if (! $this->require_global_authorized()) {
+            return;
+        }
+
+        $api_key = $this->get_config_value('api_key');
+        if (trim($api_key) === '') {
+            jsonView(['status' => 'error', 'message' => 'Configure the SimpleMDM API key first.'], 400);
+            return;
+        }
+
+        $state = strtolower(trim($this->get_config_value('sync_request_state', 'idle')));
+        if ($state === 'running') {
+            jsonView(['status' => 'success', 'message' => 'A sync is already running.', 'sync_request_state' => 'running']);
+            return;
+        }
+
+        $requested_at = date('c');
+        $this->set_config_value('sync_request_state', 'queued');
+        $this->set_config_value('sync_requested_at', $requested_at);
+        $this->set_config_value('sync_request_source', 'admin');
+
+        jsonView([
+            'status' => 'success',
+            'message' => 'Sync queued. The next cron or manual runner execution will pick it up.',
+            'sync_request_state' => 'queued',
+            'sync_requested_at' => $requested_at,
+        ]);
+    }
+
+    /**
+     * Claim a queued or scheduled sync run for the Python worker.
+     *
+     * @return void
+     **/
+    public function begin_sync_run()
+    {
+        $this->connectDB();
+        if (! $this->is_valid_sync_token()) {
+            jsonView(['status' => 'error', 'message' => 'Unauthorized'], 401);
+            return;
+        }
+
+        $state = strtolower(trim($this->get_config_value('sync_request_state', 'idle')));
+        if ($state === 'running') {
+            jsonView(['status' => 'busy', 'message' => 'A sync is already running.'], 409);
+            return;
+        }
+
+        $started_at = date('c');
+        $this->set_config_value('sync_request_state', 'running');
+        $this->set_config_value('sync_started_at', $started_at);
+
+        jsonView([
+            'status' => 'success',
+            'sync_request_state' => 'running',
+            'sync_started_at' => $started_at,
+        ]);
+    }
+
+    /**
      * Ingest JSON payload from server-side sync script.
      *
      * @return void
@@ -881,6 +962,18 @@ class Simplemdm_controller extends Module_controller
             );
         }
 
+        $state_value = 'idle';
+        if (isset($post['sync_request_state'])) {
+            $candidate = strtolower(trim((string)$post['sync_request_state']));
+            if (in_array($candidate, ['idle', 'queued', 'running'], true)) {
+                $state_value = $candidate;
+            }
+        }
+        $this->set_config_value('sync_request_state', $state_value);
+        if ($state_value !== 'running') {
+            $this->set_config_value('sync_started_at', '');
+        }
+
         $telemetry_keys = [
             'sync_last_duration_ms',
             'sync_last_api_requests',
@@ -889,6 +982,8 @@ class Simplemdm_controller extends Module_controller
             'sync_last_delta_mode',
             'sync_last_scope',
             'last_sync_cursor',
+            'sync_requested_at',
+            'sync_request_source',
         ];
         foreach ($telemetry_keys as $key) {
             if (isset($post[$key])) {
@@ -1998,6 +2093,10 @@ class Simplemdm_controller extends Module_controller
     public function get_sync_telemetry()
     {
         $keys = [
+            'sync_request_state',
+            'sync_requested_at',
+            'sync_started_at',
+            'sync_request_source',
             'last_sync_status',
             'last_sync_time',
             'last_sync_cursor',

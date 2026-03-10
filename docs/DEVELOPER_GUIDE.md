@@ -129,6 +129,7 @@ local/modules/simplemdm/
 SimpleMDM API
   -> request_sync (admin queue request)
   -> scripts/simplemdm_sync.py
+    -> /module/simplemdm/get_config
     -> /module/simplemdm/index?op=begin_sync_run   -> simplemdm_config
     -> /module/simplemdm/index?op=ingest           -> simplemdm
     -> /module/simplemdm/index?op=ingest_resources -> simplemdm_resource
@@ -174,6 +175,7 @@ Primary file: `simplemdm_controller.php`
 - Read endpoints for report/listings/widgets:
   - stats endpoints (enrollment, DEP, compliance, trend, sync telemetry, etc.)
   - device/resource listing data endpoints
+  - widget/report routes must respect the active MunkiReport `index_page` setting (`/index.php?/module/...` vs `/module/...`)
 - Device API passthrough:
   - `api_devices/...` routes with method allowlists and secret enforcement for mutating requests
 
@@ -213,7 +215,8 @@ Primary file: `simplemdm_processor.php`
 | `simplemdm_dashboard_snapshot` | `simplemdm_dashboard_snapshot_model.php` | Time-series dashboard metrics |
 | `simplemdm_device_history` | `simplemdm_device_history_model.php` | Daily per-device state snapshots |
 
-Migration files are in `migrations/` and should be appended (no rewrites of shipped migrations).
+Migration files are in `migrations/` and should normally be appended.
+Treat already-deployed migrations as immutable; only correct a migration in-place before rollout if the shipped revision is not yet safe to deploy.
 
 ## 7) UI and View Map
 

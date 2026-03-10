@@ -6,7 +6,8 @@ This guide covers safe upgrade procedures for this module in Hosted/VM and Docke
 
 1. Always back up before upgrade.
 2. Pull/update code first, then run migrations.
-3. Do not modify historical migration files.
+3. Treat shipped migrations as immutable once they have been applied in an environment.
+   If a migration bug is found before rollout, fix it in Git and then deploy the corrected module revision.
 4. Validate sync + UI after every upgrade.
 
 ## 2) Pre-Upgrade Checklist
@@ -146,8 +147,11 @@ Notes:
 3. Sync errors after upgrade:
    - Verify `api_key` still present.
    - Check headers used by sync runner.
+4. Widgets fail to load or return generic API errors:
+   - Re-run migrations and confirm the module DB tables exist.
+   - Confirm you are on a current module revision; older revisions could fail on assignment-group/OS-security widget queries in some environments.
 5. `Sync Now` stays queued forever:
    - Confirm a real cron entry exists or manually run `python3 local/modules/simplemdm/scripts/simplemdm_sync.py --munkireport-url '<url>' --respect-schedule --force-run`.
    - Remember the admin button queues work; it does not execute Python directly from the web request.
-4. Docker command failures:
+6. Docker command failures:
    - Confirm compose service name (`munkireport`) and container status (`docker compose ps`).

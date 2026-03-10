@@ -2,8 +2,13 @@
 
 This reference documents module routes, expected auth, and common usage patterns.
 
-Base path examples use MunkiReport default front controller format:
+Base path examples use MunkiReport's default front-controller format:
 - `/index.php?/module/simplemdm/...`
+
+If your MunkiReport deployment uses URL rewriting, the same routes may also resolve without `index.php?`, for example:
+- `/module/simplemdm/...`
+
+Use whichever form matches your configured MunkiReport `index_page`.
 
 ## 1) Auth Summary
 
@@ -29,6 +34,7 @@ All are called via:
 
 | Operation | Method | Purpose | Auth |
 |---|---|---|---|
+| `begin_sync_run` | POST | Claim a queued/scheduled sync run and mark it running | Sync token |
 | `ingest` | POST | Upsert device rows into `simplemdm` via processor | Sync token |
 | `ingest_resources` | POST | Upsert non-device resources into `simplemdm_resource` | Sync token |
 | `ingest_commands` | POST | Upsert command status rows into `simplemdm_command` | Sync token |
@@ -57,6 +63,8 @@ All are called via:
 - widget visibility config keys discovered from `provides.yml`
 
 `request_sync` only queues the request. A host-side or manual `simplemdm_sync.py` run still claims and executes the sync.
+
+`begin_sync_run` is a worker-only claim endpoint used by the sync script. It is not meant to be called from the browser UI.
 
 ## 4) Listing and Data Endpoints
 
@@ -163,3 +171,5 @@ Common error payloads:
   - disallowed method/subpath combination
 - `400 Invalid JSON data`:
   - malformed payload on ingest/webhook operations
+- generic `{"error":"Something failed, turn on DEBUG for more information."}`:
+  - indicates a server-side controller/database error; check PHP/app logs and confirm the module is upgraded and migrated cleanly

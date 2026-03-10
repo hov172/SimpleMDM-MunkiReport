@@ -44,6 +44,7 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
    - `show/report/simplemdm/simplemdm`
    - `show/listing/simplemdm/simplemdm`
    - `show/listing/simplemdm/simplemdm_resources`
+   - `Top Assignment Groups` and `Enrollment/Security by OS` widgets render data if enabled
 3. Validate admin telemetry:
    - `last_sync_status = success`
    - `last_sync_time` recent
@@ -87,6 +88,7 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
    - `http://localhost:8888/show/report/simplemdm/simplemdm`
    - `http://localhost:8888/show/listing/simplemdm/simplemdm`
    - `http://localhost:8888/show/listing/simplemdm/simplemdm_resources`
+   - `Top Assignment Groups` and `Enrollment/Security by OS` widgets render data if enabled
 
 4. Queued Sync Now smoke test:
    - Open `Admin -> SimpleMDM Settings`
@@ -147,6 +149,8 @@ Expected:
 | Sync | Device ingest | Device table count increases/updates |
 | Sync | Resource ingest | Resource listing populated |
 | Sync | Commands ingest (if enabled) | Command status widget shows data |
+| Widgets | Assignment groups | `get_assignment_group_stats` returns JSON and group widgets render |
+| Widgets | OS security | `get_os_security_stats` returns JSON and widget renders |
 | Webhook | Test event ingestion | `simplemdm_webhook_event` receives record |
 | Report | Core widgets render | no JS/API errors |
 | Listing | Device filters | filtered results correct |

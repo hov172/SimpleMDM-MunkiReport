@@ -1326,6 +1326,8 @@ Expected behavior:
 
 ### Ingest endpoints (used by sync/webhooks)
 
+- `POST /index.php?/module/simplemdm/index?op=begin_sync_run`
+  - Worker-side claim of queued/scheduled sync execution.
 - `POST /index.php?/module/simplemdm/index?op=ingest`
   - Device payload batch ingest.
 - `POST /index.php?/module/simplemdm/index?op=ingest_resources`
@@ -1439,6 +1441,7 @@ After rollout, verify in this order:
 
 Use rewrite-safe URLs with `index.php?` in non-rewrite environments.
 The module widgets already handle this fallback.
+If your MunkiReport install uses rewritten routes, the shorter `/module/simplemdm/...` form also works.
 
 ### Admin save hangs or does not complete
 
@@ -1451,6 +1454,14 @@ Check browser console/network and confirm module route resolves:
 - Run manual sync with `--verbose`.
 - Check `Admin -> SimpleMDM Settings` for `last_sync_status` and `last_sync_time`.
 - Confirm `simplemdm` and `simplemdm_resource` rows exist.
+
+### Assignment Groups or OS Security widgets fail to load
+
+- Probe the JSON endpoints directly while logged in:
+  - `/module/simplemdm/get_assignment_group_stats`
+  - `/module/simplemdm/get_os_security_stats`
+- If either returns a generic API error, confirm the module is updated and migrations completed cleanly.
+- If JSON is valid but the browser still shows stale content, hard-refresh the page to reload widget JavaScript.
 
 ### Widget is enabled but not visible
 

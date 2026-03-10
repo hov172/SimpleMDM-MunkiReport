@@ -13,11 +13,14 @@ SCHEDULE="${SCHEDULE:-* * * * *}"
 MAX_PARENT_RESOURCES="${MAX_PARENT_RESOURCES:-25}"
 LOG_PATH="${LOG_PATH:-/var/log/simplemdm_sync.log}"
 INSTALL_CRON="${INSTALL_CRON:-0}"
+REMOVE_CRON="${REMOVE_CRON:-0}"
+MATCH_TEXT="${MATCH_TEXT:-simplemdm_sync.py}"
 
 usage() {
     cat <<EOF
 Usage:
   $(basename "$0") --munkireport-url URL [--install]
+  $(basename "$0") --remove [--match-text TEXT]
 
 Options:
   --munkireport-url URL   Required. Base MunkiReport URL used by the sync script.
@@ -27,11 +30,13 @@ Options:
   --max-parent-resources N
                           Passed to simplemdm_sync.py. Default: $MAX_PARENT_RESOURCES
   --install               Install/update the current user's crontab entry.
+  --remove                Remove matching cron entries instead of printing/installing.
+  --match-text TEXT       Match text used by --remove. Default: $MATCH_TEXT
   --print-only            Print the cron entry without installing it. Default behavior.
   -h, --help              Show this help.
 
 Environment overrides:
-  MUNKIREPORT_URL, PYTHON_BIN, SCHEDULE, LOG_PATH, MAX_PARENT_RESOURCES, INSTALL_CRON
+  MUNKIREPORT_URL, PYTHON_BIN, SCHEDULE, LOG_PATH, MAX_PARENT_RESOURCES, INSTALL_CRON, REMOVE_CRON, MATCH_TEXT
 EOF
 }
 
@@ -61,6 +66,14 @@ while [ $# -gt 0 ]; do
             INSTALL_CRON=1
             shift
             ;;
+        --remove)
+            REMOVE_CRON=1
+            shift
+            ;;
+        --match-text)
+            MATCH_TEXT="${2:-}"
+            shift 2
+            ;;
         --print-only)
             INSTALL_CRON=0
             shift
@@ -76,6 +89,15 @@ while [ $# -gt 0 ]; do
             ;;
     esac
 done
+
+if [ "$REMOVE_CRON" = "1" ]; then
+    TMP_FILE="$(mktemp)"
+    trap 'rm -f "$TMP_FILE"' EXIT
+    crontab -l 2>/dev/null | grep -v "$MATCH_TEXT" > "$TMP_FILE" || true
+    crontab "$TMP_FILE"
+    echo "Removed cron entries matching: $MATCH_TEXT"
+    exit 0
+fi
 
 if [ -z "$MUNKIREPORT_URL" ]; then
     echo "ERROR: --munkireport-url is required." >&2

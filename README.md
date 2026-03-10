@@ -82,6 +82,7 @@ This README assumes MunkiReport is already installed and running.
 
 Use the MunkiReport core project for base application setup:
 - MunkiReport repo: `https://github.com/munkireport/munkireport-php`
+- Start with the MunkiReport core README in that repo for hosted or Docker installation details before applying this module.
 
 This module README covers only:
 - installing `simplemdm` into `local/modules`
@@ -161,6 +162,7 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
 ```bash
 local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'http://127.0.0.1'
 local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'http://127.0.0.1' --install
+local/modules/simplemdm/scripts/install_cron.sh --remove
 ```
 
 Cron is not installed automatically when you clone the module. You must either add the crontab entry yourself or run the helper with `--install`.
@@ -235,6 +237,7 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
 ```bash
 local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'http://localhost:8888'
 local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'http://localhost:8888' --install
+local/modules/simplemdm/scripts/install_cron.sh --remove
 ```
 
 Cron is not installed automatically when you clone the module. The helper updates the current user's crontab only when you run it with `--install`.
@@ -273,14 +276,25 @@ python3 --version
      - Docker example in this doc: use `http://localhost:8888`.
      - Confirm app is reachable in browser before rerunning sync.
 
-4. Sync fails with unauthorized/forbidden:
+4. `Sync Now` stays queued:
+   - Cause: no cron entry exists, cron is not running, or the queued request has not reached the next cron pickup yet.
+   - Fix:
+
+```bash
+crontab -l
+python3 local/modules/simplemdm/scripts/simplemdm_sync.py --munkireport-url 'http://localhost:8888' --respect-schedule --force-run --verbose
+```
+
+   - If the queue state remains `queued` longer than the current sync interval, verify cron is installed with `local/modules/simplemdm/scripts/install_cron.sh --munkireport-url '<url>' --install`.
+
+5. Sync fails with unauthorized/forbidden:
    - Cause: invalid SimpleMDM API key or auth mismatch.
    - Fix:
      - Save a valid API key in `Admin -> SimpleMDM Settings`.
      - Re-run sync with `--api-key 'YOUR_SIMPLEMDM_API_KEY'` for explicit test.
      - If MunkiReport API token auth is enabled in your environment, pass `--munkireport-token`.
 
-5. `Admin -> SimpleMDM Settings` is missing:
+6. `Admin -> SimpleMDM Settings` is missing:
    - Cause: module not enabled or metadata not reloaded.
    - Fix:
      - Confirm `.env` (or compose env) `MODULES` contains `simplemdm`.

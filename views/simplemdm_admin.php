@@ -218,6 +218,15 @@ if (is_readable($provides_path)) {
 
 <script>
 $(document).on('appReady', function() {
+    function parseIsoDate(value) {
+        var raw = String(value || '').trim();
+        if (!raw) {
+            return null;
+        }
+        var parsed = Date.parse(raw);
+        return isNaN(parsed) ? null : new Date(parsed);
+    }
+
     function setSyncMessage(text, cssClass) {
         $('#sync-request-message').text(text).removeClass().addClass(cssClass || 'text-muted');
     }
@@ -227,11 +236,22 @@ $(document).on('appReady', function() {
         var requestedAt = String(data.sync_requested_at || '').trim();
         var lastStatus = String(data.last_sync_status || '').trim();
         var lastTime = String(data.last_sync_time || '').trim();
+        var intervalMinutes = parseInt(String(data.sync_interval_minutes || '15'), 10);
+        if (isNaN(intervalMinutes) || intervalMinutes < 1) {
+            intervalMinutes = 15;
+        }
 
         if (state === 'queued') {
+            var requestedDate = parseIsoDate(requestedAt);
+            var queuedTooLong = false;
+            if (requestedDate) {
+                queuedTooLong = ((new Date()).getTime() - requestedDate.getTime()) > ((intervalMinutes + 1) * 60 * 1000);
+            }
             setSyncMessage(
-                requestedAt ? 'Sync is queued and waiting for cron/manual runner. Requested at ' + requestedAt + '.' : 'Sync is queued and waiting for cron/manual runner.',
-                'text-info'
+                requestedAt
+                    ? 'Sync is queued and waiting for cron/manual runner. Requested at ' + requestedAt + '.' + (queuedTooLong ? ' This is longer than the current schedule interval; verify cron is installed and running.' : '')
+                    : 'Sync is queued and waiting for cron/manual runner.',
+                queuedTooLong ? 'text-warning' : 'text-info'
             );
             return;
         }

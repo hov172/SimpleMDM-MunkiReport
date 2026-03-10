@@ -88,6 +88,23 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
    - `http://localhost:8888/show/listing/simplemdm/simplemdm`
    - `http://localhost:8888/show/listing/simplemdm/simplemdm_resources`
 
+4. Queued Sync Now smoke test:
+   - Open `Admin -> SimpleMDM Settings`
+   - Click `Sync Now`
+   - Confirm `Queue State = queued`
+   - Wait for cron pickup or run:
+
+```bash
+python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
+  --munkireport-url 'http://localhost:8888' \
+  --respect-schedule \
+  --force-run \
+  --verbose
+```
+
+   - Confirm `Queue State` moves through `running` to `idle`
+   - Confirm `Last Sync Time` updates
+
 ## 5) API/Auth Negative Tests
 
 ## Ingest should reject missing sync token

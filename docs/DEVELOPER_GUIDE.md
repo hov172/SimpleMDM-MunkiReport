@@ -94,13 +94,14 @@ This guide is for contributors who need to understand and modify the module safe
 ### Admin Settings Page
 
 - What:
-  - Module configuration UI for API key, secrets, sync controls, and widget toggles.
+  - Module configuration UI for API key, secrets, sync controls, widget toggles, and queued `Sync Now` state.
 - Why:
   - Keeps operational controls in one place without code edits.
 - How:
   - Registered under `admin_pages` in `provides.yml`.
   - View: `views/simplemdm_admin.php`.
   - Persists to `simplemdm_config`.
+  - `Sync Now` queues work in config state; host cron/manual runner still executes `simplemdm_sync.py`.
 
 ## 3) Module Layout
 
@@ -114,6 +115,8 @@ local/modules/simplemdm/
 |- migrations/                        # schema creation and incremental updates
 |- views/                             # report pages, listing pages, widgets, device page UI
 |- scripts/simplemdm_sync.py          # server-side sync client (SimpleMDM -> module endpoints)
+|- scripts/install_cron.sh            # helper to print/install/remove cron entries
+|- scripts/remove_cron.sh             # simple cron cleanup helper
 |- examples/dashboard.simplemdm.full.yml
 `- docs/images/                       # screenshots used by README/docs
 ```
@@ -124,7 +127,9 @@ local/modules/simplemdm/
 
 ```text
 SimpleMDM API
+  -> request_sync (admin queue request)
   -> scripts/simplemdm_sync.py
+    -> /module/simplemdm/index?op=begin_sync_run   -> simplemdm_config
     -> /module/simplemdm/index?op=ingest           -> simplemdm
     -> /module/simplemdm/index?op=ingest_resources -> simplemdm_resource
     -> /module/simplemdm/index?op=ingest_commands  -> simplemdm_command
@@ -164,6 +169,8 @@ Primary file: `simplemdm_controller.php`
   - `op=ingest_commands`
   - `op=webhook`
   - `op=update_sync_status`
+  - `request_sync`
+  - `op=begin_sync_run`
 - Read endpoints for report/listings/widgets:
   - stats endpoints (enrollment, DEP, compliance, trend, sync telemetry, etc.)
   - device/resource listing data endpoints
@@ -179,6 +186,7 @@ Primary file: `scripts/simplemdm_sync.py`
 - Preserves raw payload fragments in JSON fields
 - Submits batched payloads to module ingest endpoints
 - Supports schedule-aware execution via `--respect-schedule`
+- Claims queued/scheduled runs via `begin_sync_run`
 - Supports deep sync flags:
   - `--delta`
   - `--sync-commands`
@@ -271,6 +279,8 @@ Use existing screenshots while changing UI:
 ## 9) Security Boundaries
 
 - Ingest/write routes rely on sync auth token/API key checks.
+- Admin-triggered queue requests rely on global admin session checks.
+- Worker-side run claims rely on sync auth token/API key checks.
 - Webhook route supports webhook secret and sync token fallback.
 - Mutating passthrough requests require:
   - global admin session

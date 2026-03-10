@@ -4,11 +4,12 @@ This document explains authentication, secrets, trust boundaries, and hardening 
 
 ## 1) Security Model
 
-The module has three primary write paths:
+The module has four primary write paths:
 
 1. Sync ingest (`ingest`, `ingest_resources`, `ingest_commands`, `update_sync_status`)
-2. Webhook ingest (`webhook`)
-3. Device API passthrough (`api_devices`, mutating operations)
+2. Sync queue control (`request_sync`, `begin_sync_run`)
+3. Webhook ingest (`webhook`)
+4. Device API passthrough (`api_devices`, mutating operations)
 
 Read/report/listing routes require a normal authenticated MunkiReport session.
 
@@ -20,8 +21,10 @@ Read/report/listing routes require a normal authenticated MunkiReport session.
 | `index?op=ingest_resources` | Sync auth required | `X-SIMPLEMDM-API-KEY` |
 | `index?op=ingest_commands` | Sync auth required | `X-SIMPLEMDM-API-KEY` |
 | `index?op=update_sync_status` | Sync auth required | `X-SIMPLEMDM-API-KEY` |
+| `index?op=begin_sync_run` | Sync auth required | `X-SIMPLEMDM-API-KEY` |
 | `index?op=webhook` | Webhook secret OR sync auth | `X-SIMPLEMDM-WEBHOOK-SECRET` or `X-SIMPLEMDM-API-KEY` |
 | `save_config` | Global admin OR sync auth | Session auth or `X-SIMPLEMDM-API-KEY` |
+| `request_sync` | Global admin session | Session auth |
 | `api_devices` `GET` | Global admin session | Session auth |
 | `api_devices` mutating methods (`POST/PATCH/PUT/DELETE`) | Global admin + action secret | `X-SIMPLEMDM-ACTION-SECRET` (or supported aliases/body/query key) |
 
@@ -35,6 +38,7 @@ Notes:
 
 - Purpose:
   - Authorizes sync ingest/update endpoints.
+  - Authorizes worker-side sync claim calls (`begin_sync_run`).
   - Used by controller passthrough to authenticate to SimpleMDM upstream API.
 - Storage:
   - `simplemdm_config` (`name=api_key`).
@@ -70,6 +74,7 @@ Notes:
    - Any automation using mutating `api_devices` operations
 4. Run immediate smoke checks:
    - Sync script manual run
+   - Queued `Sync Now` request picked up by cron/manual runner
    - Webhook test POST
    - One safe device action (`refresh`)
 5. Remove/disable old secret in upstream systems.
@@ -84,10 +89,16 @@ Notes:
    - `action_api_secret`
 4. Restrict network ingress to MunkiReport where possible (WAF, IP ACL, VPN).
 5. Run sync from trusted host only; do not expose sync runner credentials broadly.
-6. Monitor logs for repeated unauthorized attempts on:
+6. Treat queued sync controls as privileged operations:
+   - `request_sync` should remain global-admin only
+   - `begin_sync_run` should remain sync-token only
+   - do not invoke Python directly from PHP/web requests
+7. Monitor logs for repeated unauthorized attempts on:
    - `index?op=webhook`
+   - `request_sync`
+   - `index?op=begin_sync_run`
    - `api_devices` mutating calls
-7. Rotate secrets on staff turnover or suspected exposure.
+8. Rotate secrets on staff turnover or suspected exposure.
 
 ## 6) Logging and Sensitive Data
 
@@ -100,6 +111,8 @@ Notes:
 
 1. Non-global user cannot retrieve raw `api_key`, `webhook_secret`, or `action_api_secret`.
 2. Ingest endpoints reject requests missing `X-SIMPLEMDM-API-KEY`.
-3. Webhook endpoint rejects invalid secret and invalid sync token.
-4. Mutating `api_devices` call fails without valid action secret.
-5. Read-only `api_devices` calls still require global admin session.
+3. `begin_sync_run` rejects requests missing `X-SIMPLEMDM-API-KEY`.
+4. `request_sync` rejects non-global sessions.
+5. Webhook endpoint rejects invalid secret and invalid sync token.
+6. Mutating `api_devices` call fails without valid action secret.
+7. Read-only `api_devices` calls still require global admin session.

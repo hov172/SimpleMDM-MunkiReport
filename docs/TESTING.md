@@ -32,10 +32,12 @@ php please migrate
 
 Use these rules during testing:
 
-1. `Run Sync Now` is an immediate one-off run path.
-2. `Enable Scheduled Sync` / `Disable Scheduled Sync` control recurring schedule intent in the module.
-3. recurring schedule execution still requires cron to launch `simplemdm_sync.py`.
-4. `simplemdm_sync.py` is the worker; `install_cron.sh` is only a helper for installing its schedule.
+1. `Sync Status -> Run Sync Now` is queue-based and should change queue state for the next worker pickup.
+2. `In-Module Sync And Schedule -> Run Sync Now` is the immediate one-off run path.
+3. `Enable Scheduled Sync` / `Disable Scheduled Sync` control recurring schedule intent in the module.
+4. recurring schedule execution still requires cron to launch `simplemdm_sync.py`.
+5. `simplemdm_sync.py` is the worker; `install_cron.sh` is only a helper for installing its schedule.
+6. `sync_last_api_errors` should reflect real API failures only; expected unsupported endpoint probes should not inflate it.
 
 ## 3) Hosted / VM Smoke Test
 
@@ -103,8 +105,10 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
 
 4. Schedule and one-off sync smoke test:
    - Open `Admin -> SimpleMDM Settings`
-   - Click `Run Sync Now`
-   - Confirm `Last Sync Time` updates after the run completes
+   - In `Sync Status`, click `Run Sync Now`
+   - Confirm queue state changes and `Last Sync Time` updates after the worker runs
+   - If module execution is available, use `In-Module Sync And Schedule -> Run Sync Now`
+   - Confirm the immediate run completes without waiting for cron
    - Set `Schedule` to `Every 15 Minutes` and click `Enable Scheduled Sync`
    - Confirm `Schedule Status = Enabled`
    - Confirm `Next Expected Run` is populated
@@ -164,6 +168,7 @@ Expected:
 | Sync | Device ingest | Device table count increases/updates |
 | Sync | Resource ingest | Resource listing populated |
 | Sync | Commands ingest (if enabled) | Command status widget shows data |
+| Sync | API telemetry | `sync_last_api_errors` stays at `0` for a healthy run using supported endpoints |
 | Widgets | Assignment groups | `get_assignment_group_stats` returns JSON and group widgets render |
 | Widgets | OS security | `get_os_security_stats` returns JSON and widget renders |
 | Webhook | Test event ingestion | `simplemdm_webhook_event` receives record |

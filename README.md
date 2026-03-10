@@ -10,7 +10,7 @@ This module syncs devices and API resources from SimpleMDM server-side, stores t
 - Sync auth and routing are handled inside this module.
 - Supports API-key protected ingest routes and optional webhook secret protected route.
 - Supports role + action-secret protected device API passthrough routes (`api_devices`).
-- Supports deep API resource sync (apps/profiles/groups/etc. where available).
+- Supports documented SimpleMDM API resource sync for devices, apps, profiles, scripts, enrollments, assignment groups, device groups, and related supported child objects.
 - Provides device-level connected resource mapping.
 - Supports dashboard add/remove widgets for all SimpleMDM widgets, including per-resource-type widgets.
 - All report widgets are modernized with chart/KPI dashboards (NVD3-based where applicable) and drill-down links.
@@ -237,7 +237,8 @@ local/modules/simplemdm/scripts/install_cron.sh --remove
 ```
 
 Cron is not installed automatically when you clone the module. You must either add the crontab entry yourself or run the helper with `--install`.
-`Sync Now` in the admin page only queues work; it still depends on this cron/manual runner.
+The `Sync Status` panel `Run Sync Now` button queues work for the next worker pickup.
+The `In-Module Sync And Schedule` panel `Run Sync Now` button performs an immediate run when in-module execution is available.
 
 ### Docker Module Install
 
@@ -312,7 +313,8 @@ local/modules/simplemdm/scripts/install_cron.sh --remove
 ```
 
 Cron is not installed automatically when you clone the module. The helper updates the current user's crontab only when you run it with `--install`.
-`Sync Now` in the admin page only queues work; it still depends on this cron/manual runner.
+The `Sync Status` panel `Run Sync Now` button queues work for the next worker pickup.
+The `In-Module Sync And Schedule` panel `Run Sync Now` button performs an immediate run when in-module execution is available.
 
 ### Common Validation Checklist
 
@@ -347,7 +349,7 @@ python3 --version
      - Docker example in this doc: use `http://localhost:8888`.
      - Confirm app is reachable in browser before rerunning sync.
 
-4. `Sync Now` stays queued:
+4. `Sync Status -> Run Sync Now` stays queued:
    - Cause: no cron entry exists, cron is not running, or the queued request has not reached the next cron pickup yet.
    - Fix:
 
@@ -357,6 +359,7 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py --munkireport-url 'htt
 ```
 
    - If the queue state remains `queued` longer than the current sync interval, verify cron is installed with `local/modules/simplemdm/scripts/install_cron.sh --munkireport-url '<url>' --install`.
+   - If you want an immediate one-off run from the UI, use the `In-Module Sync And Schedule` panel instead and ensure Python is available in the MunkiReport runtime.
 
 5. Sync fails with unauthorized/forbidden:
    - Cause: invalid SimpleMDM API key or auth mismatch.
@@ -395,8 +398,8 @@ docker compose up -d --build
 SimpleMDM module is used to:
 
 - Pull SimpleMDM device inventory into MunkiReport for centralized visibility.
-- Pull SimpleMDM resource objects (apps, profiles, groups, scripts, and related objects) for reporting.
-- Show connected resources per device so admins can see which profiles/apps/groups are tied to endpoints.
+- Pull supported SimpleMDM resource objects (apps, profiles, scripts, enrollments, assignment groups, device groups, and related supported child objects) for reporting.
+- Show connected resources per device so admins can see which profiles/apps/assignment groups are tied to endpoints.
 - Show synced per-device subresource tables (installed apps, users, profiles) on device detail pages.
 - Provide a device action runner UI on device detail pages with action-secret enforcement.
 - Provide dashboard widgets for enrollment, DEP, supervision, FileVault, resource mix, command status, compliance, and sync health.
@@ -513,8 +516,10 @@ php /path/to/munkireport/please migrate
 ![Advanced Sync & Compliance Settings](docs/images/advanced-sync-settings.png)
 
 Current admin scope:
-- Admin currently manages API/auth, widget visibility, and advanced sync/compliance settings.
-- Admin includes a `Sync Now` button that queues a run inside module state; the host-side Python runner still performs the actual sync.
+- Admin currently manages API/auth, widget visibility, advanced sync/compliance settings, in-module runner settings, and manual download/access workflows.
+- Admin exposes two sync paths:
+  - `Sync Status -> Run Sync Now` queues a run for the next worker pickup.
+  - `In-Module Sync And Schedule -> Run Sync Now` performs an immediate run when in-module execution is enabled and Python is available in the MunkiReport runtime.
 - Layout ordering, full-width spans, and expand/collapse behavior are module-driven defaults (not separate admin toggles).
 - If the Admin menu item does not appear after module updates, refresh/restart MunkiReport so module `provides.yml` metadata is reloaded.
 
@@ -569,7 +574,8 @@ python3 /path/to/munkireport/local/modules/simplemdm/scripts/simplemdm_sync.py \
 4. Verify status in admin page:
    - `last_sync_status` should become `success`.
    - `last_sync_time` should update.
-   - `Sync Now` queues a run and changes queue state to `queued`/`running`; cron or a manual script invocation still executes the import.
+   - `Sync Status -> Run Sync Now` changes queue state to `queued`/`running`; cron or a manual script invocation still executes the import.
+   - `In-Module Sync And Schedule -> Run Sync Now` runs immediately when module execution prerequisites are met.
 5. Verify data exists:
    - Device listing: `show/listing/simplemdm/simplemdm`
    - Resource listing: `show/listing/simplemdm/simplemdm_resources`
@@ -790,6 +796,30 @@ python3 /path/to/munkireport/local/modules/simplemdm/scripts/simplemdm_sync.py \
 - `--respect-schedule`: honor admin schedule controls (`enable_scheduled_sync` + `sync_interval_minutes`)
 - `--force-run`: bypass `--respect-schedule` gate and run immediately
 - `--sync-interval-minutes N`: override schedule interval for this run (`0` uses admin config value)
+
+### Supported API scope
+
+The sync script is intentionally aligned to documented SimpleMDM GET endpoints.
+
+Current top-level collection sync includes:
+- `devices`
+- `device_groups`
+- `assignment_groups`
+- `profiles`
+- `apps`
+- `custom_attributes`
+- `scripts`
+- `enrollments`
+
+Current supported child collection sync includes:
+- `apps/{id}/installs`
+- `apps/{id}/managed_configs`
+- optional per-device subresources:
+  - `devices/{id}/profiles`
+  - `devices/{id}/installed_apps`
+  - `devices/{id}/users`
+
+Undocumented or unsupported collection probes are intentionally excluded so sync telemetry reflects real API failures instead of expected 404s.
 
 ### Auto-config behavior
 

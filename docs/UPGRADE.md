@@ -54,6 +54,7 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
 5. Verify:
    - `Admin -> SimpleMDM Settings` loads
    - `Run Sync Now`, `Schedule`, `Schedule Status`, `Last Run`, and `Next Expected Run` appear as expected
+   - the schedule panel clearly distinguishes module-side execution from host/manual execution
    - `reports/simplemdm` renders
    - device/resource listings return data
 
@@ -98,6 +99,7 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
 
 5. Verify:
    - `http://localhost:8888/index.php?/module/simplemdm/admin` shows `Run Sync Now`, `Schedule`, `Schedule Status`, `Last Run`, and `Next Expected Run`
+   - the schedule panel shows whether Python is available in the module runtime and whether cron is module-managed or manual
    - `http://localhost:8888/reports/simplemdm`
    - `http://localhost:8888/show/listing/simplemdm/simplemdm`
    - `http://localhost:8888/show/listing/simplemdm/simplemdm_resources`
@@ -109,6 +111,7 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
 2. Sync health:
    - `last_sync_status = success`
    - `last_sync_time` updated recently
+   - `sync_last_api_errors` reflects real failures only and should normally be `0` on a healthy supported run
    - If using the schedule UI, confirm `Schedule Status` matches the intended state
    - If scheduled sync is enabled, confirm `Next Expected Run` is populated for preset schedules
 3. Data health:
@@ -151,8 +154,9 @@ Notes:
 4. Widgets fail to load or return generic API errors:
    - Re-run migrations and confirm the module DB tables exist.
    - Confirm you are on a current module revision; older revisions could fail on assignment-group/OS-security widget queries in some environments.
-5. `Sync Now` stays queued forever:
+5. `Sync Status -> Run Sync Now` stays queued forever:
    - Confirm a real cron entry exists or manually run `python3 local/modules/simplemdm/scripts/simplemdm_sync.py --munkireport-url '<url>' --respect-schedule --force-run`.
-   - Remember the admin button queues work; it does not execute Python directly from the web request.
+   - That queue button does not execute Python directly from the web request.
+   - If module-side Python is available, use `In-Module Sync And Schedule -> Run Sync Now` for an immediate run instead.
 6. Docker command failures:
    - Confirm compose service name (`munkireport`) and container status (`docker compose ps`).

@@ -21,7 +21,7 @@ This guide is for contributors who need to understand and modify the module safe
 ### What this module does
 
 - Syncs SimpleMDM device inventory into MunkiReport for centralized visibility.
-- Syncs SimpleMDM resources (apps/profiles/groups/scripts and related objects) for reporting and drill-down.
+- Syncs documented SimpleMDM resources (apps, profiles, scripts, enrollments, assignment groups, device groups, and related supported child objects) for reporting and drill-down.
 - Exposes operational dashboards/widgets for compliance, security posture, command status, and sync health.
 - Provides per-device deep views (attributes, relationships, linked resources, synced subresources).
 - Supports controlled mutating actions (restart/lock/wipe class actions) through authenticated passthrough routes.
@@ -101,7 +101,8 @@ This guide is for contributors who need to understand and modify the module safe
   - Registered under `admin_pages` in `provides.yml`.
   - View: `views/simplemdm_admin.php`.
   - Persists to `simplemdm_config`.
-  - `Run Sync Now` queues a one-off run.
+  - `Sync Status -> Run Sync Now` queues a one-off run for the next worker pickup.
+  - `In-Module Sync And Schedule -> Run Sync Now` executes an immediate one-off run when in-module execution is available.
   - `Enable Scheduled Sync` / `Disable Scheduled Sync` change module schedule state.
   - `simplemdm_sync.py` is still the real worker; recurring runs require cron to launch it.
   - Optional in-module execution allows the UI to install/remove cron and run approved script actions for global admins.
@@ -115,7 +116,8 @@ This guide is for contributors who need to understand and modify the module safe
 - How:
   - The admin UI stores schedule settings in `simplemdm_config`.
   - Presets map to cron expressions.
-  - `Run Sync Now` is immediate and does not need cron.
+  - `Sync Status -> Run Sync Now` is queue-based and still depends on a worker pickup.
+  - `In-Module Sync And Schedule -> Run Sync Now` is immediate and does not need cron, but it does require module-side Python execution.
   - recurring scheduled sync still depends on cron
   - if module-side execution is enabled, the module can call `install_cron.sh` / `remove_cron.sh` on behalf of the admin
   - `Runner MunkiReport URL` prefers canonical MunkiReport config (`WEBHOST` / `SUBDIRECTORY`) and falls back to the current request URL for local/placeholder deployments
@@ -202,6 +204,7 @@ Primary file: `simplemdm_controller.php`
 Primary file: `scripts/simplemdm_sync.py`
 
 - Pulls devices/resources/commands from SimpleMDM API
+- Restricts collection discovery to documented SimpleMDM GET endpoints so telemetry reflects real failures
 - Flattens/normalizes fields for `simplemdm`
 - Preserves raw payload fragments in JSON fields
 - Submits batched payloads to module ingest endpoints

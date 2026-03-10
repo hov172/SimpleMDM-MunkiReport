@@ -14,7 +14,8 @@ Use whichever form matches your configured MunkiReport `index_page`.
 
 Workflow note:
 - `simplemdm_sync.py` is the sync worker.
-- `Run Sync Now` is a one-off trigger path.
+- `Sync Status -> Run Sync Now` is a queue-based trigger path.
+- `In-Module Sync And Schedule -> Run Sync Now` is an immediate execution path when module-side execution is available.
 - recurring schedule still requires cron to launch `simplemdm_sync.py`
 - `install_cron.sh` and `remove_cron.sh` are helpers for managing that cron entry
 - when module-side execution is enabled, the admin UI can call those helpers for global admins
@@ -55,6 +56,7 @@ All are called via:
 |---|---|---|---|
 | `/module/simplemdm/get_config` | GET | Read module settings | Auth session |
 | `/module/simplemdm/get_script_catalog` | GET | Read downloadable script metadata and external command templates | Global admin |
+| `/module/simplemdm/get_runner_status` | GET | Read module runtime, cron, and runner readiness state | Global admin |
 | `/module/simplemdm/save_config` | POST | Save module settings | Global admin OR sync token |
 | `/module/simplemdm/request_sync` | POST | Queue a sync run from the admin UI | Global admin |
 | `/module/simplemdm/run_script` | POST | Execute an approved module-side script action | Global admin and script runner enabled |
@@ -83,6 +85,8 @@ All are called via:
 `request_sync` only queues the request. A host-side or manual `simplemdm_sync.py` run still claims and executes the sync.
 
 `begin_sync_run` is a worker-only claim endpoint used by the sync script. It is not meant to be called from the browser UI.
+
+`run_script` is used by the schedule panel for immediate module-side execution and module-managed cron helper actions.
 
 ## 4) Listing and Data Endpoints
 
@@ -125,6 +129,10 @@ All are called via:
 The admin page now exposes both modes:
 - outside the module: copy/download the scripts and run them on the host
 - within the module: run approved actions from the UI when `allow_module_script_execution=1`
+
+Sync API scope note:
+- the sync script is aligned to documented SimpleMDM GET endpoints only
+- undocumented collection probes are intentionally excluded so `sync_last_api_errors` reflects real failures
 
 ## 7) Device Passthrough API (`api_devices`)
 

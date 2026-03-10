@@ -115,10 +115,24 @@ mkdir -p local/modules
 3. Enable `simplemdm` in your MunkiReport config.
    - Ensure `MODULES` contains `simplemdm`
 
+If MunkiReport reads modules from `.env`, update the `MODULES=` line there.
+
 Example:
 
 ```env
 MODULES="munkireport,managedinstalls,disk_report,simplemdm"
+```
+
+Example command to replace an existing `MODULES=` line:
+
+```bash
+perl -i.bak -pe 's/^MODULES=.*/MODULES="munkireport,managedinstalls,disk_report,simplemdm"/' .env
+```
+
+If `.env` does not already contain `MODULES=`, append it:
+
+```bash
+grep -q '^MODULES=' .env || echo 'MODULES="munkireport,managedinstalls,disk_report,simplemdm"' >> .env
 ```
 
 4. Run migrations:
@@ -172,6 +186,21 @@ mkdir -p local/modules
 
 3. Enable `simplemdm` in your MunkiReport runtime config.
    - Ensure the resolved `MODULES` list includes `simplemdm`
+
+If your Docker setup reads modules from `.env`, update the `MODULES=` line:
+
+```bash
+perl -i.bak -pe 's/^MODULES=.*/MODULES="munkireport,managedinstalls,disk_report,simplemdm"/' .env
+grep -q '^MODULES=' .env || echo 'MODULES="munkireport,managedinstalls,disk_report,simplemdm"' >> .env
+```
+
+If your `docker-compose.yml` hardcodes modules instead of reading `.env`, update that line directly.
+
+Example:
+
+```yaml
+- MODULES=munkireport,managedinstalls,disk_report,simplemdm
+```
 
 Verify:
 

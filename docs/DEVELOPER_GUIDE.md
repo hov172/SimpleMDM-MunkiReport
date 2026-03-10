@@ -94,14 +94,32 @@ This guide is for contributors who need to understand and modify the module safe
 ### Admin Settings Page
 
 - What:
-  - Module configuration UI for API key, secrets, sync controls, widget toggles, and queued `Sync Now` state.
+  - Module configuration UI for API key, secrets, sync controls, scheduling, widget toggles, and manual script access.
 - Why:
   - Keeps operational controls in one place without code edits.
 - How:
   - Registered under `admin_pages` in `provides.yml`.
   - View: `views/simplemdm_admin.php`.
   - Persists to `simplemdm_config`.
-  - `Sync Now` queues work in config state; host cron/manual runner still executes `simplemdm_sync.py`.
+  - `Run Sync Now` queues a one-off run.
+  - `Enable Scheduled Sync` / `Disable Scheduled Sync` change module schedule state.
+  - `simplemdm_sync.py` is still the real worker; recurring runs require cron to launch it.
+  - Optional in-module execution allows the UI to install/remove cron and run approved script actions for global admins.
+
+### Scheduling Workflow
+
+- What:
+  - A user-friendly schedule layer over the existing `simplemdm_sync.py` + cron model.
+- Why:
+  - Operators need a professional workflow that exposes `Run Sync Now`, status, presets, and schedule controls without requiring shell knowledge.
+- How:
+  - The admin UI stores schedule settings in `simplemdm_config`.
+  - Presets map to cron expressions.
+  - `Run Sync Now` is immediate and does not need cron.
+  - recurring scheduled sync still depends on cron
+  - if module-side execution is enabled, the module can call `install_cron.sh` / `remove_cron.sh` on behalf of the admin
+  - `Runner MunkiReport URL` prefers canonical MunkiReport config (`WEBHOST` / `SUBDIRECTORY`) and falls back to the current request URL for local/placeholder deployments
+  - the admin UI inspects whether Python exists in the module runtime and distinguishes in-module execution from host/manual execution
 
 ## 3) Module Layout
 
@@ -238,6 +256,7 @@ Primary file: `provides.yml`
 - `views/simplemdm_listing.php`: device listing page
 - `views/simplemdm_resources_listing.php`: resource listing page
 - `views/simplemdm_admin.php`: admin settings page
+  - includes schedule UX, `Run Sync Now`, schedule status, last run, next expected run, and manual access/downloads
 - `views/simplemdm_device.php`: standalone device details and action runner
 - `views/simplemdm_widget_modern_assets.php`: shared JS/CSS behavior for widget layout/interactions
 

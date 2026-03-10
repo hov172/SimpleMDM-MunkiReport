@@ -31,13 +31,23 @@ if (is_readable($provides_path)) {
 <style>
 .simplemdm-admin-wrap {
     margin-top: 10px;
+    max-width: 1280px;
 }
 .simplemdm-admin-wrap .simplemdm-modern-widget {
-    margin-bottom: 14px;
+    margin-bottom: 18px;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 12px 32px rgba(16, 24, 40, 0.08);
 }
 .simplemdm-admin-wrap .panel-title {
     text-transform: none;
     letter-spacing: 0.1px;
+}
+.simplemdm-admin-wrap .panel-heading {
+    padding: 14px 18px;
+}
+.simplemdm-admin-wrap .panel-body {
+    padding: 18px;
 }
 .simplemdm-admin-wrap .form-control {
     border-radius: 10px;
@@ -45,23 +55,239 @@ if (is_readable($provides_path)) {
     background: var(--simplemdm-surface);
     color: var(--simplemdm-ink);
 }
+.simplemdm-admin-wrap .form-group {
+    margin-bottom: 14px;
+}
+.simplemdm-admin-wrap .checkbox {
+    margin-top: 0;
+    margin-bottom: 12px;
+}
 .simplemdm-admin-wrap .table > tbody > tr > th,
 .simplemdm-admin-wrap .table > tbody > tr > td {
     border-color: var(--simplemdm-border);
     color: var(--simplemdm-ink);
 }
+.simplemdm-admin-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    gap: 18px;
+    align-items: start;
+}
+.simplemdm-admin-column {
+    min-width: 0;
+}
+.simplemdm-admin-stack {
+    display: grid;
+    gap: 18px;
+}
+.simplemdm-admin-hero {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 18px;
+    margin-bottom: 18px;
+}
+.simplemdm-admin-hero-copy {
+    max-width: 760px;
+}
+.simplemdm-admin-hero h1 {
+    margin: 0 0 6px;
+}
+.simplemdm-admin-hero .lead {
+    margin: 0;
+}
+.simplemdm-kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+.simplemdm-kpi {
+    border: 1px solid var(--simplemdm-border);
+    background: var(--simplemdm-surface);
+    border-radius: 12px;
+    padding: 12px 14px;
+}
+.simplemdm-kpi-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: var(--simplemdm-muted);
+}
+.simplemdm-kpi-value {
+    display: block;
+    margin-top: 4px;
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--simplemdm-ink);
+}
+.simplemdm-actions-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+}
+.simplemdm-script-grid {
+    display: grid;
+    gap: 12px;
+}
+.simplemdm-script-row {
+    border: 1px solid var(--simplemdm-border);
+    border-radius: 12px;
+    background: var(--simplemdm-surface);
+    padding: 14px;
+}
+.simplemdm-script-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+.simplemdm-script-title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--simplemdm-ink);
+}
+.simplemdm-script-type {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--simplemdm-border);
+    border-radius: 999px;
+    padding: 3px 9px;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: var(--simplemdm-muted);
+    background: var(--simplemdm-card-bg);
+}
+.simplemdm-script-description {
+    margin: 0 0 12px;
+    color: var(--simplemdm-muted);
+}
+.simplemdm-script-actions .btn {
+    margin-right: 8px;
+    margin-bottom: 8px;
+}
+.simplemdm-schedule-actions .btn {
+    margin-right: 8px;
+    margin-bottom: 8px;
+}
+.simplemdm-prereq-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 12px 0 6px;
+}
+.simplemdm-prereq-badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 5px 10px;
+    font-size: 11px;
+    font-weight: 800;
+    border: 1px solid var(--simplemdm-border);
+    background: var(--simplemdm-card-bg);
+    color: var(--simplemdm-muted);
+}
+.simplemdm-prereq-badge.is-ready {
+    background: rgba(47, 158, 68, 0.12);
+    border-color: rgba(47, 158, 68, 0.28);
+    color: #206a37;
+}
+.simplemdm-prereq-badge.is-missing {
+    background: rgba(194, 59, 59, 0.10);
+    border-color: rgba(194, 59, 59, 0.24);
+    color: #9f2f2f;
+}
+.simplemdm-state-panel {
+    border: 1px solid var(--simplemdm-border);
+    border-radius: 12px;
+    background: var(--simplemdm-surface);
+    padding: 12px 14px;
+    margin: 12px 0;
+}
+.simplemdm-state-line {
+    margin: 0 0 6px;
+    color: var(--simplemdm-ink);
+    font-size: 13px;
+}
+.simplemdm-state-line:last-child {
+    margin-bottom: 0;
+}
+.simplemdm-state-label {
+    font-weight: 800;
+}
+.simplemdm-script-command-wrap {
+    margin-top: 4px;
+}
+.simplemdm-script-command-label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--simplemdm-muted);
+}
+.simplemdm-script-command {
+    width: 100%;
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--simplemdm-border);
+    border-radius: 10px;
+    background: #f7fafc;
+    font-family: Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.55;
+    color: #1f2937;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+#script-runner-output {
+    width: 100%;
+    min-height: 220px;
+    resize: vertical;
+    font-family: Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+    white-space: pre-wrap;
+}
+@media (max-width: 1080px) {
+    .simplemdm-admin-grid {
+        grid-template-columns: 1fr;
+    }
+    .simplemdm-kpi-strip {
+        grid-template-columns: 1fr;
+    }
+}
 </style>
 
 <div class="container simplemdm-admin-wrap">
-    <div class="row">
-        <div class="col-lg-12">
+    <div class="simplemdm-admin-hero">
+        <div class="simplemdm-admin-hero-copy">
             <h1><i class="fa fa-cog"></i> SimpleMDM Settings</h1>
             <p class="lead">Configure your SimpleMDM API connection and monitor sync health.</p>
         </div>
+        <div class="simplemdm-kpi-strip">
+            <div class="simplemdm-kpi">
+                <span class="simplemdm-kpi-label">Schedule Status</span>
+                <span class="simplemdm-kpi-value" id="schedule-status-kpi">Disabled</span>
+            </div>
+            <div class="simplemdm-kpi">
+                <span class="simplemdm-kpi-label">Last Run</span>
+                <span class="simplemdm-kpi-value" id="schedule-last-run-kpi">-</span>
+            </div>
+            <div class="simplemdm-kpi">
+                <span class="simplemdm-kpi-label">Next Expected Run</span>
+                <span class="simplemdm-kpi-value" id="schedule-next-run-kpi">-</span>
+            </div>
+        </div>
     </div>
 
-    <div class="row">
-        <div class="col-md-6">
+    <div class="simplemdm-admin-grid">
+        <div class="simplemdm-admin-column">
+            <div class="simplemdm-admin-stack">
             <div class="panel panel-default simplemdm-modern-widget">
                 <div class="panel-heading">
                     <h3 class="panel-title"><i class="fa fa-key"></i> API Configuration</h3>
@@ -78,9 +304,7 @@ if (is_readable($provides_path)) {
                     </form>
                 </div>
             </div>
-        </div>
 
-        <div class="col-md-6">
             <div class="panel panel-default simplemdm-modern-widget">
                 <div class="panel-heading">
                     <h3 class="panel-title"><i class="fa fa-refresh"></i> Sync Status</h3>
@@ -108,16 +332,14 @@ if (is_readable($provides_path)) {
                             <td id="sync-time">-</td>
                         </tr>
                     </table>
-                    <button type="button" class="btn btn-default" id="simplemdm-sync-now">Sync Now</button>
-                    <span id="sync-request-message" style="margin-left: 10px;"></span>
+                    <div class="simplemdm-actions-row">
+                        <button type="button" class="btn btn-default" id="simplemdm-sync-now">Run Sync Now</button>
+                        <span id="sync-request-message" class="text-muted"></span>
+                    </div>
                     <p class="text-muted small" style="margin-top:10px;">This queues a sync request. The host-side cron or manual runner still executes <code>simplemdm_sync.py</code>.</p>
                 </div>
             </div>
-        </div>
-    </div>
 
-    <div class="row">
-        <div class="col-md-6">
             <div class="panel panel-default simplemdm-modern-widget">
                 <div class="panel-heading">
                     <h3 class="panel-title"><i class="fa fa-th-large"></i> Widget Visibility</h3>
@@ -148,10 +370,10 @@ if (is_readable($provides_path)) {
                 </div>
             </div>
         </div>
-    </div>
+        </div>
 
-    <div class="row">
-        <div class="col-md-6">
+        <div class="simplemdm-admin-column">
+            <div class="simplemdm-admin-stack">
             <div class="panel panel-default simplemdm-modern-widget">
                 <div class="panel-heading">
                     <h3 class="panel-title"><i class="fa fa-sliders"></i> Advanced Sync & Compliance</h3>
@@ -212,12 +434,122 @@ if (is_readable($provides_path)) {
                     </form>
                 </div>
             </div>
+
+            <div class="panel panel-default simplemdm-modern-widget">
+                <div class="panel-heading">
+                    <h3 class="panel-title"><i class="fa fa-calendar"></i> In-Module Sync And Schedule</h3>
+                </div>
+                <div class="panel-body">
+                    <p class="text-muted">Use this section for actions the module can perform for you directly: immediate sync runs, schedule settings, and cron management when in-module execution is enabled.</p>
+                    <form id="simplemdm-script-runner-form">
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <tr>
+                                    <th>Schedule Status</th>
+                                    <td id="schedule-status">Disabled</td>
+                                </tr>
+                                <tr>
+                                    <th>Last Run</th>
+                                    <td id="schedule-last-run">-</td>
+                                </tr>
+                                <tr>
+                                    <th>Next Expected Run</th>
+                                    <td id="schedule-next-run">-</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="form-group">
+                            <label for="script_runner_schedule_preset">Preset</label>
+                            <select class="form-control" id="script_runner_schedule_preset">
+                                <option value="*/5 * * * *">Every 5 Minutes</option>
+                                <option value="*/15 * * * *">Every 15 Minutes</option>
+                                <option value="0 * * * *">Hourly</option>
+                                <option value="0 0 * * *">Daily</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="script_runner_schedule">Schedule</label>
+                            <input type="text" class="form-control" id="script_runner_schedule" name="script_runner_schedule" placeholder="*/15 * * * *">
+                            <p class="help-block">Use a preset or enter a custom cron expression.</p>
+                        </div>
+                        <div class="form-group">
+                            <label for="script_runner_munkireport_url">Runner MunkiReport URL</label>
+                            <input type="text" class="form-control" id="script_runner_munkireport_url" name="script_runner_munkireport_url" placeholder="https://your-munkireport.example.com">
+                            <p class="help-block">The Python runner posts data back into this MunkiReport instance, so it needs the base URL when running inside the module or from cron.</p>
+                        </div>
+                        <div class="form-group">
+                            <label for="script_runner_python_bin">Python Binary</label>
+                            <input type="text" class="form-control" id="script_runner_python_bin" name="script_runner_python_bin" placeholder="/usr/bin/python3">
+                        </div>
+                        <div class="form-group">
+                            <label for="script_runner_log_path">Cron Log Path</label>
+                            <input type="text" class="form-control" id="script_runner_log_path" name="script_runner_log_path" placeholder="/var/log/simplemdm_sync.log">
+                        </div>
+                        <div class="form-group">
+                            <label for="script_runner_max_parent_resources">Max Parent Resources</label>
+                            <input type="number" min="0" step="1" class="form-control" id="script_runner_max_parent_resources" name="script_runner_max_parent_resources" placeholder="25">
+                        </div>
+                        <div class="checkbox">
+                            <label>
+                                <input type="checkbox" id="allow_module_script_execution" name="allow_module_script_execution" value="1">
+                                Allow in-module script execution for global admins
+                            </label>
+                        </div>
+                        <div class="simplemdm-prereq-row" id="schedule-prereq-row">
+                            <span class="simplemdm-prereq-badge" id="prereq-api-key">API Key</span>
+                            <span class="simplemdm-prereq-badge" id="prereq-runner-url">Runner URL</span>
+                            <span class="simplemdm-prereq-badge" id="prereq-python">Python</span>
+                            <span class="simplemdm-prereq-badge" id="prereq-schedule">Schedule</span>
+                            <span class="simplemdm-prereq-badge" id="prereq-log-path">Log Path</span>
+                            <span class="simplemdm-prereq-badge" id="prereq-module-exec">Module Execution</span>
+                        </div>
+                        <div class="simplemdm-state-panel">
+                            <p class="simplemdm-state-line"><span class="simplemdm-state-label">Immediate Run:</span> <span id="immediate-run-state">Checking...</span></p>
+                            <p class="simplemdm-state-line"><span class="simplemdm-state-label">Scheduled Run:</span> <span id="scheduled-run-state">Checking...</span></p>
+                            <p class="simplemdm-state-line"><span class="simplemdm-state-label">Module Runtime:</span> <span id="module-runtime-state">Checking...</span></p>
+                            <p class="simplemdm-state-line"><span class="simplemdm-state-label">Cron Management:</span> <span id="cron-management-state">Checking...</span></p>
+                            <p class="simplemdm-state-line text-muted" id="cron-management-detail">Waiting for status...</p>
+                        </div>
+                        <div class="simplemdm-schedule-actions">
+                            <button type="button" class="btn btn-primary" id="run-sync-now-btn">Run Sync Now</button>
+                            <button type="button" class="btn btn-success" id="enable-schedule-btn">Enable Scheduled Sync</button>
+                            <button type="button" class="btn btn-default" id="disable-schedule-btn">Disable Scheduled Sync</button>
+                            <button type="submit" class="btn btn-default">Save Schedule Settings</button>
+                        </div>
+                        <div id="script-runner-save-status" class="text-muted" style="margin-top:10px;"></div>
+                        <p class="text-muted small" style="margin-top:10px;">One-off runs execute <code>simplemdm_sync.py</code> immediately. Repeating runs still use cron, which this module can install or remove when script execution is enabled.</p>
+                    </form>
+                </div>
+            </div>
+
+            <div class="panel panel-default simplemdm-modern-widget">
+                <div class="panel-heading">
+                    <h3 class="panel-title"><i class="fa fa-download"></i> Manual / Outside-Module Access</h3>
+                </div>
+                <div class="panel-body">
+                    <p class="text-muted">Use this section if you want to manage sync outside the module: download the module, copy commands, install cron manually, or run the scripts directly on the host.</p>
+                    <p>
+                        <a class="btn btn-default" id="download-module-link" href="#">
+                            <i class="fa fa-archive"></i> Download Module Bundle
+                        </a>
+                    </p>
+                    <div id="script-catalog" class="simplemdm-script-grid"></div>
+                    <div class="form-group" style="margin-top:14px;">
+                        <label for="script-runner-output">Script Output</label>
+                        <textarea id="script-runner-output" class="form-control" readonly>Script output will appear here.</textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
         </div>
     </div>
 </div>
 
 <script>
 $(document).on('appReady', function() {
+    var runnerStatusCache = null;
+
     function parseIsoDate(value) {
         var raw = String(value || '').trim();
         if (!raw) {
@@ -279,6 +611,60 @@ $(document).on('appReady', function() {
         updateSyncMessageFromState(data);
     }
 
+    function formatDateOrDash(value) {
+        var dt = parseIsoDate(value);
+        return dt ? dt.toLocaleString() : '-';
+    }
+
+    function addMinutes(date, minutes) {
+        return new Date(date.getTime() + (minutes * 60 * 1000));
+    }
+
+    function computeNextExpectedRun(schedule, lastRunRaw) {
+        var scheduleValue = String(schedule || '').trim();
+        var lastRun = parseIsoDate(lastRunRaw);
+        var now = new Date();
+        var base = lastRun || now;
+
+        if (scheduleValue === '*/5 * * * *') {
+            return addMinutes(base, 5).toLocaleString();
+        }
+        if (scheduleValue === '*/15 * * * *') {
+            return addMinutes(base, 15).toLocaleString();
+        }
+        if (scheduleValue === '0 * * * *') {
+            var hourly = new Date(base.getTime());
+            hourly.setMinutes(0, 0, 0);
+            hourly.setHours(hourly.getHours() + 1);
+            return hourly.toLocaleString();
+        }
+        if (scheduleValue === '0 0 * * *') {
+            var daily = new Date(base.getTime());
+            daily.setHours(0, 0, 0, 0);
+            daily.setDate(daily.getDate() + 1);
+            return daily.toLocaleString();
+        }
+
+        return scheduleValue ? 'Custom schedule configured' : '-';
+    }
+
+    function renderScheduleStatus(data) {
+        var enabled = String(data.enable_scheduled_sync || '0') === '1';
+        var schedule = String(data.script_runner_schedule || '');
+        var lastRunRaw = String(data.last_sync_time || '');
+        var statusText = enabled ? 'Enabled' : 'Disabled';
+        var lastRunText = formatDateOrDash(lastRunRaw);
+        var nextRunText = enabled ? computeNextExpectedRun(schedule, lastRunRaw) : '-';
+        $('#schedule-status').text(statusText);
+        $('#schedule-last-run').text(lastRunText);
+        $('#schedule-next-run').text(nextRunText);
+        $('#schedule-status-kpi').text(statusText);
+        $('#schedule-last-run-kpi').text(lastRunText);
+        $('#schedule-next-run-kpi').text(nextRunText);
+        $('#enable-schedule-btn').prop('disabled', enabled);
+        $('#disable-schedule-btn').prop('disabled', !enabled);
+    }
+
     function renderConfig(data) {
         if (data.api_key) {
             $('#api_key').val(data.api_key);
@@ -304,6 +690,280 @@ $(document).on('appReady', function() {
         $('#sync_interval_minutes').val(pickValue(data.sync_interval_minutes, '15'));
         $('#sync_device_subresources_enabled').prop('checked', String(data.sync_device_subresources_enabled || '0') === '1');
         $('#device_subresource_limit').val(pickValue(data.device_subresource_limit, '0'));
+        $('#allow_module_script_execution').prop('checked', String(data.allow_module_script_execution || '0') === '1');
+        $('#script_runner_munkireport_url').val(data.script_runner_munkireport_url || '');
+        $('#script_runner_python_bin').val(pickValue(data.script_runner_python_bin, '/usr/bin/python3'));
+        var currentSchedule = pickValue(data.script_runner_schedule, '* * * * *');
+        $('#script_runner_schedule').val(currentSchedule);
+        if ($('#script_runner_schedule_preset option[value="' + currentSchedule.replace(/"/g, '\\"') + '"]').length) {
+            $('#script_runner_schedule_preset').val(currentSchedule);
+        } else {
+            $('#script_runner_schedule_preset').val('custom');
+        }
+        $('#script_runner_log_path').val(pickValue(data.script_runner_log_path, '/var/log/simplemdm_sync.log'));
+        $('#script_runner_max_parent_resources').val(pickValue(data.script_runner_max_parent_resources, '25'));
+        renderScheduleStatus(data);
+        renderPrereqState();
+    }
+
+    function setScriptOutput(lines) {
+        $('#script-runner-output').val(lines);
+    }
+
+    function setActionNotice(target, text, cssClass) {
+        $(target).text(text).removeClass().addClass(cssClass || 'text-muted');
+    }
+
+    function getRunnerSettingsPayload(extraPayload) {
+        var payload = {
+            allow_module_script_execution: $('#allow_module_script_execution').is(':checked') ? '1' : '0',
+            script_runner_munkireport_url: $('#script_runner_munkireport_url').val() || '',
+            script_runner_python_bin: $('#script_runner_python_bin').val() || '/usr/bin/python3',
+            script_runner_schedule: $('#script_runner_schedule').val() || '*/15 * * * *',
+            script_runner_log_path: $('#script_runner_log_path').val() || '/var/log/simplemdm_sync.log',
+            script_runner_max_parent_resources: String($('#script_runner_max_parent_resources').val() || '25')
+        };
+
+        if (extraPayload) {
+            Object.keys(extraPayload).forEach(function(key) {
+                payload[key] = extraPayload[key];
+            });
+        }
+
+        return payload;
+    }
+
+    function collectPrereqState() {
+        return {
+            apiKeyPresent: String($('#api_key').val() || '').trim() !== '',
+            moduleExecutionEnabled: $('#allow_module_script_execution').is(':checked'),
+            runnerUrlPresent: String($('#script_runner_munkireport_url').val() || '').trim() !== '',
+            pythonPresent: String($('#script_runner_python_bin').val() || '').trim() !== '',
+            schedulePresent: String($('#script_runner_schedule').val() || '').trim() !== '',
+            logPathPresent: String($('#script_runner_log_path').val() || '').trim() !== '',
+            maxParentResourcesPresent: String($('#script_runner_max_parent_resources').val() || '').trim() !== ''
+        };
+    }
+
+    function getMissingFields(requirements) {
+        var state = collectPrereqState();
+        var missing = [];
+        if (requirements.apiKey && !state.apiKeyPresent) {
+            missing.push('SimpleMDM API Key');
+        }
+        if (requirements.moduleExecution && !state.moduleExecutionEnabled) {
+            missing.push('Allow in-module script execution');
+        }
+        if (requirements.runnerUrl && !state.runnerUrlPresent) {
+            missing.push('Runner MunkiReport URL');
+        }
+        if (requirements.python && !state.pythonPresent) {
+            missing.push('Python Binary');
+        }
+        if (requirements.schedule && !state.schedulePresent) {
+            missing.push('Schedule');
+        }
+        if (requirements.logPath && !state.logPathPresent) {
+            missing.push('Cron Log Path');
+        }
+        if (requirements.maxParentResources && !state.maxParentResourcesPresent) {
+            missing.push('Max Parent Resources');
+        }
+        return missing;
+    }
+
+    function updatePrereqBadge(selector, ready, label) {
+        var $el = $(selector);
+        $el.removeClass('is-ready is-missing');
+        $el.addClass(ready ? 'is-ready' : 'is-missing');
+        $el.text(label + ': ' + (ready ? 'Ready' : 'Missing'));
+    }
+
+    function renderPrereqState() {
+        var state = collectPrereqState();
+        updatePrereqBadge('#prereq-api-key', state.apiKeyPresent, 'API Key');
+        updatePrereqBadge('#prereq-runner-url', state.runnerUrlPresent, 'Runner URL');
+        updatePrereqBadge('#prereq-python', state.pythonPresent, 'Python');
+        updatePrereqBadge('#prereq-schedule', state.schedulePresent, 'Schedule');
+        updatePrereqBadge('#prereq-log-path', state.logPathPresent, 'Log Path');
+        updatePrereqBadge('#prereq-module-exec', state.moduleExecutionEnabled, 'Module Execution');
+    }
+
+    function renderRunnerModeState(status) {
+        var state = collectPrereqState();
+        var runtime = status && status.runtime ? status.runtime : null;
+        var cronStatus = status && status.cron ? status.cron : null;
+        var modulePythonAvailable = runtime ? !!runtime.python_available : false;
+        var immediateReady = state.apiKeyPresent && state.moduleExecutionEnabled && state.runnerUrlPresent && state.pythonPresent && state.maxParentResourcesPresent && modulePythonAvailable;
+        var scheduledReady = state.apiKeyPresent && state.runnerUrlPresent && state.pythonPresent && state.schedulePresent && state.logPathPresent && state.maxParentResourcesPresent;
+
+        $('#immediate-run-state').text(immediateReady ? 'Ready to run in module.' : 'Not ready for immediate in-module execution.');
+
+        if (!scheduledReady) {
+            $('#scheduled-run-state').text('Missing required settings for recurring scheduled sync.');
+        } else if (state.moduleExecutionEnabled && !modulePythonAvailable) {
+            $('#scheduled-run-state').text('Recurring sync can be configured, but this module runtime cannot execute Python. Use host/manual cron.');
+        } else if (cronStatus && cronStatus.installed) {
+            $('#scheduled-run-state').text('Ready. Cron entry is installed.');
+        } else if (state.moduleExecutionEnabled) {
+            $('#scheduled-run-state').text('Configuration is ready. Install cron from this module to start recurring runs.');
+        } else {
+            $('#scheduled-run-state').text('Configuration is ready, but recurring runs still require manual cron installation outside the module.');
+        }
+
+        if (runtime) {
+            $('#module-runtime-state').text(runtime.python_available ? 'Python available in module runtime.' : (runtime.message || 'Python unavailable in module runtime.'));
+        } else {
+            $('#module-runtime-state').text('Checking module runtime...');
+        }
+
+        if (!cronStatus) {
+            $('#cron-management-state').text('Checking...');
+            $('#cron-management-detail').text('Waiting for cron inspection.');
+        } else {
+            var managementText = 'Manual cron required.';
+            if (cronStatus.mode === 'module_managed_installed') {
+                managementText = 'Managed in module. Cron installed.';
+            } else if (cronStatus.mode === 'module_managed_not_installed') {
+                managementText = 'Managed in module. Cron not installed.';
+            } else if (cronStatus.mode === 'manual_installed') {
+                managementText = 'Managed outside module. Cron installed.';
+            }
+
+            $('#cron-management-state').text(managementText);
+            $('#cron-management-detail').text(cronStatus.message || '');
+        }
+
+        $('#run-sync-now-btn').prop('disabled', !immediateReady);
+        $('#enable-schedule-btn').prop('disabled', !scheduledReady || (state.moduleExecutionEnabled && !modulePythonAvailable));
+    }
+
+    function validateActionRequirements(requirements, options) {
+        options = options || {};
+        var missing = getMissingFields(requirements || {});
+        if (requirements.modulePython && (!runnerStatusCache || !runnerStatusCache.runtime || !runnerStatusCache.runtime.python_available)) {
+            missing.push('Python available in module runtime');
+        }
+        if (missing.length) {
+            var message = (options.prefix || 'Cannot continue') + ': missing ' + missing.join(', ') + '.';
+            if (options.noticeTarget) {
+                setActionNotice(options.noticeTarget, message, 'text-danger');
+            }
+            if (options.syncMessage) {
+                setSyncMessage(message, 'text-danger');
+            }
+            if (options.outputMessage) {
+                setScriptOutput(message + '\n\nFill in the missing settings and save them before retrying.');
+            }
+            return false;
+        }
+        return true;
+    }
+
+    function confirmAction(message) {
+        return window.confirm(message);
+    }
+
+    function renderScriptCatalog(data) {
+        var scripts = Array.isArray(data.scripts) ? data.scripts : [];
+        $('#download-module-link').attr('href', data.module_download_url || '#');
+
+        if (!scripts.length) {
+            $('#script-catalog').html('<p class="text-muted">No scripts are available.</p>');
+            return;
+        }
+
+        var html = '';
+        scripts.forEach(function(script) {
+            html += '<div class="simplemdm-script-row">';
+            html += '<div class="simplemdm-script-head">';
+            html += '<div>';
+            html += '<h4 class="simplemdm-script-title">' + $('<div>').text(script.name || '').html() + '</h4>';
+            html += '</div>';
+            html += '<span class="simplemdm-script-type">' + $('<div>').text(script.type || 'script').html() + '</span>';
+            html += '</div>';
+            html += '<p class="simplemdm-script-description">' + $('<div>').text(script.description || '').html() + '</p>';
+            html += '<div class="simplemdm-script-actions">';
+            html += '<a class="btn btn-default btn-sm" href="' + $('<div>').text(script.download_url || '#').html() + '"><i class="fa fa-download"></i> Download</a>';
+            html += '<button type="button" class="btn btn-default btn-sm simplemdm-copy-command" data-command="' + $('<div>').text(script.external_command || '').html() + '"><i class="fa fa-copy"></i> Copy External Command</button>';
+            html += '<button type="button" class="btn btn-primary btn-sm simplemdm-run-script" data-action="' + $('<div>').text(script.run_action || '').html() + '"><i class="fa fa-play"></i> Run In Module</button>';
+            html += '</div>';
+            html += '<div class="simplemdm-script-command-wrap">';
+            html += '<span class="simplemdm-script-command-label">External Command</span>';
+            html += '<pre class="simplemdm-script-command">' + $('<div>').text(script.external_command || '').html() + '</pre>';
+            html += '</div>';
+            html += '</div>';
+        });
+
+        $('#script-catalog').html(html);
+        $('.simplemdm-run-script').prop('disabled', !data.execution_enabled);
+        if (!data.execution_enabled) {
+            setScriptOutput('In-module script execution is currently disabled. Download the scripts or enable Script Runner settings first.');
+        }
+    }
+
+    function loadScriptCatalog() {
+        $.getJSON(appUrl + '/module/simplemdm/get_script_catalog', function(data) {
+            renderScriptCatalog(data);
+        }).fail(function(xhr) {
+            var msg = 'Unable to load script catalog';
+            if (xhr && xhr.responseJSON && (xhr.responseJSON.message || xhr.responseJSON.error)) {
+                msg = xhr.responseJSON.message || xhr.responseJSON.error;
+            }
+            $('#script-catalog').html('<p class="text-danger">' + $('<div>').text(msg).html() + '</p>');
+        });
+    }
+
+    function loadRunnerStatus() {
+        $.getJSON(appUrl + '/module/simplemdm/get_runner_status', function(data) {
+            runnerStatusCache = data || null;
+            renderRunnerModeState(data || null);
+        }).fail(function(xhr) {
+            var message = 'Unable to inspect cron state from the module.';
+            if (xhr && xhr.responseJSON && (xhr.responseJSON.message || xhr.responseJSON.error)) {
+                message = xhr.responseJSON.message || xhr.responseJSON.error;
+            }
+            runnerStatusCache = {
+                cron: {
+                    mode: 'manual_required',
+                    installed: false,
+                    message: message
+                },
+                runtime: {
+                    python_available: false,
+                    message: 'Unable to inspect module runtime.'
+                }
+            };
+            renderRunnerModeState(runnerStatusCache);
+        });
+    }
+
+    function runScriptAction(action) {
+        setScriptOutput('Running action: ' + action + ' ...');
+        $.post(appUrl + '/module/simplemdm/run_script', { action: action }, function(data) {
+            var parts = [];
+            parts.push('Status: ' + (data.status || 'unknown'));
+            parts.push('Action: ' + (data.action || action));
+            parts.push('Exit Code: ' + String(data.exit_code === undefined ? '' : data.exit_code));
+            parts.push('Command: ' + (data.command || ''));
+            parts.push('');
+            parts.push('STDOUT');
+            parts.push(data.stdout || '');
+            parts.push('');
+            parts.push('STDERR');
+            parts.push(data.stderr || '');
+            setScriptOutput(parts.join('\n'));
+        }, 'json').fail(function(xhr) {
+            var msg = 'Script execution failed';
+            var payload = (xhr && xhr.responseJSON) ? xhr.responseJSON : {};
+            var parts = [
+                msg,
+                payload.message || payload.error || '',
+                payload.stdout || '',
+                payload.stderr || ''
+            ];
+            setScriptOutput(parts.join('\n').trim());
+        });
     }
 
     function loadConfig() {
@@ -315,15 +975,96 @@ $(document).on('appReady', function() {
     function refreshSyncStatus() {
         $.getJSON(appUrl + '/module/simplemdm/get_config', function(data) {
             renderSyncStatus(data);
+            renderScheduleStatus(data);
+        });
+    }
+
+    function saveScheduleSettings(extraPayload, successMessage) {
+        $('#script-runner-save-status').text('Saving...').removeClass().addClass('text-info');
+        var payload = getRunnerSettingsPayload(extraPayload);
+
+        $.post(appUrl + '/module/simplemdm/save_config', payload, function(data) {
+            if (data.status === 'success') {
+                $('#script-runner-save-status').text(successMessage || 'Saved successfully!').removeClass().addClass('text-success');
+                loadConfig();
+                loadScriptCatalog();
+                loadRunnerStatus();
+            } else {
+                $('#script-runner-save-status').text('Error: ' + (data.message || 'Unknown')).removeClass().addClass('text-danger');
+            }
+        }, 'json').fail(function(xhr) {
+            var msg = 'Request failed';
+            if (xhr && xhr.responseJSON && (xhr.responseJSON.message || xhr.responseJSON.error)) {
+                msg = xhr.responseJSON.message || xhr.responseJSON.error;
+            }
+            $('#script-runner-save-status').text('Error: ' + msg).removeClass().addClass('text-danger');
+        });
+    }
+
+    function runImmediateSyncFromSchedule($button) {
+        if (!validateActionRequirements(
+            { apiKey: true, moduleExecution: true, runnerUrl: true, python: true, maxParentResources: true, modulePython: true },
+            {
+                prefix: 'Immediate sync cannot start',
+                noticeTarget: '#script-runner-save-status',
+                syncMessage: true,
+                outputMessage: true
+            }
+        )) {
+            $button.prop('disabled', false);
+            return;
+        }
+
+        if (!confirmAction('Run SimpleMDM sync now using the current runner settings?')) {
+            setActionNotice('#script-runner-save-status', 'Immediate sync cancelled.', 'text-muted');
+            $button.prop('disabled', false);
+            return;
+        }
+
+        $('#script-runner-save-status').text('Saving runner settings...').removeClass().addClass('text-info');
+        $.post(appUrl + '/module/simplemdm/save_config', getRunnerSettingsPayload(), function(data) {
+            if (data.status !== 'success') {
+                $('#script-runner-save-status').text('Error: ' + (data.message || 'Unable to save runner settings')).removeClass().addClass('text-danger');
+                $button.prop('disabled', false);
+                return;
+            }
+
+            $('#script-runner-save-status').text('Starting immediate sync...').removeClass().addClass('text-info');
+            setSyncMessage('Running sync now inside the module.', 'text-info');
+            setScriptOutput('Immediate sync requested.\n\nPrerequisites validated:\n- API key present\n- In-module execution enabled\n- Runner URL set\n- Python binary set\n\nStarting simplemdm_sync.py ...');
+            runScriptAction('sync_now');
+            $button.prop('disabled', false);
+        }, 'json').fail(function(xhr) {
+            var msg = 'Unable to save runner settings';
+            if (xhr && xhr.responseJSON && (xhr.responseJSON.message || xhr.responseJSON.error)) {
+                msg = xhr.responseJSON.message || xhr.responseJSON.error;
+            }
+            $('#script-runner-save-status').text('Error: ' + msg).removeClass().addClass('text-danger');
+            $button.prop('disabled', false);
         });
     }
 
     // Load existing config
     loadConfig();
+    loadScriptCatalog();
+    loadRunnerStatus();
     window.setInterval(refreshSyncStatus, 15000);
 
     $('#simplemdm-sync-now').on('click', function() {
         var $btn = $(this);
+        if (!validateActionRequirements(
+            { apiKey: true },
+            {
+                prefix: 'Queued sync cannot start',
+                syncMessage: true
+            }
+        )) {
+            return;
+        }
+        if (!confirmAction('Queue a sync request for the next cron/manual worker pickup?')) {
+            setSyncMessage('Queued sync cancelled.', 'text-muted');
+            return;
+        }
         $btn.prop('disabled', true);
         setSyncMessage('Queueing sync request...', 'text-info');
 
@@ -342,6 +1083,12 @@ $(document).on('appReady', function() {
             setSyncMessage('Error: ' + msg, 'text-danger');
             $btn.prop('disabled', false);
         });
+    });
+
+    $('#run-sync-now-btn').on('click', function() {
+        var $btn = $(this);
+        $btn.prop('disabled', true);
+        runImmediateSyncFromSchedule($btn);
     });
 
     // Handle form submission
@@ -421,6 +1168,89 @@ $(document).on('appReady', function() {
             }
             $('#advanced-save-status').text('Error: ' + msg).removeClass().addClass('text-danger');
         });
+    });
+
+    $('#simplemdm-script-runner-form').on('submit', function(e) {
+        e.preventDefault();
+        saveScheduleSettings({}, 'Saved successfully!');
+    });
+
+    $(document).on('click', '.simplemdm-copy-command', function() {
+        var command = String($(this).data('command') || '');
+        if (!command) {
+            return;
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(command);
+            setScriptOutput('Copied external command:\n' + command);
+            return;
+        }
+        setScriptOutput('Copy is not available in this browser. Command:\n' + command);
+    });
+
+    $(document).on('click', '.simplemdm-run-script', function() {
+        runScriptAction(String($(this).data('action') || ''));
+    });
+
+    $('#script_runner_schedule_preset').on('change', function() {
+        var value = String($(this).val() || '');
+        if (value && value !== 'custom') {
+            $('#script_runner_schedule').val(value);
+        }
+        renderPrereqState();
+    });
+
+    $('#api_key, #script_runner_munkireport_url, #script_runner_python_bin, #script_runner_schedule, #script_runner_log_path, #script_runner_max_parent_resources, #allow_module_script_execution').on('input change', function() {
+        renderPrereqState();
+        renderRunnerModeState(null);
+    });
+
+    $('#enable-schedule-btn').on('click', function() {
+        var canRunInModule = $('#allow_module_script_execution').is(':checked');
+        if (!validateActionRequirements(
+            {
+                apiKey: true,
+                runnerUrl: true,
+                python: true,
+                schedule: true,
+                logPath: true,
+                maxParentResources: true,
+                modulePython: canRunInModule
+            },
+            {
+                prefix: 'Scheduled sync cannot be enabled',
+                noticeTarget: '#script-runner-save-status',
+                outputMessage: true
+            }
+        )) {
+            return;
+        }
+        if (!confirmAction('Enable scheduled sync using the current schedule settings?')) {
+            setActionNotice('#script-runner-save-status', 'Enable scheduled sync cancelled.', 'text-muted');
+            return;
+        }
+        saveScheduleSettings({ enable_scheduled_sync: '1' }, 'Schedule enabled.');
+        if (canRunInModule) {
+            setScriptOutput('Installing cron for scheduled sync using the saved runner settings...');
+            runScriptAction('install_cron');
+        } else {
+            setScriptOutput('Schedule enabled in config. In-module execution is disabled, so cron was not installed automatically. Use the Manual Access section to run the install command outside the module.');
+        }
+    });
+
+    $('#disable-schedule-btn').on('click', function() {
+        var canRunInModule = $('#allow_module_script_execution').is(':checked');
+        if (!confirmAction('Disable scheduled sync? This stops future cron-based sync runs managed by this module.')) {
+            setActionNotice('#script-runner-save-status', 'Disable scheduled sync cancelled.', 'text-muted');
+            return;
+        }
+        saveScheduleSettings({ enable_scheduled_sync: '0' }, 'Schedule disabled.');
+        if (canRunInModule) {
+            setScriptOutput('Removing cron for scheduled sync...');
+            runScriptAction('remove_cron');
+        } else {
+            setScriptOutput('Schedule disabled in config. In-module execution is disabled, so cron was not removed automatically. Use the Manual Access section if you need to remove the host cron job manually.');
+        }
     });
 });
 </script>

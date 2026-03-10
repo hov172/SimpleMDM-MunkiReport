@@ -12,6 +12,14 @@ Use whichever form matches your configured MunkiReport `index_page`.
 
 ## 1) Auth Summary
 
+Workflow note:
+- `simplemdm_sync.py` is the sync worker.
+- `Run Sync Now` is a one-off trigger path.
+- recurring schedule still requires cron to launch `simplemdm_sync.py`
+- `install_cron.sh` and `remove_cron.sh` are helpers for managing that cron entry
+- when module-side execution is enabled, the admin UI can call those helpers for global admins
+- `Runner MunkiReport URL` prefers configured app URL (`WEBHOST` / `SUBDIRECTORY`) and falls back to the current browser URL for local/placeholder setups
+
 | Route Group | Auth |
 |---|---|
 | Report/listing/stats/data routes | Authenticated MunkiReport session |
@@ -46,8 +54,12 @@ All are called via:
 | Route | Method | Purpose | Auth |
 |---|---|---|---|
 | `/module/simplemdm/get_config` | GET | Read module settings | Auth session |
+| `/module/simplemdm/get_script_catalog` | GET | Read downloadable script metadata and external command templates | Global admin |
 | `/module/simplemdm/save_config` | POST | Save module settings | Global admin OR sync token |
 | `/module/simplemdm/request_sync` | POST | Queue a sync run from the admin UI | Global admin |
+| `/module/simplemdm/run_script` | POST | Execute an approved module-side script action | Global admin and script runner enabled |
+| `/module/simplemdm/download_script/{name}` | GET | Download an individual module script | Global admin |
+| `/module/simplemdm/download_module` | GET | Download the module as a zip archive | Global admin |
 
 `save_config` supports keys including:
 - `api_key`, `webhook_secret`, `action_api_secret`
@@ -58,6 +70,12 @@ All are called via:
 - `sync_commands_enabled`
 - `sync_device_subresources_enabled`
 - `device_subresource_limit`
+- `allow_module_script_execution`
+- `script_runner_munkireport_url`
+- `script_runner_python_bin`
+- `script_runner_schedule`
+- `script_runner_log_path`
+- `script_runner_max_parent_resources`
 - sync queue keys (`sync_request_state`, `sync_requested_at`, `sync_started_at`, `sync_request_source`)
 - telemetry/status keys (`last_sync_status`, `last_sync_time`, `last_sync_cursor`, etc.)
 - widget visibility config keys discovered from `provides.yml`
@@ -103,6 +121,10 @@ All are called via:
 | `/show/listing/simplemdm/simplemdm` | GET | Device listing page |
 | `/show/listing/simplemdm/simplemdm_resources` | GET | Resource listing page |
 | `/show/report/simplemdm/simplemdm` | GET | Module report page |
+
+The admin page now exposes both modes:
+- outside the module: copy/download the scripts and run them on the host
+- within the module: run approved actions from the UI when `allow_module_script_execution=1`
 
 ## 7) Device Passthrough API (`api_devices`)
 

@@ -46,8 +46,11 @@ REQUEST_METRICS = {
     'api_errors': 0,
     'rate_limit_hits': 0,
 }
+ENDPOINT_SUPPORT_CACHE = {}
 
 SIMPLEMDM_API_BASE = 'https://a.simplemdm.com/api/v1'
+# Keep these lists aligned to documented SimpleMDM GET endpoints to avoid
+# probing unsupported routes and inflating sync error telemetry.
 RESOURCE_ENDPOINTS = [
     'device_groups',
     'assignment_groups',
@@ -56,18 +59,9 @@ RESOURCE_ENDPOINTS = [
     'custom_attributes',
     'scripts',
     'enrollments',
-    'policies',
-    'users',
-    'groups',
-    'accounts',
-    'certificates',
 ]
 SUBRESOURCE_MAP = {
     'apps': ['installs', 'managed_configs'],
-    'profiles': ['devices'],
-    'assignment_groups': ['profiles', 'apps'],
-    'device_groups': ['devices'],
-    'enrollments': ['devices'],
 }
 
 
@@ -264,10 +258,11 @@ def should_run_now(config):
     return False, f'not due yet (elapsed {int(elapsed_seconds)}s < interval {interval_seconds}s)'
 
 
-def simplemdm_request(endpoint, api_key):
+def simplemdm_request(endpoint, api_key, silent_statuses=None):
     """Make an authenticated request to the SimpleMDM API."""
     url = f"{SIMPLEMDM_API_BASE}/{endpoint}"
     logger.debug(f"Requesting: {url}")
+    silent_statuses = set(silent_statuses or [])
 
     # Basic auth: API key as username, empty password
     credentials = base64.b64encode(f"{api_key}:".encode()).decode()
@@ -284,8 +279,11 @@ def simplemdm_request(endpoint, api_key):
             response = urllib.request.urlopen(req, context=ctx, timeout=REQUEST_TIMEOUT)
             return json.loads(response.read().decode())
         except urllib.error.HTTPError as e:
-            REQUEST_METRICS['api_errors'] += 1
-            logger.error(f"HTTP Error {e.code}: {e.reason} for {url}")
+            is_silent = e.code in silent_statuses
+            if not is_silent:
+                REQUEST_METRICS['api_errors'] += 1
+            if e.code not in silent_statuses:
+                logger.error(f"HTTP Error {e.code}: {e.reason} for {url}")
             if e.code == 429:
                 REQUEST_METRICS['rate_limit_hits'] += 1
             if e.code == 401:
@@ -427,14 +425,25 @@ def fetch_all_resources(endpoint, api_key, since_cursor=''):
 
 def probe_collection_endpoint(endpoint, api_key):
     """Probe whether an endpoint is available in this tenant/API version."""
+    cache_key = f'probe:{endpoint}'
+    if cache_key in ENDPOINT_SUPPORT_CACHE:
+        return ENDPOINT_SUPPORT_CACHE[cache_key]
     probe = endpoint if '?' in endpoint else f'{endpoint}?limit=1'
     try:
-        simplemdm_request(probe, api_key)
+        simplemdm_request(probe, api_key, silent_statuses={404})
+        ENDPOINT_SUPPORT_CACHE[cache_key] = True
         return True
     except urllib.error.HTTPError as e:
-        return False if e.code == 404 else False
+        ENDPOINT_SUPPORT_CACHE[cache_key] = False if e.code == 404 else False
+        return ENDPOINT_SUPPORT_CACHE[cache_key]
     except Exception:
+        ENDPOINT_SUPPORT_CACHE[cache_key] = False
         return False
+
+
+def probe_nested_endpoint(endpoint, api_key):
+    """Probe nested endpoint support without noisy 404 logging."""
+    return probe_collection_endpoint(endpoint, api_key)
 
 
 def fetch_device_groups(api_key):
@@ -1009,6 +1018,9 @@ def main():
     resource_records = []
     fetched_by_endpoint = {}
     for endpoint in RESOURCE_ENDPOINTS:
+        if not probe_collection_endpoint(endpoint, config.api_key):
+            logger.info(f"Endpoint not available in this tenant/API: {endpoint}")
+            continue
         items, unavailable = fetch_all_resources(endpoint, config.api_key, since_cursor)
         if unavailable:
             logger.info(f"Endpoint not available in this tenant/API: {endpoint}")
@@ -1035,6 +1047,10 @@ def main():
                 if parent_id is None:
                     continue
                 nested_endpoint = f'{parent_endpoint}/{parent_id}/{subpath}'
+                if nested_supported is None and not probe_nested_endpoint(nested_endpoint, config.api_key):
+                    nested_supported = False
+                    logger.info(f"Nested endpoint not available: {parent_endpoint}/{{id}}/{subpath}")
+                    break
                 items, unavailable = fetch_all_resources(nested_endpoint, config.api_key, since_cursor)
                 if unavailable:
                     # If the first parent returns 404, treat the nested route as unsupported globally.
@@ -1068,9 +1084,18 @@ def main():
                 continue
             for child in device_children:
                 nested_endpoint = f'devices/{device_id}/{child}'
+                cache_key = f'device-child:{child}'
+                if cache_key in ENDPOINT_SUPPORT_CACHE and not ENDPOINT_SUPPORT_CACHE[cache_key]:
+                    continue
+                if cache_key not in ENDPOINT_SUPPORT_CACHE:
+                    ENDPOINT_SUPPORT_CACHE[cache_key] = probe_nested_endpoint(nested_endpoint, config.api_key)
+                    if not ENDPOINT_SUPPORT_CACHE[cache_key]:
+                        logger.info(f"Nested endpoint not available: devices/{{id}}/{child}")
+                        continue
                 items, unavailable = fetch_all_resources(nested_endpoint, config.api_key, since_cursor)
                 if unavailable:
-                    logger.debug(f"Nested endpoint not available: devices/{{id}}/{child}")
+                    ENDPOINT_SUPPORT_CACHE[cache_key] = False
+                    logger.info(f"Nested endpoint not available: devices/{{id}}/{child}")
                     continue
                 for item in items:
                     transformed = transform_resource(item, nested_endpoint)

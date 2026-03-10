@@ -67,11 +67,17 @@ Developer docs:
    - Enable `sync_delta_enabled`
    - Enable `sync_device_subresources_enabled`
    - Set `device_subresource_limit` to `100` (test) or `0` (all devices)
-4. Add schedule runner (cron):
+4. Configure the admin workflow in `Admin -> SimpleMDM Settings`:
+   - Use `Run Sync Now` for a one-time sync
+   - Use `Schedule` with preset `Every 15 Minutes` (recommended) or choose `Custom`
+   - Use `Enable Scheduled Sync` to turn on scheduled reconciliation
+   - Optional: enable in-module script execution if you want the module to install/remove cron for you
+5. Add schedule runner (cron):
    - `* * * * * /usr/bin/python3 <ABSOLUTE_MR_ROOT>/local/modules/simplemdm/scripts/simplemdm_sync.py --munkireport-url 'https://mr' --respect-schedule --max-parent-resources 25 >> /var/log/simplemdm_sync.log 2>&1`
-   - Or print/install the entry with `local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'https://mr' [--install]`
-   - `Sync Now` only queues a request. It will not run until cron or a manual `simplemdm_sync.py` invocation picks it up.
-5. Verify:
+   - Or use the admin UI `Enable Scheduled Sync` button when in-module script execution is enabled
+   - Or print/install the entry manually with `local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'https://mr' [--install]`
+   - Scheduled sync always runs `simplemdm_sync.py`; cron is just the launcher
+6. Verify:
    - `reports/simplemdm` renders widgets
    - `show/listing/simplemdm/simplemdm` has devices
    - `module/simplemdm/device/{serial}` shows attributes, connected resources, subresources, and actions
@@ -90,6 +96,71 @@ This module README covers only:
 - running module migrations
 - configuring SimpleMDM settings
 - setting up the host-side sync runner and cron
+
+## Sync Workflow
+
+There are two supported ways to operate the sync workflow:
+
+1. In-module workflow
+   - Use `Run Sync Now` for an immediate one-off run.
+   - Use `Schedule` plus `Enable Scheduled Sync` / `Disable Scheduled Sync` for recurring runs.
+   - If `Allow in-module script execution for global admins` is enabled, the module can install/remove the cron job for you.
+
+2. Manual host-side workflow
+   - Download the module or scripts from the admin UI.
+   - Run `simplemdm_sync.py` directly for one-off syncs.
+   - Install/remove the cron job manually with `install_cron.sh` / `remove_cron.sh`, or by editing crontab yourself.
+
+Important:
+- `simplemdm_sync.py` is the worker that performs the sync.
+- cron is the scheduler that launches `simplemdm_sync.py` repeatedly.
+- `Run Sync Now` is immediate and does not require cron.
+- recurring scheduled sync still requires cron somewhere on the host.
+
+## Runner URL Detection
+
+The `Runner MunkiReport URL` field is auto-populated by the module.
+
+Detection workflow:
+
+1. Prefer MunkiReport's configured canonical URL from `WEBHOST` and `SUBDIRECTORY`.
+2. If that configured URL is blank, placeholder-like, or clearly mismatched for local development, fall back to the current browser request URL.
+3. The value can still be overridden manually in `Admin -> SimpleMDM Settings`.
+
+Practical examples:
+
+- Hosted / production:
+  - If `WEBHOST=https://reports.company.com`, the field will use that value.
+- Docker local:
+  - If `WEBHOST` is still a template value such as `https://munkireport.domain.com`, and you are browsing at `http://localhost`, the module will fall back to the current local request URL.
+- Reverse proxy / subdirectory:
+  - The field is correct when `WEBHOST` and `SUBDIRECTORY` are configured correctly for the public app URL.
+
+Best practice:
+- In production, keep `WEBHOST` set to the real public URL.
+- In local Docker, either set `WEBHOST=http://localhost` or let the module fall back to the current browser URL.
+
+## Docker And Python Runtime
+
+The admin page distinguishes between:
+
+- in-module execution
+  - the module runs `simplemdm_sync.py` itself
+  - requires Python to exist in the MunkiReport runtime environment
+- manual / outside-module execution
+  - you run `simplemdm_sync.py` from the host
+  - uses the host Python installation
+
+For Docker deployments:
+
+- If the `munkireport` app container includes Python, in-module execution can work.
+- If the container does not include Python, the admin page will report that module-side execution is unavailable.
+- In that case, use the `Manual / Outside-Module Access` workflow from the host.
+
+Recurring scheduled sync still depends on cron:
+
+- If module execution is available, the module can install/remove cron for you.
+- If module execution is unavailable, install cron manually on the host and run `simplemdm_sync.py` there.
 
 Additional requirements for this module:
 - a working MunkiReport instance

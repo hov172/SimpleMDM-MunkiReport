@@ -53,7 +53,7 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
 
 5. Verify:
    - `Admin -> SimpleMDM Settings` loads
-   - `Sync Now`, `Queue State`, `Requested At`, and `Started At` appear as expected
+   - `Run Sync Now`, `Schedule`, `Schedule Status`, `Last Run`, and `Next Expected Run` appear as expected
    - `reports/simplemdm` renders
    - device/resource listings return data
 
@@ -97,7 +97,7 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
 ```
 
 5. Verify:
-   - `http://localhost:8888/index.php?/module/simplemdm/admin` shows `Sync Now`, `Queue State`, `Requested At`, and `Started At`
+   - `http://localhost:8888/index.php?/module/simplemdm/admin` shows `Run Sync Now`, `Schedule`, `Schedule Status`, `Last Run`, and `Next Expected Run`
    - `http://localhost:8888/reports/simplemdm`
    - `http://localhost:8888/show/listing/simplemdm/simplemdm`
    - `http://localhost:8888/show/listing/simplemdm/simplemdm_resources`
@@ -109,7 +109,8 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
 2. Sync health:
    - `last_sync_status = success`
    - `last_sync_time` updated recently
-   - If using the new queued workflow, confirm `sync_request_state` returns to `idle` after a run
+   - If using the schedule UI, confirm `Schedule Status` matches the intended state
+   - If scheduled sync is enabled, confirm `Next Expected Run` is populated for preset schedules
 3. Data health:
    - counts non-zero where expected
    - trend/compliance/command widgets render without JS/API errors

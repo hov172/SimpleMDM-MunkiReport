@@ -24,7 +24,18 @@ php please migrate
 3. `api_key` configured in `Admin -> SimpleMDM Settings`.
 4. For webhook tests: `webhook_secret` configured.
 5. For mutating action tests: `action_api_secret` configured.
-6. If validating scheduled sync behavior, add a real cron entry or install one with `local/modules/simplemdm/scripts/install_cron.sh --munkireport-url '<url>' --install`.
+6. If validating scheduled sync behavior, ensure cron is actually installed on the host.
+   - If in-module script execution is enabled, use `Enable Scheduled Sync` in the admin UI.
+   - Otherwise install it manually with `local/modules/simplemdm/scripts/install_cron.sh --munkireport-url '<url>' --install`.
+
+## 2.1) Workflow Expectations
+
+Use these rules during testing:
+
+1. `Run Sync Now` is an immediate one-off run path.
+2. `Enable Scheduled Sync` / `Disable Scheduled Sync` control recurring schedule intent in the module.
+3. recurring schedule execution still requires cron to launch `simplemdm_sync.py`.
+4. `simplemdm_sync.py` is the worker; `install_cron.sh` is only a helper for installing its schedule.
 
 ## 3) Hosted / VM Smoke Test
 
@@ -68,7 +79,7 @@ docker compose up -d --build
 docker compose exec munkireport php please migrate
 ```
 
-If you want to validate queued `Sync Now` behavior, install a real cron entry first or use:
+If you want to validate recurring schedule behavior, install a real cron entry first or use:
 
 ```bash
 local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'http://localhost:8888' --install
@@ -90,10 +101,13 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
    - `http://localhost:8888/show/listing/simplemdm/simplemdm_resources`
    - `Top Assignment Groups` and `Enrollment/Security by OS` widgets render data if enabled
 
-4. Queued Sync Now smoke test:
+4. Schedule and one-off sync smoke test:
    - Open `Admin -> SimpleMDM Settings`
-   - Click `Sync Now`
-   - Confirm `Queue State = queued`
+   - Click `Run Sync Now`
+   - Confirm `Last Sync Time` updates after the run completes
+   - Set `Schedule` to `Every 15 Minutes` and click `Enable Scheduled Sync`
+   - Confirm `Schedule Status = Enabled`
+   - Confirm `Next Expected Run` is populated
    - Wait for cron pickup or run:
 
 ```bash
@@ -104,8 +118,9 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
   --verbose
 ```
 
-   - Confirm `Queue State` moves through `running` to `idle`
    - Confirm `Last Sync Time` updates
+   - Click `Disable Scheduled Sync`
+   - Confirm `Schedule Status = Disabled`
 
 ## 5) API/Auth Negative Tests
 

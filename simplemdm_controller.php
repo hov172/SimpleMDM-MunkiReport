@@ -9,6 +9,7 @@
 class Simplemdm_controller extends Module_controller
 {
     private $sync_actions = ['ingest', 'ingest_resources', 'ingest_commands', 'webhook', 'update_sync_status', 'begin_sync_run'];
+    private $downloadable_scripts = ['simplemdm_sync.py', 'install_cron.sh', 'remove_cron.sh'];
 
     function __construct()
     {
@@ -204,6 +205,326 @@ class Simplemdm_controller extends Module_controller
             return false;
         }
         return true;
+    }
+
+    private function get_script_runner_config()
+    {
+        $derived_url = rtrim((string) conf('webhost', ''), '/');
+        $subdirectory = trim((string) conf('subdirectory', ''), '/');
+        if ($derived_url !== '' && $subdirectory !== '') {
+            $derived_url .= '/' . $subdirectory;
+        }
+        $detected_request_url = '';
+        if (PHP_SAPI !== 'cli' && isset($_SERVER['HTTP_HOST'])) {
+            $detected_request_url = rtrim((SslRequest() ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'], '/');
+            if ($subdirectory !== '') {
+                $detected_request_url .= '/' . $subdirectory;
+            }
+        }
+        $fallback_url = $derived_url;
+        $placeholder_hosts = [
+            'munkireport.domain.com',
+            'example.com',
+            'localhost.localdomain',
+        ];
+        $should_use_request_fallback = false;
+        if ($detected_request_url !== '') {
+            if ($fallback_url === '') {
+                $should_use_request_fallback = true;
+            } else {
+                $fallback_host = parse_url($fallback_url, PHP_URL_HOST) ?: '';
+                $request_host = parse_url($detected_request_url, PHP_URL_HOST) ?: '';
+                if ($fallback_host && in_array(strtolower($fallback_host), $placeholder_hosts, true)) {
+                    $should_use_request_fallback = true;
+                }
+                if ($request_host && preg_match('/^(localhost|127\.0\.0\.1)$/i', $request_host)) {
+                    $should_use_request_fallback = true;
+                }
+            }
+        }
+        if ($should_use_request_fallback) {
+            $fallback_url = $detected_request_url;
+        }
+
+        $config = [
+            'allow_module_script_execution' => $this->get_config_value('allow_module_script_execution', '0'),
+            'script_runner_munkireport_url' => $this->get_config_value('script_runner_munkireport_url', $fallback_url),
+            'script_runner_python_bin' => $this->get_config_value('script_runner_python_bin', '/usr/bin/python3'),
+            'script_runner_schedule' => $this->get_config_value('script_runner_schedule', '* * * * *'),
+            'script_runner_log_path' => $this->get_config_value('script_runner_log_path', '/var/log/simplemdm_sync.log'),
+            'script_runner_max_parent_resources' => $this->get_config_value('script_runner_max_parent_resources', '25'),
+        ];
+
+        if (trim((string) $config['script_runner_python_bin']) === '') {
+            $config['script_runner_python_bin'] = '/usr/bin/python3';
+        }
+        if (trim((string) $config['script_runner_munkireport_url']) === '') {
+            $config['script_runner_munkireport_url'] = $fallback_url;
+        }
+        if (trim((string) $config['script_runner_schedule']) === '') {
+            $config['script_runner_schedule'] = '* * * * *';
+        }
+        if (trim((string) $config['script_runner_log_path']) === '') {
+            $config['script_runner_log_path'] = '/var/log/simplemdm_sync.log';
+        }
+
+        $max_parent_resources = (int) $config['script_runner_max_parent_resources'];
+        if ($max_parent_resources < 0) {
+            $max_parent_resources = 0;
+        }
+        $config['script_runner_max_parent_resources'] = (string) $max_parent_resources;
+
+        return $config;
+    }
+
+    private function scripts_dir()
+    {
+        return $this->module_path . '/scripts';
+    }
+
+    private function get_downloadable_script_path($name)
+    {
+        $name = trim((string) $name);
+        if (! in_array($name, $this->downloadable_scripts, true)) {
+            return '';
+        }
+
+        $path = $this->scripts_dir() . '/' . $name;
+        if (! is_file($path)) {
+            return '';
+        }
+
+        return $path;
+    }
+
+    private function build_script_catalog()
+    {
+        $config = $this->get_script_runner_config();
+        $base = rtrim((string) url('module/simplemdm', true), '/');
+        $sync_script = $this->scripts_dir() . '/simplemdm_sync.py';
+        $install_script = $this->scripts_dir() . '/install_cron.sh';
+        $remove_script = $this->scripts_dir() . '/remove_cron.sh';
+
+        $sync_command = sprintf(
+            "%s %s --munkireport-url %s --force-run --max-parent-resources %s --verbose",
+            escapeshellarg($config['script_runner_python_bin']),
+            escapeshellarg($sync_script),
+            escapeshellarg($config['script_runner_munkireport_url']),
+            escapeshellarg($config['script_runner_max_parent_resources'])
+        );
+
+        $cron_print_command = sprintf(
+            "%s --munkireport-url %s --python-bin %s --schedule %s --log-path %s --max-parent-resources %s --print-only",
+            escapeshellarg($install_script),
+            escapeshellarg($config['script_runner_munkireport_url']),
+            escapeshellarg($config['script_runner_python_bin']),
+            escapeshellarg($config['script_runner_schedule']),
+            escapeshellarg($config['script_runner_log_path']),
+            escapeshellarg($config['script_runner_max_parent_resources'])
+        );
+
+        $cron_install_command = preg_replace('/ --print-only$/', ' --install', $cron_print_command);
+
+        return [
+            'execution_enabled' => $config['allow_module_script_execution'] === '1',
+            'runner_config' => $config,
+            'module_download_url' => $base . '/download_module',
+            'scripts' => [
+                [
+                    'id' => 'simplemdm_sync',
+                    'name' => 'simplemdm_sync.py',
+                    'type' => 'python',
+                    'download_url' => $base . '/download_script/simplemdm_sync.py',
+                    'external_command' => $sync_command,
+                    'run_action' => 'sync_now',
+                    'description' => 'Run an immediate sync against this MunkiReport instance.',
+                ],
+                [
+                    'id' => 'install_cron',
+                    'name' => 'install_cron.sh',
+                    'type' => 'shell',
+                    'download_url' => $base . '/download_script/install_cron.sh',
+                    'external_command' => $cron_print_command,
+                    'run_action' => 'print_cron',
+                    'description' => 'Print the cron entry for host-side installation.',
+                ],
+                [
+                    'id' => 'install_cron_apply',
+                    'name' => 'install_cron.sh --install',
+                    'type' => 'shell',
+                    'download_url' => $base . '/download_script/install_cron.sh',
+                    'external_command' => $cron_install_command,
+                    'run_action' => 'install_cron',
+                    'description' => 'Install or update the current user crontab entry.',
+                ],
+                [
+                    'id' => 'remove_cron',
+                    'name' => 'remove_cron.sh',
+                    'type' => 'shell',
+                    'download_url' => $base . '/download_script/remove_cron.sh',
+                    'external_command' => escapeshellarg($remove_script),
+                    'run_action' => 'remove_cron',
+                    'description' => 'Remove cron entries that match the module sync job.',
+                ],
+            ],
+        ];
+    }
+
+    private function run_local_script_command($command, $cwd)
+    {
+        $descriptor_spec = [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ];
+
+        $process = proc_open($command, $descriptor_spec, $pipes, $cwd);
+        if (! is_resource($process)) {
+            return [
+                'ok' => false,
+                'exit_code' => 1,
+                'stdout' => '',
+                'stderr' => 'Unable to start process.',
+            ];
+        }
+
+        fclose($pipes[0]);
+        $stdout = stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[2]);
+        $exit_code = proc_close($process);
+
+        return [
+            'ok' => $exit_code === 0,
+            'exit_code' => $exit_code,
+            'stdout' => (string) $stdout,
+            'stderr' => (string) $stderr,
+        ];
+    }
+
+    private function inspect_cron_state()
+    {
+        $result = [
+            'available' => false,
+            'installed' => false,
+            'managed_in_module' => $this->get_script_runner_config()['allow_module_script_execution'] === '1',
+            'mode' => 'manual_required',
+            'message' => 'Cron inspection unavailable.',
+        ];
+
+        if (! function_exists('proc_open')) {
+            $result['message'] = 'PHP proc_open is disabled, so cron cannot be inspected from the module.';
+            return $result;
+        }
+
+        $inspect = $this->run_local_script_command('crontab -l', $this->scripts_dir());
+        if ($inspect['exit_code'] !== 0 && strpos((string) $inspect['stderr'], 'no crontab for') === false) {
+            $result['message'] = 'Unable to inspect current crontab from the module.';
+            return $result;
+        }
+
+        $result['available'] = true;
+        $cron_text = trim((string) $inspect['stdout']);
+        $installed = strpos($cron_text, 'simplemdm_sync.py') !== false;
+        $result['installed'] = $installed;
+
+        if ($result['managed_in_module']) {
+            $result['mode'] = $installed ? 'module_managed_installed' : 'module_managed_not_installed';
+            $result['message'] = $installed
+                ? 'Cron entry detected and can be managed by the module.'
+                : 'In-module execution is enabled, but no cron entry is currently installed.';
+        } else {
+            $result['mode'] = $installed ? 'manual_installed' : 'manual_required';
+            $result['message'] = $installed
+                ? 'Cron entry detected. Recurring sync appears to be managed outside the module.'
+                : 'Recurring sync requires a manual cron install outside the module.';
+        }
+
+        return $result;
+    }
+
+    private function inspect_module_runtime()
+    {
+        $runner = $this->get_script_runner_config();
+        $python_binary = trim((string) $runner['script_runner_python_bin']);
+        $result = [
+            'proc_open_available' => function_exists('proc_open'),
+            'python_binary' => $python_binary,
+            'python_available' => false,
+            'python_path' => '',
+            'message' => '',
+        ];
+
+        if (! $result['proc_open_available']) {
+            $result['message'] = 'PHP proc_open is disabled, so the module cannot inspect or execute Python locally.';
+            return $result;
+        }
+
+        if ($python_binary === '') {
+            $result['message'] = 'No Python binary is configured for module-side execution.';
+            return $result;
+        }
+
+        $command = 'command -v ' . escapeshellarg($python_binary) . ' 2>/dev/null || test -x ' . escapeshellarg($python_binary) . ' && printf %s ' . escapeshellarg($python_binary);
+        $inspect = $this->run_local_script_command('sh -lc ' . escapeshellarg($command), $this->scripts_dir());
+        $path = trim((string) $inspect['stdout']);
+
+        if ($inspect['ok'] && $path !== '') {
+            $result['python_available'] = true;
+            $result['python_path'] = $path;
+            $result['message'] = 'Python is available in the module runtime.';
+            return $result;
+        }
+
+        $result['message'] = 'Python is not available in the module runtime. Use the host/manual workflow unless Python is added to the app container/server.';
+        return $result;
+    }
+
+    private function create_module_archive()
+    {
+        if (! class_exists('ZipArchive')) {
+            throw new \RuntimeException('ZipArchive is not available on this server.');
+        }
+
+        $tmp_path = tempnam(sys_get_temp_dir(), 'simplemdm-module-');
+        if ($tmp_path === false) {
+            throw new \RuntimeException('Unable to create temporary archive.');
+        }
+        @unlink($tmp_path);
+        $zip_path = $tmp_path . '.zip';
+
+        $zip = new \ZipArchive();
+        if ($zip->open($zip_path, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+            throw new \RuntimeException('Unable to open archive for writing.');
+        }
+
+        $root_name = 'simplemdm';
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($this->module_path, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::SELF_FIRST
+        );
+
+        foreach ($iterator as $item) {
+            $full_path = $item->getPathname();
+            $relative_path = substr($full_path, strlen($this->module_path) + 1);
+            if (! $relative_path) {
+                continue;
+            }
+            if ($relative_path === '.git' || strpos($relative_path, '.git/') === 0) {
+                continue;
+            }
+
+            $archive_path = $root_name . '/' . str_replace('\\', '/', $relative_path);
+            if ($item->isDir()) {
+                $zip->addEmptyDir($archive_path);
+            } elseif ($item->isFile()) {
+                $zip->addFile($full_path, $archive_path);
+            }
+        }
+
+        $zip->close();
+        return $zip_path;
     }
 
     /**
@@ -511,7 +832,42 @@ class Simplemdm_controller extends Module_controller
             }
             $config[$setting->name] = $setting->value;
         }
+
+        // Normalize runner settings so blank stored values still use derived defaults.
+        $runner_config = $this->get_script_runner_config();
+        foreach ($runner_config as $key => $value) {
+            if (! isset($config[$key]) || trim((string) $config[$key]) === '') {
+                $config[$key] = $value;
+            }
+        }
+
         jsonView($config);
+    }
+
+    public function get_script_catalog()
+    {
+        if (! $this->require_global_authorized()) {
+            return;
+        }
+
+        jsonView($this->build_script_catalog());
+    }
+
+    public function get_runner_status()
+    {
+        if (! $this->require_global_authorized()) {
+            return;
+        }
+
+        $runner = $this->get_script_runner_config();
+        $cron = $this->inspect_cron_state();
+        $runtime = $this->inspect_module_runtime();
+
+        jsonView([
+            'runner' => $runner,
+            'cron' => $cron,
+            'runtime' => $runtime,
+        ]);
     }
 
     /**
@@ -556,6 +912,12 @@ class Simplemdm_controller extends Module_controller
             'sync_last_rate_limit_hits',
             'sync_last_delta_mode',
             'sync_last_scope',
+            'allow_module_script_execution',
+            'script_runner_munkireport_url',
+            'script_runner_python_bin',
+            'script_runner_schedule',
+            'script_runner_log_path',
+            'script_runner_max_parent_resources',
         ];
         foreach ($config_keys as $key) {
             if (array_key_exists($key, $post)) {
@@ -566,6 +928,7 @@ class Simplemdm_controller extends Module_controller
                     || $key === 'sync_commands_enabled'
                     || $key === 'enable_scheduled_sync'
                     || $key === 'sync_device_subresources_enabled'
+                    || $key === 'allow_module_script_execution'
                 ) {
                     $value = $value === '1' ? '1' : '0';
                 } elseif ($key === 'device_subresource_limit') {
@@ -578,6 +941,12 @@ class Simplemdm_controller extends Module_controller
                     $v = (int)$value;
                     if ($v < 1) {
                         $v = 1;
+                    }
+                    $value = (string)$v;
+                } elseif ($key === 'script_runner_max_parent_resources') {
+                    $v = (int)$value;
+                    if ($v < 0) {
+                        $v = 0;
                     }
                     $value = (string)$v;
                 }
@@ -623,6 +992,118 @@ class Simplemdm_controller extends Module_controller
         }
 
         jsonView(['status' => 'error', 'message' => 'Invalid data']);
+    }
+
+    public function download_script($name = '')
+    {
+        if (! $this->require_global_authorized()) {
+            return;
+        }
+
+        $path = $this->get_downloadable_script_path($name);
+        if ($path === '') {
+            jsonView(['status' => 'error', 'message' => 'Unknown script'], 404);
+            return;
+        }
+
+        header('Content-Type: application/octet-stream');
+        header('Content-Length: ' . filesize($path));
+        header('Content-Disposition: attachment; filename="' . basename($path) . '"');
+        readfile($path);
+        exit;
+    }
+
+    public function download_module()
+    {
+        if (! $this->require_global_authorized()) {
+            return;
+        }
+
+        try {
+            $zip_path = $this->create_module_archive();
+        } catch (\Throwable $e) {
+            jsonView(['status' => 'error', 'message' => $e->getMessage()], 500);
+            return;
+        }
+
+        header('Content-Type: application/zip');
+        header('Content-Length: ' . filesize($zip_path));
+        header('Content-Disposition: attachment; filename="simplemdm-module.zip"');
+        readfile($zip_path);
+        @unlink($zip_path);
+        exit;
+    }
+
+    public function run_script()
+    {
+        $this->connectDB();
+        if (! $this->require_global_authorized()) {
+            return;
+        }
+
+        $runner = $this->get_script_runner_config();
+        if ($runner['allow_module_script_execution'] !== '1') {
+            jsonView([
+                'status' => 'error',
+                'message' => 'Module-side script execution is disabled. Enable it in Script Runner settings first.',
+            ], 403);
+            return;
+        }
+
+        $action = trim((string) post('action'));
+        $cwd = $this->scripts_dir();
+        $python = escapeshellarg($runner['script_runner_python_bin']);
+        $sync_script = escapeshellarg($cwd . '/simplemdm_sync.py');
+        $install_script = escapeshellarg($cwd . '/install_cron.sh');
+        $remove_script = escapeshellarg($cwd . '/remove_cron.sh');
+        $mr_url = escapeshellarg($runner['script_runner_munkireport_url']);
+        $schedule = escapeshellarg($runner['script_runner_schedule']);
+        $log_path = escapeshellarg($runner['script_runner_log_path']);
+        $max_parent_resources = escapeshellarg($runner['script_runner_max_parent_resources']);
+
+        $commands = [
+            'sync_now' => sprintf(
+                "%s %s --munkireport-url %s --force-run --max-parent-resources %s --verbose",
+                $python,
+                $sync_script,
+                $mr_url,
+                $max_parent_resources
+            ),
+            'print_cron' => sprintf(
+                "%s --munkireport-url %s --python-bin %s --schedule %s --log-path %s --max-parent-resources %s --print-only",
+                $install_script,
+                $mr_url,
+                $python,
+                $schedule,
+                $log_path,
+                $max_parent_resources
+            ),
+            'install_cron' => sprintf(
+                "%s --munkireport-url %s --python-bin %s --schedule %s --log-path %s --max-parent-resources %s --install",
+                $install_script,
+                $mr_url,
+                $python,
+                $schedule,
+                $log_path,
+                $max_parent_resources
+            ),
+            'remove_cron' => $remove_script,
+        ];
+
+        if (! isset($commands[$action])) {
+            jsonView(['status' => 'error', 'message' => 'Unsupported script action'], 400);
+            return;
+        }
+
+        $result = $this->run_local_script_command($commands[$action], $cwd);
+        jsonView([
+            'status' => $result['ok'] ? 'success' : 'error',
+            'action' => $action,
+            'command' => $commands[$action],
+            'exit_code' => $result['exit_code'],
+            'stdout' => $result['stdout'],
+            'stderr' => $result['stderr'],
+        ], $result['ok'] ? 200 : 500);
     }
 
     /**

@@ -52,6 +52,7 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
 
 5. Verify:
    - `Admin -> SimpleMDM Settings` loads
+   - `Sync Now`, `Queue State`, `Requested At`, and `Started At` appear as expected
    - `reports/simplemdm` renders
    - device/resource listings return data
 
@@ -95,6 +96,7 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
 ```
 
 5. Verify:
+   - `http://localhost:8888/index.php?/module/simplemdm/admin` shows `Sync Now`, `Queue State`, `Requested At`, and `Started At`
    - `http://localhost:8888/reports/simplemdm`
    - `http://localhost:8888/show/listing/simplemdm/simplemdm`
    - `http://localhost:8888/show/listing/simplemdm/simplemdm_resources`
@@ -106,6 +108,7 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
 2. Sync health:
    - `last_sync_status = success`
    - `last_sync_time` updated recently
+   - If using the new queued workflow, confirm `sync_request_state` returns to `idle` after a run
 3. Data health:
    - counts non-zero where expected
    - trend/compliance/command widgets render without JS/API errors
@@ -143,5 +146,8 @@ Notes:
 3. Sync errors after upgrade:
    - Verify `api_key` still present.
    - Check headers used by sync runner.
+5. `Sync Now` stays queued forever:
+   - Confirm a real cron entry exists or manually run `python3 local/modules/simplemdm/scripts/simplemdm_sync.py --munkireport-url '<url>' --respect-schedule --force-run`.
+   - Remember the admin button queues work; it does not execute Python directly from the web request.
 4. Docker command failures:
    - Confirm compose service name (`munkireport`) and container status (`docker compose ps`).

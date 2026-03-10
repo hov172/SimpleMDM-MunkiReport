@@ -67,6 +67,12 @@ docker compose up -d --build
 docker compose exec munkireport php please migrate
 ```
 
+If you want to validate queued `Sync Now` behavior, install a real cron entry first or use:
+
+```bash
+local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'http://localhost:8888' --install
+```
+
 2. Manual sync from host:
 
 ```bash

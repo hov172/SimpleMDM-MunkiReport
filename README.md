@@ -70,6 +70,7 @@ Developer docs:
 4. Add schedule runner (cron):
    - `* * * * * /usr/bin/python3 <ABSOLUTE_MR_ROOT>/local/modules/simplemdm/scripts/simplemdm_sync.py --munkireport-url 'https://mr' --respect-schedule --max-parent-resources 25 >> /var/log/simplemdm_sync.log 2>&1`
    - Or print/install the entry with `local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'https://mr' [--install]`
+   - `Sync Now` only queues a request. It will not run until cron or a manual `simplemdm_sync.py` invocation picks it up.
 5. Verify:
    - `reports/simplemdm` renders widgets
    - `show/listing/simplemdm/simplemdm` has devices
@@ -163,6 +164,7 @@ local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'http://127.0.
 ```
 
 Cron is not installed automatically when you clone the module. You must either add the crontab entry yourself or run the helper with `--install`.
+`Sync Now` in the admin page only queues work; it still depends on this cron/manual runner.
 
 ### Docker Module Install
 
@@ -236,6 +238,7 @@ local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'http://localh
 ```
 
 Cron is not installed automatically when you clone the module. The helper updates the current user's crontab only when you run it with `--install`.
+`Sync Now` in the admin page only queues work; it still depends on this cron/manual runner.
 
 ### Common Validation Checklist
 

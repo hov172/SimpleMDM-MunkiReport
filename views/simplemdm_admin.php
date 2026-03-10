@@ -96,6 +96,10 @@ if (is_readable($provides_path)) {
                             <td id="sync-requested-at">-</td>
                         </tr>
                         <tr>
+                            <th>Started At</th>
+                            <td id="sync-started-at">-</td>
+                        </tr>
+                        <tr>
                             <th>Last Sync Status</th>
                             <td id="sync-status">-</td>
                         </tr>
@@ -250,6 +254,7 @@ $(document).on('appReady', function() {
         $('#sync-time').text(data.last_sync_time || '-');
         $('#sync-request-state').text(data.sync_request_state || 'idle');
         $('#sync-requested-at').text(data.sync_requested_at || '-');
+        $('#sync-started-at').text(data.sync_started_at || '-');
         $('#simplemdm-sync-now').prop('disabled', String(data.sync_request_state || 'idle') === 'running');
         updateSyncMessageFromState(data);
     }

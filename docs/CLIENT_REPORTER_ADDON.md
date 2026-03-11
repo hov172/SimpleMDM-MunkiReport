@@ -48,6 +48,13 @@ The normal pattern would be:
 4. query those module tables by `serial_number`
 5. return the extra data as supplemental fields or sections
 
+For a broader product use case, this option should not be limited to detail-page-only lookup.
+
+The stronger version is a hybrid model:
+
+- live per-device lookup for deep detail sections
+- optional cached supplemental summary/index for widgets, listings, filters, and stale-data visibility
+
 ### Best Use Case
 
 This is the best use case when:
@@ -58,6 +65,13 @@ This is the best use case when:
 - you want to avoid overwriting `simplemdm` API fields
 
 This is the best fit for filling areas that SimpleMDM does not expose in its API.
+
+It is also the best fit when you want:
+
+- supplemental dashboard widgets
+- list filtering based on external module state
+- cross-module summary views
+- stale-data awareness without copying source-module ownership
 
 Examples:
 
@@ -77,6 +91,7 @@ Examples:
 - new sections on the client tab
 - optional cross-module widgets
 - cross-module filtered reports
+- listing/table indicators sourced from a supplemental summary layer
 
 Recommended labeling:
 
@@ -102,7 +117,37 @@ Preferred implementation:
 
 - query other module tables live by `serial_number`
 - optionally build merged JSON responses in `simplemdm_controller.php`
-- optionally cache capability checks or summary responses for performance
+- optionally cache capability checks for performance
+- optionally maintain a lightweight supplemental summary/index keyed by `serial_number`
+
+Recommended hybrid implementation:
+
+- live lookup for device detail sections where full source data is needed
+- cached summary/index for dashboard widgets, listings, filters, and at-a-glance status
+
+The cached summary/index should store normalized summary facts only, not copied source records.
+
+Example summary fields:
+
+- `serial_number`
+- `supp_filevault_present`
+- `supp_filevault_enabled`
+- `supp_findmymac_present`
+- `supp_findmymac_enabled`
+- `supp_applecare_present`
+- `supp_applecare_coverage_end`
+- `supp_profile_count`
+- `supp_managedinstalls_present`
+- `supp_adobe_present`
+- `supp_source_modules_json`
+- `supp_last_refresh`
+
+This preserves source-module ownership while still allowing:
+
+- faster widgets and listings
+- filtering and reporting
+- stale-data visibility
+- presence/absence indicators before a device detail page is opened
 
 ### Pros
 
@@ -113,6 +158,8 @@ Preferred implementation:
 - low risk of overwriting authoritative SimpleMDM data
 - simplest upgrade story for the `simplemdm` module
 - easiest way to fill gaps in the SimpleMDM device page
+- supports richer widgets and reports without turning SimpleMDM sync into a multi-module sync job
+- allows stale-data awareness and supplemental status indicators
 
 ### Cons
 
@@ -121,6 +168,7 @@ Preferred implementation:
 - live joins can become expensive if used heavily in dashboards
 - availability of supplemental data depends on the health of the source module
 - not useful for facts that no existing module collects
+- cached summary/index design adds some implementation complexity even though it does not replace source-module ownership
 
 ### Recommended Files To Change
 
@@ -128,6 +176,7 @@ Preferred implementation:
 - `views/simplemdm_device.php`
 - `views/simplemdm_tab.php`
 - optional new widget views under `views/`
+- optional supplemental summary model/migration if cached indexing is added
 - `docs/API_REFERENCE.md` if new merged endpoints are added
 
 ## Option 2: Client-Side Reporter Add-On

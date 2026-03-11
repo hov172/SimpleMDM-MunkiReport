@@ -26,7 +26,7 @@ php please migrate
 5. For mutating action tests: `action_api_secret` configured.
 6. If validating scheduled sync behavior, ensure cron is actually installed on the host.
    - If in-module script execution is enabled, use `Enable Scheduled Sync` in the admin UI.
-   - Otherwise install it manually with `local/modules/simplemdm/scripts/install_cron.sh --munkireport-url '<url>' --install`.
+   - Otherwise install it manually with `local/modules/simplemdm/scripts/install_cron.sh --munkireport-url '<url>' --api-key 'YOUR_SIMPLEMDM_API_KEY' --install`.
 
 ## 2.1) Workflow Expectations
 
@@ -47,6 +47,7 @@ Run from MunkiReport root.
 
 ```bash
 python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
+  --api-key 'YOUR_SIMPLEMDM_API_KEY' \
   --munkireport-url 'http://127.0.0.1' \
   --respect-schedule \
   --force-run \

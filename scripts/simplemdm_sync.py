@@ -154,19 +154,23 @@ def get_config():
         logger.setLevel(logging.DEBUG)
 
     config_data = {}
+    config_fetch_error = ''
     if args.munkireport_url:
-        if not args.api_key:
-            logger.info('API key not found in environment. Attempting to fetch from MunkiReport...')
         try:
-            # We call the get_config endpoint of the simplemdm module
+            # Fetch saved non-secret runner settings. If --api-key is provided,
+            # pass it as the sync token so host/manual runs do not depend on an
+            # authenticated browser session.
             config_url = f"{args.munkireport_url.rstrip('/')}/module/simplemdm/get_config"
             req = urllib.request.Request(config_url)
             if args.munkireport_token:
                 req.add_header('X-API-Token', args.munkireport_token)
-            
+            if args.api_key:
+                req.add_header('X-SIMPLEMDM-API-KEY', args.api_key)
+
             ctx = ssl.create_default_context()
             with urllib.request.urlopen(req, context=ctx) as response:
-                config_data = json.loads(response.read().decode())
+                raw_body = response.read().decode()
+                config_data = json.loads(raw_body)
                 if not args.api_key:
                     args.api_key = config_data.get('api_key', '')
                 if not args.delta and str(config_data.get('sync_delta_enabled', '0')) == '1':
@@ -183,9 +187,10 @@ def get_config():
                         args.device_subresource_limit = max(0, cfg_limit)
                     except Exception:
                         args.device_subresource_limit = 0
-                if args.api_key:
-                    logger.info('Successfully retrieved API key from MunkiReport.')
+                if args.api_key and 'api_key' in config_data:
+                    logger.debug('Loaded module config from MunkiReport using sync-token auth.')
         except Exception as e:
+            config_fetch_error = str(e)
             logger.debug(f'Failed to fetch config from MunkiReport: {e}')
 
     args.schedule_enabled = str(config_data.get('enable_scheduled_sync', '0')) == '1'
@@ -200,7 +205,18 @@ def get_config():
         args.sync_interval_minutes = 1
 
     if not args.api_key:
-        logger.error('SimpleMDM API key is required. Set SIMPLEMDM_API_KEY, use --api-key, or configure it in the MunkiReport UI.')
+        if config_fetch_error:
+            logger.error(
+                'SimpleMDM API key is required. For host/manual runs, set '
+                'SIMPLEMDM_API_KEY or use --api-key. The runner should not '
+                'rely on an authenticated MunkiReport browser session to '
+                f'discover the API key. Last config fetch error: {config_fetch_error}'
+            )
+        else:
+            logger.error(
+                'SimpleMDM API key is required. For host/manual runs, set '
+                'SIMPLEMDM_API_KEY or use --api-key.'
+            )
         sys.exit(1)
 
     if not args.munkireport_url and not args.dry_run:

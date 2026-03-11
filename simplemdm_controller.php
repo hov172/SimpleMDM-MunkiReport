@@ -8,7 +8,7 @@
  **/
 class Simplemdm_controller extends Module_controller
 {
-    private $sync_actions = ['ingest', 'ingest_resources', 'ingest_commands', 'webhook', 'update_sync_status', 'begin_sync_run'];
+    private $sync_actions = ['ingest', 'ingest_resources', 'ingest_commands', 'webhook', 'update_sync_status', 'begin_sync_run', 'get_config'];
     private $downloadable_scripts = ['simplemdm_sync.py', 'install_cron.sh', 'remove_cron.sh'];
 
     function __construct()
@@ -306,7 +306,7 @@ class Simplemdm_controller extends Module_controller
         $remove_script = $this->scripts_dir() . '/remove_cron.sh';
 
         $sync_command = sprintf(
-            "%s %s --munkireport-url %s --force-run --max-parent-resources %s --verbose",
+            "%s %s --api-key 'YOUR_SIMPLEMDM_API_KEY' --munkireport-url %s --force-run --max-parent-resources %s --verbose",
             escapeshellarg($config['script_runner_python_bin']),
             escapeshellarg($sync_script),
             escapeshellarg($config['script_runner_munkireport_url']),
@@ -314,7 +314,7 @@ class Simplemdm_controller extends Module_controller
         );
 
         $cron_print_command = sprintf(
-            "%s --munkireport-url %s --python-bin %s --schedule %s --log-path %s --max-parent-resources %s --print-only",
+            "%s --munkireport-url %s --api-key 'YOUR_SIMPLEMDM_API_KEY' --python-bin %s --schedule %s --log-path %s --max-parent-resources %s --print-only",
             escapeshellarg($install_script),
             escapeshellarg($config['script_runner_munkireport_url']),
             escapeshellarg($config['script_runner_python_bin']),
@@ -818,8 +818,13 @@ class Simplemdm_controller extends Module_controller
      **/
     public function get_config()
     {
+        $is_sync_auth = $this->is_valid_sync_token();
         $config = [];
         $is_global = $this->authorized('global');
+        if (! $is_global && ! $is_sync_auth) {
+            jsonView(['status' => 'error', 'message' => 'Unauthorized'], 401);
+            return;
+        }
         $settings = Simplemdm_config_model::all();
         foreach ($settings as $setting) {
             if ($setting->name === 'api_key') {
@@ -1063,31 +1068,35 @@ class Simplemdm_controller extends Module_controller
         $install_script = escapeshellarg($cwd . '/install_cron.sh');
         $remove_script = escapeshellarg($cwd . '/remove_cron.sh');
         $mr_url = escapeshellarg($runner['script_runner_munkireport_url']);
+        $api_key = escapeshellarg($this->get_stored_api_key());
         $schedule = escapeshellarg($runner['script_runner_schedule']);
         $log_path = escapeshellarg($runner['script_runner_log_path']);
         $max_parent_resources = escapeshellarg($runner['script_runner_max_parent_resources']);
 
         $commands = [
             'sync_now' => sprintf(
-                "%s %s --munkireport-url %s --force-run --max-parent-resources %s --verbose",
+                "%s %s --api-key %s --munkireport-url %s --force-run --max-parent-resources %s --verbose",
                 $python,
                 $sync_script,
+                $api_key,
                 $mr_url,
                 $max_parent_resources
             ),
             'print_cron' => sprintf(
-                "%s --munkireport-url %s --python-bin %s --schedule %s --log-path %s --max-parent-resources %s --print-only",
+                "%s --munkireport-url %s --api-key %s --python-bin %s --schedule %s --log-path %s --max-parent-resources %s --print-only",
                 $install_script,
                 $mr_url,
+                $api_key,
                 $python,
                 $schedule,
                 $log_path,
                 $max_parent_resources
             ),
             'install_cron' => sprintf(
-                "%s --munkireport-url %s --python-bin %s --schedule %s --log-path %s --max-parent-resources %s --install",
+                "%s --munkireport-url %s --api-key %s --python-bin %s --schedule %s --log-path %s --max-parent-resources %s --install",
                 $install_script,
                 $mr_url,
+                $api_key,
                 $python,
                 $schedule,
                 $log_path,

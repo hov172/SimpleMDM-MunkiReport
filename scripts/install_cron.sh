@@ -8,6 +8,8 @@ MR_ROOT="$(cd "$MODULE_DIR/../../.." && pwd)"
 SYNC_SCRIPT="$SCRIPT_DIR/simplemdm_sync.py"
 
 MUNKIREPORT_URL="${MUNKIREPORT_URL:-}"
+SIMPLEMDM_API_KEY="${SIMPLEMDM_API_KEY:-}"
+MUNKIREPORT_TOKEN="${MUNKIREPORT_TOKEN:-}"
 PYTHON_BIN="${PYTHON_BIN:-/usr/bin/python3}"
 SCHEDULE="${SCHEDULE:-* * * * *}"
 MAX_PARENT_RESOURCES="${MAX_PARENT_RESOURCES:-25}"
@@ -19,11 +21,14 @@ MATCH_TEXT="${MATCH_TEXT:-simplemdm_sync.py}"
 usage() {
     cat <<EOF
 Usage:
-  $(basename "$0") --munkireport-url URL [--install]
+  $(basename "$0") --munkireport-url URL --api-key KEY [--install]
   $(basename "$0") --remove [--match-text TEXT]
 
 Options:
   --munkireport-url URL   Required. Base MunkiReport URL used by the sync script.
+  --api-key KEY           Required for host/manual runner installs. Passed to simplemdm_sync.py.
+  --munkireport-token TOKEN
+                          Optional MunkiReport API token passed to simplemdm_sync.py.
   --python-bin PATH       Python binary to use. Default: $PYTHON_BIN
   --schedule SPEC         Cron schedule. Default: "$SCHEDULE"
   --log-path PATH         Log file path. Default: $LOG_PATH
@@ -36,7 +41,7 @@ Options:
   -h, --help              Show this help.
 
 Environment overrides:
-  MUNKIREPORT_URL, PYTHON_BIN, SCHEDULE, LOG_PATH, MAX_PARENT_RESOURCES, INSTALL_CRON, REMOVE_CRON, MATCH_TEXT
+  MUNKIREPORT_URL, SIMPLEMDM_API_KEY, MUNKIREPORT_TOKEN, PYTHON_BIN, SCHEDULE, LOG_PATH, MAX_PARENT_RESOURCES, INSTALL_CRON, REMOVE_CRON, MATCH_TEXT
 EOF
 }
 
@@ -48,6 +53,14 @@ while [ $# -gt 0 ]; do
             ;;
         --python-bin)
             PYTHON_BIN="${2:-}"
+            shift 2
+            ;;
+        --api-key)
+            SIMPLEMDM_API_KEY="${2:-}"
+            shift 2
+            ;;
+        --munkireport-token)
+            MUNKIREPORT_TOKEN="${2:-}"
             shift 2
             ;;
         --schedule)
@@ -105,12 +118,23 @@ if [ -z "$MUNKIREPORT_URL" ]; then
     exit 1
 fi
 
+if [ -z "$SIMPLEMDM_API_KEY" ]; then
+    echo "ERROR: --api-key is required for host/manual runner installs." >&2
+    echo "The cron worker should not rely on an authenticated MunkiReport session to discover the API key." >&2
+    usage >&2
+    exit 1
+fi
+
 if [ ! -f "$SYNC_SCRIPT" ]; then
     echo "ERROR: Sync script not found at $SYNC_SCRIPT" >&2
     exit 1
 fi
 
-CRON_CMD="$PYTHON_BIN $SYNC_SCRIPT --munkireport-url '$MUNKIREPORT_URL' --respect-schedule --max-parent-resources $MAX_PARENT_RESOURCES >> $LOG_PATH 2>&1"
+CRON_CMD="$PYTHON_BIN $SYNC_SCRIPT --api-key '$SIMPLEMDM_API_KEY' --munkireport-url '$MUNKIREPORT_URL' --respect-schedule --max-parent-resources $MAX_PARENT_RESOURCES"
+if [ -n "$MUNKIREPORT_TOKEN" ]; then
+    CRON_CMD="$CRON_CMD --munkireport-token '$MUNKIREPORT_TOKEN'"
+fi
+CRON_CMD="$CRON_CMD >> $LOG_PATH 2>&1"
 CRON_LINE="$SCHEDULE $CRON_CMD"
 
 echo "MunkiReport root: $MR_ROOT"

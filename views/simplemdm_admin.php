@@ -536,6 +536,7 @@ if (is_readable($provides_path)) {
                 </div>
                 <div class="panel-body">
                     <p class="text-muted">Use this section if you want to manage sync outside the module: download the module, copy commands, install cron manually, or run the scripts directly on the host.</p>
+                    <p class="text-muted small">Host/manual runner commands should include an explicit SimpleMDM API key via <code>--api-key</code> or <code>SIMPLEMDM_API_KEY</code>. They should not rely on an authenticated browser session to discover the key.</p>
                     <p>
                         <a class="btn btn-default" id="download-module-link" href="#">
                             <i class="fa fa-archive"></i> Download Module Bundle
@@ -961,7 +962,7 @@ $(document).on('appReady', function() {
         $('#script-catalog').html(html);
         $('.simplemdm-run-script').prop('disabled', !data.execution_enabled);
         if (!data.execution_enabled) {
-            setScriptOutput('In-module script execution is currently disabled. Download the scripts or enable Script Runner settings first.');
+            setScriptOutput('In-module script execution is currently disabled. For host/manual runs, download the scripts and use commands that pass --api-key explicitly or set SIMPLEMDM_API_KEY.');
         }
     }
 

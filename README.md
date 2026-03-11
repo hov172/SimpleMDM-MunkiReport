@@ -73,9 +73,9 @@ Developer docs:
    - Use `Enable Scheduled Sync` to turn on scheduled reconciliation
    - Optional: enable in-module script execution if you want the module to install/remove cron for you
 5. Add schedule runner (cron):
-   - `* * * * * /usr/bin/python3 <ABSOLUTE_MR_ROOT>/local/modules/simplemdm/scripts/simplemdm_sync.py --munkireport-url 'https://mr' --respect-schedule --max-parent-resources 25 >> /var/log/simplemdm_sync.log 2>&1`
+   - `* * * * * /usr/bin/python3 <ABSOLUTE_MR_ROOT>/local/modules/simplemdm/scripts/simplemdm_sync.py --api-key 'YOUR_SIMPLEMDM_API_KEY' --munkireport-url 'https://mr' --respect-schedule --max-parent-resources 25 >> /var/log/simplemdm_sync.log 2>&1`
    - Or use the admin UI `Enable Scheduled Sync` button when in-module script execution is enabled
-   - Or print/install the entry manually with `local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'https://mr' [--install]`
+   - Or print/install the entry manually with `local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'https://mr' --api-key 'YOUR_SIMPLEMDM_API_KEY' [--install]`
    - Scheduled sync always runs `simplemdm_sync.py`; cron is just the launcher
 6. Verify:
    - `reports/simplemdm` renders widgets
@@ -283,7 +283,7 @@ crontab -l
 If you do not want the module to execute sync inside MunkiReport, you can still use the host/manual workflow:
 
 - run `simplemdm_sync.py` directly with `python3`
-- install cron outside the module with `install_cron.sh --install`
+- install cron outside the module with `install_cron.sh --api-key 'YOUR_SIMPLEMDM_API_KEY' --install`
 - use `Sync Status -> Run Sync Now` only as a queue/request signal for the next host-side worker pickup
 
 ### Hosted / VM Module Install
@@ -350,8 +350,8 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
 7. Install the schedule runner on the host:
 
 ```bash
-local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'http://127.0.0.1'
-local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'http://127.0.0.1' --install
+local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'http://127.0.0.1' --api-key 'YOUR_SIMPLEMDM_API_KEY'
+local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'http://127.0.0.1' --api-key 'YOUR_SIMPLEMDM_API_KEY' --install
 local/modules/simplemdm/scripts/install_cron.sh --remove
 ```
 
@@ -426,8 +426,8 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
 7. Install the schedule runner on the host:
 
 ```bash
-local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'http://localhost:8888'
-local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'http://localhost:8888' --install
+local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'http://localhost:8888' --api-key 'YOUR_SIMPLEMDM_API_KEY'
+local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'http://localhost:8888' --api-key 'YOUR_SIMPLEMDM_API_KEY' --install
 local/modules/simplemdm/scripts/install_cron.sh --remove
 ```
 
@@ -474,7 +474,7 @@ python3 --version
 
 ```bash
 crontab -l
-python3 local/modules/simplemdm/scripts/simplemdm_sync.py --munkireport-url 'http://localhost:8888' --respect-schedule --force-run --verbose
+python3 local/modules/simplemdm/scripts/simplemdm_sync.py --api-key 'YOUR_SIMPLEMDM_API_KEY' --munkireport-url 'http://localhost:8888' --respect-schedule --force-run --verbose
 ```
 
    - If the queue state remains `queued` longer than the current sync interval, verify cron is installed with `local/modules/simplemdm/scripts/install_cron.sh --munkireport-url '<url>' --install`.
@@ -942,7 +942,8 @@ Undocumented or unsupported collection probes are intentionally excluded so sync
 
 ### Auto-config behavior
 
-If `--api-key` is omitted, script reads API key from module config (`get_config`) when available.
+For host/manual runs, pass `--api-key` explicitly or set `SIMPLEMDM_API_KEY`.
+If `--api-key` is omitted, auto-discovery from `get_config` should be treated as a best-effort fallback only and may fail unless the request is already authenticated.
 
 Sync mode decisions:
 - Manual `--delta` enables delta mode even if admin toggle is off.
@@ -991,7 +992,7 @@ Recommended: run cron every minute with `--respect-schedule`, then control caden
 Example cron:
 
 ```cron
-* * * * * /usr/bin/python3 /path/to/.../simplemdm_sync.py --munkireport-url 'https://mr' --respect-schedule --max-parent-resources 25 >> /var/log/simplemdm_sync.log 2>&1
+* * * * * /usr/bin/python3 /path/to/.../simplemdm_sync.py --api-key 'YOUR_SIMPLEMDM_API_KEY' --munkireport-url 'https://mr' --respect-schedule --max-parent-resources 25 >> /var/log/simplemdm_sync.log 2>&1
 ```
 
 Optional production additions:

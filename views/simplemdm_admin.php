@@ -171,6 +171,11 @@ if (is_readable($provides_path)) {
     margin-right: 8px;
     margin-bottom: 8px;
 }
+.simplemdm-script-inline-status {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: var(--simplemdm-muted);
+}
 .simplemdm-schedule-actions .btn {
     margin-right: 8px;
     margin-bottom: 8px;
@@ -770,16 +775,16 @@ $(document).on('appReady', function() {
         var state = collectPrereqState();
         var missing = [];
         if (requirements.apiKey && !state.apiKeyPresent) {
-            missing.push('SimpleMDM API Key');
+            missing.push('API Key');
         }
         if (requirements.moduleExecution && !state.moduleExecutionEnabled) {
-            missing.push('Allow in-module script execution');
+            missing.push('Module Execution');
         }
         if (requirements.runnerUrl && !state.runnerUrlPresent) {
-            missing.push('Runner MunkiReport URL');
+            missing.push('Runner URL');
         }
         if (requirements.python && !state.pythonPresent) {
-            missing.push('Python Binary');
+            missing.push('Configured Python Path');
         }
         if (requirements.schedule && !state.schedulePresent) {
             missing.push('Schedule');
@@ -952,15 +957,41 @@ $(document).on('appReady', function() {
         return { moduleExecution: true };
     }
 
+    function getScriptActionMissing(action) {
+        var requirements = getScriptActionRequirements(action);
+        var missing = getMissingFields(requirements);
+        if (requirements.modulePython && (!runnerStatusCache || !runnerStatusCache.runtime || !runnerStatusCache.runtime.python_available)) {
+            missing.push('Module Python');
+        }
+        return missing;
+    }
+
+    function formatMissingList(items) {
+        if (!items.length) {
+            return '';
+        }
+        if (items.length === 1) {
+            return items[0];
+        }
+        if (items.length === 2) {
+            return items[0] + ' and ' + items[1];
+        }
+        return items.slice(0, -1).join(', ') + ', and ' + items[items.length - 1];
+    }
+
     function refreshScriptActionAvailability() {
         $('.simplemdm-run-script').each(function() {
             var action = String($(this).data('action') || '');
-            var requirements = getScriptActionRequirements(action);
-            var missing = getMissingFields(requirements);
-            if (requirements.modulePython && (!runnerStatusCache || !runnerStatusCache.runtime || !runnerStatusCache.runtime.python_available)) {
-                missing.push('Python available in module runtime');
-            }
-            $(this).prop('disabled', missing.length > 0);
+            var missing = getScriptActionMissing(action);
+            var disabledReason = missing.length ? 'Run In Module unavailable: missing ' + formatMissingList(missing) + '.' : 'Run this action inside the MunkiReport module runtime.';
+            $(this)
+                .prop('disabled', missing.length > 0)
+                .attr('title', disabledReason)
+                .attr('aria-label', disabledReason);
+            $(this).closest('.simplemdm-run-script-wrap').attr('title', disabledReason);
+            $(this).closest('.simplemdm-script-actions').siblings('.simplemdm-script-inline-status').text(
+                missing.length ? disabledReason : 'In-module execution is available for this action.'
+            );
         });
     }
 
@@ -990,8 +1021,11 @@ $(document).on('appReady', function() {
             html += '<div class="simplemdm-script-actions">';
             html += '<a class="btn btn-default btn-sm" href="' + $('<div>').text(script.download_url || '#').html() + '"><i class="fa fa-download"></i> Download</a>';
             html += '<button type="button" class="btn btn-default btn-sm simplemdm-copy-command" data-command="' + $('<div>').text(script.external_command || '').html() + '"><i class="fa fa-copy"></i> Copy External Command</button>';
-            html += '<button type="button" class="btn btn-primary btn-sm simplemdm-run-script" data-action="' + $('<div>').text(script.run_action || '').html() + '"><i class="fa fa-play"></i> Run In Module</button>';
+            html += '<span class="simplemdm-run-script-wrap" title="Checking in-module requirements...">';
+            html += '<button type="button" class="btn btn-primary btn-sm simplemdm-run-script" data-action="' + $('<div>').text(script.run_action || '').html() + '" title="Checking in-module requirements..."><i class="fa fa-play"></i> Run In Module</button>';
+            html += '</span>';
             html += '</div>';
+            html += '<p class="simplemdm-script-inline-status">Checking in-module requirements...</p>';
             html += '<div class="simplemdm-script-command-wrap">';
             html += '<span class="simplemdm-script-command-label">External Command</span>';
             html += '<pre class="simplemdm-script-command">' + $('<div>').text(script.external_command || '').html() + '</pre>';

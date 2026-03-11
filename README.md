@@ -102,7 +102,8 @@ This module README covers only:
 There are two supported ways to operate the sync workflow:
 
 1. In-module workflow
-   - Use `Run Sync Now` for an immediate one-off run.
+   - Use `Sync Status -> Run Sync Now` to queue the next worker pickup.
+   - Use `In-Module Sync And Schedule -> Run Sync Now` for an immediate one-off run when module-side execution is available.
    - Use `Schedule` plus `Enable Scheduled Sync` / `Disable Scheduled Sync` for recurring runs.
    - If `Allow in-module script execution for global admins` is enabled, the module can install/remove the cron job for you.
 
@@ -114,7 +115,8 @@ There are two supported ways to operate the sync workflow:
 Important:
 - `simplemdm_sync.py` is the worker that performs the sync.
 - cron is the scheduler that launches `simplemdm_sync.py` repeatedly.
-- `Run Sync Now` is immediate and does not require cron.
+- `Sync Status -> Run Sync Now` is queue-based and still depends on a worker pickup.
+- `In-Module Sync And Schedule -> Run Sync Now` is immediate and does not require cron, but it does require module-side Python.
 - recurring scheduled sync still requires cron somewhere on the host.
 
 ## Runner URL Detection
@@ -283,7 +285,7 @@ crontab -l
 If you do not want the module to execute sync inside MunkiReport, you can still use the host/manual workflow:
 
 - run `simplemdm_sync.py` directly with `python3`
-- install cron outside the module with `install_cron.sh --api-key 'YOUR_SIMPLEMDM_API_KEY' --install`
+- install cron outside the module with `install_cron.sh --munkireport-url 'https://your-munkireport' --api-key 'YOUR_SIMPLEMDM_API_KEY' --install`
 - use `Sync Status -> Run Sync Now` only as a queue/request signal for the next host-side worker pickup
 
 ### Hosted / VM Module Install
@@ -477,7 +479,7 @@ crontab -l
 python3 local/modules/simplemdm/scripts/simplemdm_sync.py --api-key 'YOUR_SIMPLEMDM_API_KEY' --munkireport-url 'http://localhost:8888' --respect-schedule --force-run --verbose
 ```
 
-   - If the queue state remains `queued` longer than the current sync interval, verify cron is installed with `local/modules/simplemdm/scripts/install_cron.sh --munkireport-url '<url>' --install`.
+   - If the queue state remains `queued` longer than the current sync interval, verify cron is installed with `local/modules/simplemdm/scripts/install_cron.sh --munkireport-url '<url>' --api-key 'YOUR_SIMPLEMDM_API_KEY' --install`.
    - If you want an immediate one-off run from the UI, use the `In-Module Sync And Schedule` panel instead and ensure Python is available in the MunkiReport runtime.
 
 5. Sync fails with unauthorized/forbidden:

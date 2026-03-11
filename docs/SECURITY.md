@@ -22,6 +22,7 @@ Read/report/listing routes require a normal authenticated MunkiReport session.
 | `index?op=ingest_commands` | Sync auth required | `X-SIMPLEMDM-API-KEY` |
 | `index?op=update_sync_status` | Sync auth required | `X-SIMPLEMDM-API-KEY` |
 | `index?op=begin_sync_run` | Sync auth required | `X-SIMPLEMDM-API-KEY` |
+| `index?op=get_config` | Global admin OR sync auth | Session auth or `X-SIMPLEMDM-API-KEY` |
 | `index?op=webhook` | Webhook secret OR sync auth | `X-SIMPLEMDM-WEBHOOK-SECRET` or `X-SIMPLEMDM-API-KEY` |
 | `save_config` | Global admin OR sync auth | Session auth or `X-SIMPLEMDM-API-KEY` |
 | `request_sync` | Global admin session | Session auth |
@@ -30,6 +31,7 @@ Read/report/listing routes require a normal authenticated MunkiReport session.
 
 Notes:
 - `api_key` is not returned to non-global users.
+- Sync-auth `get_config` callers receive non-secret settings plus `*_set` flags, not raw secret values.
 - `webhook_secret` and `action_api_secret` are masked for non-global users (`*_set` flags only).
 
 ## 3) Secrets and Purpose

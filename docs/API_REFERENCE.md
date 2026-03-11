@@ -17,6 +17,7 @@ Workflow note:
 - `Sync Status -> Run Sync Now` is a queue-based trigger path.
 - `In-Module Sync And Schedule -> Run Sync Now` is an immediate execution path when module-side execution is available.
 - recurring schedule still requires cron to launch `simplemdm_sync.py`
+- host/manual runners should use an explicit `--api-key` or `SIMPLEMDM_API_KEY`
 - `install_cron.sh` and `remove_cron.sh` are helpers for managing that cron entry
 - when module-side execution is enabled, the admin UI can call those helpers for global admins
 - `Runner MunkiReport URL` prefers configured app URL (`WEBHOST` / `SUBDIRECTORY`) and falls back to the current browser URL for local/placeholder setups
@@ -24,7 +25,7 @@ Workflow note:
 | Route Group | Auth |
 |---|---|
 | Report/listing/stats/data routes | Authenticated MunkiReport session |
-| Config read (`get_config`) | Auth session (global gets full values; non-global gets masked secret flags) |
+| Config read (`get_config`) | Global admin session OR sync token header (non-global/sync-auth responses get masked secret flags) |
 | Config write (`save_config`) | Global admin session OR sync token header |
 | Admin sync queue (`request_sync`) | Global admin session |
 | Ingest routes (`op=ingest*`, `op=update_sync_status`, `op=begin_sync_run`) | Sync token header |
@@ -54,7 +55,8 @@ All are called via:
 
 | Route | Method | Purpose | Auth |
 |---|---|---|---|
-| `/module/simplemdm/get_config` | GET | Read module settings | Auth session |
+| `/module/simplemdm/get_config` | GET | Read module settings | Global admin session OR sync token header |
+| `/module/simplemdm/index?op=get_config` | GET | Worker-friendly config bootstrap route | Global admin session OR sync token header |
 | `/module/simplemdm/get_script_catalog` | GET | Read downloadable script metadata and external command templates | Global admin |
 | `/module/simplemdm/get_runner_status` | GET | Read module runtime, cron, and runner readiness state | Global admin |
 | `/module/simplemdm/save_config` | POST | Save module settings | Global admin OR sync token |
@@ -81,6 +83,8 @@ All are called via:
 - sync queue keys (`sync_request_state`, `sync_requested_at`, `sync_started_at`, `sync_request_source`)
 - telemetry/status keys (`last_sync_status`, `last_sync_time`, `last_sync_cursor`, etc.)
 - widget visibility config keys discovered from `provides.yml`
+
+`get_config` returns full secret values only to global admins. Sync-token-auth callers receive masked secret behavior (`api_key_set`, `webhook_secret_set`, `action_api_secret_set`) plus the non-secret runner/schedule settings needed by the worker.
 
 `request_sync` only queues the request. A host-side or manual `simplemdm_sync.py` run still claims and executes the sync.
 

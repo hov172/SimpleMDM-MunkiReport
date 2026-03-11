@@ -85,13 +85,14 @@ docker compose exec munkireport php please migrate
 If you want to validate recurring schedule behavior, install a real cron entry first or use:
 
 ```bash
-local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'http://localhost:8888' --install
+local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'http://localhost:8888' --api-key 'YOUR_SIMPLEMDM_API_KEY' --install
 ```
 
 2. Manual sync from host:
 
 ```bash
 python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
+  --api-key 'YOUR_SIMPLEMDM_API_KEY' \
   --munkireport-url 'http://localhost:8888' \
   --respect-schedule \
   --force-run \
@@ -117,6 +118,7 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
 
 ```bash
 python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
+  --api-key 'YOUR_SIMPLEMDM_API_KEY' \
   --munkireport-url 'http://localhost:8888' \
   --respect-schedule \
   --force-run \

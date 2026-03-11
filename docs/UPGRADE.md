@@ -45,6 +45,7 @@ php please migrate
 
 ```bash
 python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
+  --api-key 'YOUR_SIMPLEMDM_API_KEY' \
   --munkireport-url 'http://127.0.0.1' \
   --respect-schedule \
   --force-run \
@@ -91,6 +92,7 @@ docker compose exec munkireport php please migrate
 
 ```bash
 python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
+  --api-key 'YOUR_SIMPLEMDM_API_KEY' \
   --munkireport-url 'http://localhost:8888' \
   --respect-schedule \
   --force-run \

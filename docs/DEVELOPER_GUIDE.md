@@ -105,6 +105,7 @@ This guide is for contributors who need to understand and modify the module safe
   - `In-Module Sync And Schedule -> Run Sync Now` executes an immediate one-off run when in-module execution is available.
   - `Enable Scheduled Sync` / `Disable Scheduled Sync` change module schedule state.
   - `simplemdm_sync.py` is still the real worker; recurring runs require cron to launch it.
+  - Host/manual runs should use an explicit `--api-key` or `SIMPLEMDM_API_KEY`; they should not rely on an authenticated browser session to bootstrap secrets.
   - Optional in-module execution allows the UI to install/remove cron and run approved script actions for global admins.
 
 ### Scheduling Workflow
@@ -118,10 +119,11 @@ This guide is for contributors who need to understand and modify the module safe
   - Presets map to cron expressions.
   - `Sync Status -> Run Sync Now` is queue-based and still depends on a worker pickup.
   - `In-Module Sync And Schedule -> Run Sync Now` is immediate and does not need cron, but it does require module-side Python execution.
-  - recurring scheduled sync still depends on cron
-  - if module-side execution is enabled, the module can call `install_cron.sh` / `remove_cron.sh` on behalf of the admin
+  - Recurring scheduled sync still depends on cron.
+  - Host/manual cron installs should include an explicit `--api-key` (or exported `SIMPLEMDM_API_KEY`) so the worker can read schedule/queue state without an authenticated browser session.
+  - If module-side execution is enabled, the module can call `install_cron.sh` / `remove_cron.sh` on behalf of the admin.
   - `Runner MunkiReport URL` prefers canonical MunkiReport config (`WEBHOST` / `SUBDIRECTORY`) and falls back to the current request URL for local/placeholder deployments
-  - the admin UI inspects whether Python exists in the module runtime and distinguishes in-module execution from host/manual execution
+  - The admin UI inspects whether Python exists in the module runtime and distinguishes in-module execution from host/manual execution.
 
 ## 3) Module Layout
 
@@ -135,7 +137,7 @@ local/modules/simplemdm/
 |- migrations/                        # schema creation and incremental updates
 |- views/                             # report pages, listing pages, widgets, device page UI
 |- scripts/simplemdm_sync.py          # server-side sync client (SimpleMDM -> module endpoints)
-|- scripts/install_cron.sh            # helper to print/install/remove cron entries
+|- scripts/install_cron.sh            # helper to print/install/remove cron entries; host/manual installs require explicit API key input
 |- scripts/remove_cron.sh             # simple cron cleanup helper
 |- examples/dashboard.simplemdm.full.yml
 `- docs/images/                       # screenshots used by README/docs
@@ -149,7 +151,7 @@ local/modules/simplemdm/
 SimpleMDM API
   -> request_sync (admin queue request)
   -> scripts/simplemdm_sync.py
-    -> /module/simplemdm/get_config
+    -> /module/simplemdm/index?op=get_config
     -> /module/simplemdm/index?op=begin_sync_run   -> simplemdm_config
     -> /module/simplemdm/index?op=ingest           -> simplemdm
     -> /module/simplemdm/index?op=ingest_resources -> simplemdm_resource
@@ -204,6 +206,8 @@ Primary file: `simplemdm_controller.php`
 Primary file: `scripts/simplemdm_sync.py`
 
 - Pulls devices/resources/commands from SimpleMDM API
+- For host/manual runs, expects an explicit `--api-key` or `SIMPLEMDM_API_KEY` so config bootstrap does not depend on browser-session auth
+- Fetches worker config through `index?op=get_config` using sync-token or API-key auth
 - Restricts collection discovery to documented SimpleMDM GET endpoints so telemetry reflects real failures
 - Flattens/normalizes fields for `simplemdm`
 - Preserves raw payload fragments in JSON fields
@@ -306,6 +310,7 @@ Use existing screenshots while changing UI:
 - Ingest/write routes rely on sync auth token/API key checks.
 - Admin-triggered queue requests rely on global admin session checks.
 - Worker-side run claims rely on sync auth token/API key checks.
+- Host/manual workers should use explicit API-key or sync-token auth; do not assume a browser session is available.
 - Webhook route supports webhook secret and sync token fallback.
 - Mutating passthrough requests require:
   - global admin session
@@ -318,12 +323,13 @@ Use existing screenshots while changing UI:
    - `php please migrate`
 2. Run one manual sync:
    - `python3 local/modules/simplemdm/scripts/simplemdm_sync.py --api-key '...' --munkireport-url '...' --verbose`
-3. Validate:
+3. If validating scheduled or queued host/manual runs, confirm the runner or cron command also includes `--api-key '...'` (or exports `SIMPLEMDM_API_KEY`) and can reach `index?op=get_config` without an interactive login.
+4. Validate:
    - report renders
    - device/resource listings populate
    - device details load
    - no PHP errors in logs
-4. For UI changes, verify both:
+5. For UI changes, verify both:
    - dashboard/report widget pages
    - standalone listing/admin/device pages
 

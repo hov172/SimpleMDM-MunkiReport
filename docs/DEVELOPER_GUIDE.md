@@ -106,6 +106,7 @@ This guide is for contributors who need to understand and modify the module safe
   - `Enable Scheduled Sync` / `Disable Scheduled Sync` change module schedule state.
   - `simplemdm_sync.py` is still the real worker; recurring runs require cron to launch it.
   - Host/manual runs should use an explicit `--api-key` or `SIMPLEMDM_API_KEY`; they should not rely on an authenticated browser session to bootstrap secrets.
+  - In-module action buttons use the same runner prerequisite checks as the schedule panel, and the controller re-validates those prerequisites server-side.
   - Optional in-module execution allows the UI to install/remove cron and run approved script actions for global admins.
 
 ### Scheduling Workflow

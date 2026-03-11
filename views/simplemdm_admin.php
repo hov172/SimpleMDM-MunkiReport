@@ -725,6 +725,16 @@ $(document).on('appReady', function() {
         $(target).text(text).removeClass().addClass(cssClass || 'text-muted');
     }
 
+    function setFormStatus(target, text, cssClass, autoHideMs) {
+        var $el = $(target);
+        $el.stop(true, true).show().text(text).removeClass().addClass(cssClass || 'text-muted');
+        if (autoHideMs) {
+            window.setTimeout(function() {
+                $el.fadeOut();
+            }, autoHideMs);
+        }
+    }
+
     function getRunnerSettingsPayload(extraPayload) {
         var payload = {
             allow_module_script_execution: $('#allow_module_script_execution').is(':checked') ? '1' : '0',
@@ -883,6 +893,7 @@ $(document).on('appReady', function() {
 
         $('#run-sync-now-btn').prop('disabled', !immediateReady);
         $('#enable-schedule-btn').prop('disabled', !scheduledReady || (state.moduleExecutionEnabled && !modulePythonAvailable));
+        refreshScriptActionAvailability();
     }
 
     function renderRunnerStatusPending(reason) {
@@ -900,6 +911,7 @@ $(document).on('appReady', function() {
         $('#cron-management-state').text('Checking...');
         $('#cron-management-detail').text('Waiting for cron inspection.');
         setGuidance(reason || 'Checking module runtime and cron support...', 'alert-info');
+        refreshScriptActionAvailability();
     }
 
     function validateActionRequirements(requirements, options) {
@@ -922,6 +934,34 @@ $(document).on('appReady', function() {
             return false;
         }
         return true;
+    }
+
+    function getScriptActionRequirements(action) {
+        if (action === 'sync_now') {
+            return { apiKey: true, moduleExecution: true, runnerUrl: true, python: true, maxParentResources: true, modulePython: true };
+        }
+        if (action === 'print_cron') {
+            return { apiKey: true, moduleExecution: true, runnerUrl: true, python: true, schedule: true, logPath: true, maxParentResources: true };
+        }
+        if (action === 'install_cron') {
+            return { apiKey: true, moduleExecution: true, runnerUrl: true, python: true, schedule: true, logPath: true, maxParentResources: true, modulePython: true };
+        }
+        if (action === 'remove_cron') {
+            return { moduleExecution: true };
+        }
+        return { moduleExecution: true };
+    }
+
+    function refreshScriptActionAvailability() {
+        $('.simplemdm-run-script').each(function() {
+            var action = String($(this).data('action') || '');
+            var requirements = getScriptActionRequirements(action);
+            var missing = getMissingFields(requirements);
+            if (requirements.modulePython && (!runnerStatusCache || !runnerStatusCache.runtime || !runnerStatusCache.runtime.python_available)) {
+                missing.push('Python available in module runtime');
+            }
+            $(this).prop('disabled', missing.length > 0);
+        });
     }
 
     function confirmAction(message) {
@@ -960,7 +1000,7 @@ $(document).on('appReady', function() {
         });
 
         $('#script-catalog').html(html);
-        $('.simplemdm-run-script').prop('disabled', !data.execution_enabled);
+        refreshScriptActionAvailability();
         if (!data.execution_enabled) {
             setScriptOutput('In-module script execution is currently disabled. For host/manual runs, download the scripts and use commands that pass --api-key explicitly or set SIMPLEMDM_API_KEY.');
         }
@@ -1064,13 +1104,16 @@ $(document).on('appReady', function() {
         });
     }
 
-    function saveScheduleSettings(extraPayload, successMessage) {
+    function saveScheduleSettings(extraPayload, successMessage, onSuccess) {
         $('#script-runner-save-status').text('Saving...').removeClass().addClass('text-info');
         var payload = getRunnerSettingsPayload(extraPayload);
 
         $.post(appUrl + '/module/simplemdm/save_config', payload, function(data) {
             if (data.status === 'success') {
                 $('#script-runner-save-status').text(successMessage || 'Saved successfully!').removeClass().addClass('text-success');
+                if (typeof onSuccess === 'function') {
+                    onSuccess(data);
+                }
                 loadConfig();
                 loadScriptCatalog();
                 loadRunnerStatus();
@@ -1183,17 +1226,19 @@ $(document).on('appReady', function() {
         
         $.post(appUrl + '/module/simplemdm/save_config', $(this).serialize(), function(data) {
             if (data.status === 'success') {
-                $('#save-status').text('Saved successfully!').removeClass().addClass('text-success');
-                setTimeout(function() { $('#save-status').fadeOut(); }, 3000);
+                setFormStatus('#save-status', 'Saved successfully!', 'text-success', 3000);
+                loadConfig();
+                loadScriptCatalog();
+                loadRunnerStatus();
             } else {
-                $('#save-status').text('Error: ' + (data.message || 'Unknown')).removeClass().addClass('text-danger');
+                setFormStatus('#save-status', 'Error: ' + (data.message || 'Unknown'), 'text-danger');
             }
         }, 'json').fail(function(xhr) {
             var msg = 'Request failed';
             if (xhr && xhr.responseJSON && xhr.responseJSON.error) {
                 msg = xhr.responseJSON.error;
             }
-            $('#save-status').text('Error: ' + msg).removeClass().addClass('text-danger');
+            setFormStatus('#save-status', 'Error: ' + msg, 'text-danger');
         });
     });
 
@@ -1209,17 +1254,16 @@ $(document).on('appReady', function() {
 
         $.post(appUrl + '/module/simplemdm/save_config', payload, function(data) {
             if (data.status === 'success') {
-                $('#widget-save-status').text('Saved successfully!').removeClass().addClass('text-success');
-                setTimeout(function() { $('#widget-save-status').fadeOut(); }, 3000);
+                setFormStatus('#widget-save-status', 'Saved successfully!', 'text-success', 3000);
             } else {
-                $('#widget-save-status').text('Error: ' + (data.message || 'Unknown')).removeClass().addClass('text-danger');
+                setFormStatus('#widget-save-status', 'Error: ' + (data.message || 'Unknown'), 'text-danger');
             }
         }, 'json').fail(function(xhr) {
             var msg = 'Request failed';
             if (xhr && xhr.responseJSON && xhr.responseJSON.error) {
                 msg = xhr.responseJSON.error;
             }
-            $('#widget-save-status').text('Error: ' + msg).removeClass().addClass('text-danger');
+            setFormStatus('#widget-save-status', 'Error: ' + msg, 'text-danger');
         });
     });
 
@@ -1241,17 +1285,19 @@ $(document).on('appReady', function() {
 
         $.post(appUrl + '/module/simplemdm/save_config', payload, function(data) {
             if (data.status === 'success') {
-                $('#advanced-save-status').text('Saved successfully!').removeClass().addClass('text-success');
-                setTimeout(function() { $('#advanced-save-status').fadeOut(); }, 3000);
+                setFormStatus('#advanced-save-status', 'Saved successfully!', 'text-success', 3000);
+                loadConfig();
+                loadScriptCatalog();
+                loadRunnerStatus();
             } else {
-                $('#advanced-save-status').text('Error: ' + (data.message || 'Unknown')).removeClass().addClass('text-danger');
+                setFormStatus('#advanced-save-status', 'Error: ' + (data.message || 'Unknown'), 'text-danger');
             }
         }, 'json').fail(function(xhr) {
             var msg = 'Request failed';
             if (xhr && xhr.responseJSON && xhr.responseJSON.error) {
                 msg = xhr.responseJSON.error;
             }
-            $('#advanced-save-status').text('Error: ' + msg).removeClass().addClass('text-danger');
+            setFormStatus('#advanced-save-status', 'Error: ' + msg, 'text-danger');
         });
     });
 
@@ -1274,7 +1320,18 @@ $(document).on('appReady', function() {
     });
 
     $(document).on('click', '.simplemdm-run-script', function() {
-        runScriptAction(String($(this).data('action') || ''));
+        var action = String($(this).data('action') || '');
+        if (!validateActionRequirements(
+            getScriptActionRequirements(action),
+            {
+                prefix: 'In-module action cannot start',
+                noticeTarget: '#script-runner-save-status',
+                outputMessage: true
+            }
+        )) {
+            return;
+        }
+        runScriptAction(action);
     });
 
     $('#script_runner_schedule_preset').on('change', function() {
@@ -1318,13 +1375,14 @@ $(document).on('appReady', function() {
             setActionNotice('#script-runner-save-status', 'Enable scheduled sync cancelled.', 'text-muted');
             return;
         }
-        saveScheduleSettings({ enable_scheduled_sync: '1' }, 'Schedule enabled.');
-        if (canRunInModule) {
-            setScriptOutput('Installing cron for scheduled sync using the saved runner settings...');
-            runScriptAction('install_cron');
-        } else {
-            setScriptOutput('Schedule enabled in config. In-module execution is disabled, so cron was not installed automatically. Use the Manual Access section to run the install command outside the module.');
-        }
+        saveScheduleSettings({ enable_scheduled_sync: '1' }, 'Schedule enabled.', function() {
+            if (canRunInModule) {
+                setScriptOutput('Installing cron for scheduled sync using the saved runner settings...');
+                runScriptAction('install_cron');
+            } else {
+                setScriptOutput('Schedule enabled in config. In-module execution is disabled, so cron was not installed automatically. Use the Manual Access section to run the install command outside the module.');
+            }
+        });
     });
 
     $('#disable-schedule-btn').on('click', function() {
@@ -1333,13 +1391,14 @@ $(document).on('appReady', function() {
             setActionNotice('#script-runner-save-status', 'Disable scheduled sync cancelled.', 'text-muted');
             return;
         }
-        saveScheduleSettings({ enable_scheduled_sync: '0' }, 'Schedule disabled.');
-        if (canRunInModule) {
-            setScriptOutput('Removing cron for scheduled sync...');
-            runScriptAction('remove_cron');
-        } else {
-            setScriptOutput('Schedule disabled in config. In-module execution is disabled, so cron was not removed automatically. Use the Manual Access section if you need to remove the host cron job manually.');
-        }
+        saveScheduleSettings({ enable_scheduled_sync: '0' }, 'Schedule disabled.', function() {
+            if (canRunInModule) {
+                setScriptOutput('Removing cron for scheduled sync...');
+                runScriptAction('remove_cron');
+            } else {
+                setScriptOutput('Schedule disabled in config. In-module execution is disabled, so cron was not removed automatically. Use the Manual Access section if you need to remove the host cron job manually.');
+            }
+        });
     });
 });
 </script>

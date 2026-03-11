@@ -472,7 +472,10 @@ class Simplemdm_controller extends Module_controller
             return $result;
         }
 
-        $command = 'command -v ' . escapeshellarg($python_binary) . ' 2>/dev/null || test -x ' . escapeshellarg($python_binary) . ' && printf %s ' . escapeshellarg($python_binary);
+        $command = sprintf(
+            'if command -v %1$s >/dev/null 2>&1; then command -v %1$s; elif test -x %1$s; then printf %%s %1$s; fi',
+            escapeshellarg($python_binary)
+        );
         $inspect = $this->run_local_script_command('sh -lc ' . escapeshellarg($command), $this->scripts_dir());
         $path = trim((string) $inspect['stdout']);
 
@@ -1076,6 +1079,43 @@ class Simplemdm_controller extends Module_controller
         $schedule = escapeshellarg($runner['script_runner_schedule']);
         $log_path = escapeshellarg($runner['script_runner_log_path']);
         $max_parent_resources = escapeshellarg($runner['script_runner_max_parent_resources']);
+        $runtime = $this->inspect_module_runtime();
+
+        $missing = [];
+        if ($this->get_stored_api_key() === '') {
+            $missing[] = 'SimpleMDM API key';
+        }
+        if (trim((string) $runner['script_runner_munkireport_url']) === '') {
+            $missing[] = 'Runner MunkiReport URL';
+        }
+        if (trim((string) $runner['script_runner_python_bin']) === '') {
+            $missing[] = 'Configured Python Path';
+        }
+        if (trim((string) $runner['script_runner_max_parent_resources']) === '') {
+            $missing[] = 'Max Parent Resources';
+        }
+        if (in_array($action, ['print_cron', 'install_cron'], true)) {
+            if (trim((string) $runner['script_runner_schedule']) === '') {
+                $missing[] = 'Schedule';
+            }
+            if (trim((string) $runner['script_runner_log_path']) === '') {
+                $missing[] = 'Cron Log Path';
+            }
+        }
+        if (in_array($action, ['sync_now', 'install_cron'], true) && ! $runtime['python_available']) {
+            $missing[] = 'Module Python';
+        }
+        if ($missing) {
+            $message = 'Cannot run this action until the required runner settings are available: ' . implode(', ', array_unique($missing)) . '.';
+            if (in_array('Module Python', $missing, true) && trim((string) $runtime['message']) !== '') {
+                $message .= ' ' . trim((string) $runtime['message']);
+            }
+            jsonView([
+                'status' => 'error',
+                'message' => $message,
+            ], 400);
+            return;
+        }
 
         $commands = [
             'sync_now' => sprintf(

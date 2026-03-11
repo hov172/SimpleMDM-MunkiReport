@@ -6,6 +6,11 @@ This is a proposal and design note only.
 
 It is not implemented in the current module.
 
+For the detailed future architecture, proposed schemas, rollout phases, and
+source matrix, see:
+
+- `docs/SUPPLEMENTAL_DATA_IMPLEMENTATION_PLAN.md`
+
 Current module behavior remains:
 
 - `simplemdm_sync.py` performs the actual SimpleMDM API sync
@@ -25,6 +30,14 @@ This means the preferred model is not a second sync pipeline.
 
 It is a read-only enrichment layer built on top of existing module data.
 
+Latest design direction:
+
+- Option 1 remains the default path
+- supported modules should be auto-detected from schema/table presence
+- Option 1 should support both live per-device detail lookup and an optional cached summary/index layer
+- Option 2 remains the fallback for facts existing modules do not provide
+- external systems are possible later, but only through a separate cache/import model
+
 ## Option 1: Cross-Module Supplemental Data
 
 ### Description
@@ -39,6 +52,8 @@ Examples:
 - `profile`
 - `managedinstalls`
 - `adobe`
+- `ms_office`
+- `speedtest`
 
 The normal pattern would be:
 
@@ -127,6 +142,10 @@ Recommended hybrid implementation:
 
 The cached summary/index should store normalized summary facts only, not copied source records.
 
+Suggested implementation note:
+
+- the detailed plan proposes a dedicated summary table for Option 1 rather than using `simplemdm_sync.py` or main `simplemdm` tables as the integration point
+
 Example summary fields:
 
 - `serial_number`
@@ -178,6 +197,10 @@ This preserves source-module ownership while still allowing:
 - optional new widget views under `views/`
 - optional supplemental summary model/migration if cached indexing is added
 - `docs/API_REFERENCE.md` if new merged endpoints are added
+
+Operational note:
+
+- this option should degrade gracefully if a supported module is not installed, has no table, or has no matching row for a given serial number
 
 ## Option 2: Client-Side Reporter Add-On
 
@@ -244,6 +267,10 @@ Example shape:
 - `source`
 - `raw_json`
 
+Latest design note:
+
+- the detailed plan now recommends a typed current-value table for Option 2 and an optional separate history table if auditability is needed later
+
 ### Suggested Endpoint Model
 
 The cleanest shape would be a dedicated endpoint such as:
@@ -285,6 +312,12 @@ Use Option 2 only when:
 - you need direct local-device truth
 - the operational value justifies a new reporting path
 
+Also consider:
+
+- whether freshness matters enough to justify Option 2
+- whether the same need could be solved by an Option 1 summary/index instead
+- whether the data belongs in a future external-system integration instead of a client reporter
+
 ## Recommended Product Position
 
 For this module, the best overall path is:
@@ -299,6 +332,12 @@ That keeps the module aligned with MunkiReport’s strengths:
 - multiple focused modules
 - per-device joins by `serial_number`
 - additive reporting without forcing everything into one collector
+
+It also keeps the long-term roadmap cleaner:
+
+- Option 1 for internal MunkiReport module enrichment
+- Option 2 for narrow local-device gaps
+- external cache/import integrations later for systems outside MunkiReport
 
 ## Summary
 

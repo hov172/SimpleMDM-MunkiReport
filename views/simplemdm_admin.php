@@ -871,11 +871,11 @@ $(document).on('appReady', function() {
         }
 
         if (!state.moduleExecutionEnabled) {
-            setGuidance('To use immediate in-module sync, enable `Allow in-module script execution for global admins`, save the settings, and re-check `Module Python`. If you use Docker, see the module README for the recommended container update.', 'alert-info');
+            setGuidance('To use immediate in-module sync, enable `Allow in-module script execution for global admins`, save the settings, and re-check `Module Python`. If you use Docker, see the module README and `local/modules/simplemdm/Dockerfile.munkireport-simplemdm` for the recommended container update.', 'alert-info');
         } else if (!modulePythonAvailable) {
-            setGuidance('Docker recommendation: add `python3` to the `munkireport` image, rebuild with `docker compose build`, then recreate with `docker compose up -d --force-recreate`. If you also want cron inspection or management inside the container, add the `cron` package too. Otherwise keep using host/manual sync. See the module README for the recommended Dockerfile example.', 'alert-warning');
+            setGuidance('Docker recommendation: add `python3` to the `munkireport` image, rebuild with `docker compose build`, then recreate with `docker compose up -d --force-recreate`. If you also want cron inspection or management inside the container, add the `cron` package too. Otherwise keep using host/manual sync. See the module README and `local/modules/simplemdm/Dockerfile.munkireport-simplemdm` for the recommended Dockerfile example.', 'alert-warning');
         } else if (cronStatus && cronStatus.available === false && cronStatus.message) {
-            setGuidance('Module Python is ready, but cron inspection or management is not. If you want the module to inspect or manage cron inside Docker, add the `cron` package to the `munkireport` image; otherwise manage cron on the host. See the module README for the recommended container changes.', 'alert-warning');
+            setGuidance('Module Python is ready, but cron inspection or management is not. If you want the module to inspect or manage cron inside Docker, add the `cron` package to the `munkireport` image; otherwise manage cron on the host. See the module README and `local/modules/simplemdm/Dockerfile.munkireport-simplemdm` for the recommended container changes.', 'alert-warning');
         } else {
             setGuidance('Module-side execution is available. You can run immediate sync here, and scheduled sync can be managed here when cron support is available.', 'alert-success');
         }

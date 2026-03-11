@@ -100,7 +100,8 @@ This guide is for contributors who need to understand and modify the module safe
 - How:
   - Registered under `admin_pages` in `provides.yml`.
   - View: `views/simplemdm_admin.php`.
-  - Persists to `simplemdm_config`.
+  - Persists settings to `simplemdm_config`.
+  - Persists execution history to `simplemdm_sync_run`.
   - `Sync Status -> Queue Sync Request` queues a one-off run for the next worker pickup.
   - `In-Module Sync And Schedule -> Run Sync Now` executes an immediate one-off run when in-module execution is available.
   - `Enable Scheduled Sync` / `Disable Scheduled Sync` change module schedule state.
@@ -109,8 +110,10 @@ This guide is for contributors who need to understand and modify the module safe
   - `Recurring Sync Ready` reflects whether recurring sync is actually ready to run, including cron being installed.
   - `Last Run` reflects the latest completed sync of any kind.
   - `Last Run Source` distinguishes immediate in-module runs, queued admin requests, and scheduled runs.
-  - `Last Sync Source` in the `Sync Status` panel mirrors the most recent completed run source so queue telemetry and run history are not confused.
-  - Queue creation uses a separate pending-source marker internally so a new queued request does not overwrite the source of the last completed run before pickup.
+  - `Last Completed Source`, `Last Completed Status`, and `Last Completed Time` in the `Sync Status` panel mirror the most recent completed run so queue telemetry and run history are not confused.
+  - `Recent Runs` is backed by `simplemdm_sync_run`, which records queued, running, completed, and failed runs.
+  - `Clear Run History` deletes recorded rows from `simplemdm_sync_run` and resets the last-completed UI state when no run is queued or active.
+  - Queue creation uses a dedicated queued run row so a new queued request does not overwrite the source of the last completed run before pickup.
   - `simplemdm_sync.py` is still the real worker; recurring runs require cron to launch it.
   - Host/manual runs should use an explicit `--api-key` or `SIMPLEMDM_API_KEY`; they should not rely on an authenticated browser session to bootstrap secrets.
   - In-module action buttons use the same runner prerequisite checks as the schedule panel, and the controller re-validates those prerequisites server-side.
@@ -124,9 +127,11 @@ This guide is for contributors who need to understand and modify the module safe
   - Operators need a professional workflow that exposes `Run Sync Now`, status, presets, and schedule controls without requiring shell knowledge.
 - How:
   - The admin UI stores schedule settings in `simplemdm_config`.
+  - The worker lifecycle stores run history in `simplemdm_sync_run`.
   - Presets map to cron expressions.
   - `Sync Status -> Queue Sync Request` is queue-based and still depends on a worker pickup.
   - `In-Module Sync And Schedule -> Run Sync Now` is immediate and does not need cron, but it does require module-side Python execution.
+  - The admin page uses background polling to refresh queue/run cards without a full page reload, with a faster cadence while runs are active.
   - Recurring scheduled sync still depends on cron.
   - Host/manual cron installs should include an explicit `--api-key` (or exported `SIMPLEMDM_API_KEY`) so the worker can read schedule/queue state without an authenticated browser session.
   - If module-side execution is enabled, the module can call `install_cron.sh` / `remove_cron.sh` on behalf of the admin.

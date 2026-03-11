@@ -147,6 +147,11 @@ def get_config():
         default=-1,
         help='Override schedule interval minutes when --respect-schedule is used (0 = use admin setting)'
     )
+    parser.add_argument(
+        '--run-source',
+        default=os.environ.get('SIMPLEMDM_RUN_SOURCE', ''),
+        help='Run source label (for example: scheduled, manual_host, in_module_immediate)'
+    )
 
     args = parser.parse_args()
 
@@ -222,6 +227,9 @@ def get_config():
     if not args.munkireport_url and not args.dry_run:
         logger.error('MunkiReport URL is required. Set MUNKIREPORT_URL or use --munkireport-url')
         sys.exit(1)
+
+    if not args.run_source and not args.respect_schedule and not args.dry_run:
+        args.run_source = 'manual_host'
 
     return args
 
@@ -849,11 +857,16 @@ def update_sync_status(munkireport_url, api_key, status, message, token='', extr
         logger.debug(f"Failed to report sync status: {e}")
 
 
-def begin_sync_run(munkireport_url, api_key, token=''):
+def begin_sync_run(munkireport_url, api_key, token='', run_source=''):
     """Claim the sync slot before starting expensive work."""
     url = f"{munkireport_url.rstrip('/')}/module/simplemdm/index?op=begin_sync_run"
-    req = urllib.request.Request(url, data=b'', method='POST')
+    payload = {}
+    if run_source:
+        payload['run_source'] = run_source
+    data = urllib.parse.urlencode(payload).encode()
+    req = urllib.request.Request(url, data=data, method='POST')
     req.add_header('X-SIMPLEMDM-API-KEY', api_key)
+    req.add_header('Content-Type', 'application/x-www-form-urlencoded')
     if token:
         req.add_header('Authorization', f'Bearer {token}')
 
@@ -886,7 +899,8 @@ def main():
         claimed, claim_result = begin_sync_run(
             config.munkireport_url,
             config.api_key,
-            config.munkireport_token
+            config.munkireport_token,
+            config.run_source
         )
         if not claimed:
             if claim_result.get('status') == 'busy':
@@ -895,14 +909,21 @@ def main():
             logger.error('Unable to claim sync run state in MunkiReport.')
             sys.exit(1)
 
+        run_uuid = str(claim_result.get('run_uuid', '') or '')
         update_sync_status(
             config.munkireport_url,
             config.api_key,
             'Running',
             f"{datetime.now(timezone.utc).isoformat()} - sync started",
             config.munkireport_token,
-            extra={'sync_request_state': 'running'}
+            extra={
+                'sync_request_state': 'running',
+                'run_uuid': run_uuid,
+                'sync_request_source': str(claim_result.get('sync_request_source', '') or config.run_source),
+            }
         )
+    else:
+        run_uuid = ''
 
     start = time.time()
     logger.info("Starting SimpleMDM sync...")
@@ -933,6 +954,7 @@ def main():
                 config.munkireport_token,
                 extra={
                     'sync_request_state': 'idle',
+                    'run_uuid': run_uuid,
                     'sync_last_scope': scope,
                     'sync_last_delta_mode': '1' if config.delta else '0',
                     'last_sync_cursor': datetime.now(timezone.utc).isoformat(),
@@ -977,6 +999,7 @@ def main():
                 config.munkireport_token,
                 extra={
                     'sync_request_state': 'idle',
+                    'run_uuid': run_uuid,
                     'sync_last_duration_ms': int((time.time() - start) * 1000),
                     'sync_last_api_requests': REQUEST_METRICS['api_requests'],
                     'sync_last_api_errors': REQUEST_METRICS['api_errors'],
@@ -1092,6 +1115,7 @@ def main():
                     config.munkireport_token,
                     extra={
                         'sync_request_state': 'idle',
+                        'run_uuid': run_uuid,
                         'sync_last_duration_ms': int((time.time() - start) * 1000),
                         'sync_last_api_requests': REQUEST_METRICS['api_requests'],
                         'sync_last_api_errors': REQUEST_METRICS['api_errors'],
@@ -1137,6 +1161,7 @@ def main():
         config.munkireport_token,
         extra={
             'sync_request_state': 'idle',
+            'run_uuid': run_uuid,
             'sync_last_duration_ms': duration_ms,
             'sync_last_api_requests': REQUEST_METRICS['api_requests'],
             'sync_last_api_errors': REQUEST_METRICS['api_errors'],

@@ -161,9 +161,17 @@ Notes:
    - Confirm a real cron entry exists or manually run `python3 local/modules/simplemdm/scripts/simplemdm_sync.py --api-key 'YOUR_SIMPLEMDM_API_KEY' --munkireport-url '<url>' --respect-schedule --force-run`.
    - That queue button does not execute Python directly from the web request.
    - If module-side Python is available, use `In-Module Sync And Schedule -> Run Sync Now` for an immediate run instead.
-6. Docker command failures:
+6. `Recent Runs` does not populate after upgrade:
+   - Confirm the `simplemdm_sync_run` table exists.
+   - Run `php please migrate`.
+   - Hard refresh the admin page so the new UI state loads.
+7. Status cards do not update until a manual refresh:
+   - Confirm the latest module JS is loaded with a hard refresh.
+   - Confirm the page is polling `get_config` successfully in browser dev tools.
+   - Confirm no browser extension is blocking periodic XHR requests.
+8. Docker command failures:
    - Confirm compose service name (`munkireport`) and container status (`docker compose ps`).
-7. Cron helper scripts fail with `Permission denied`:
+9. Cron helper scripts fail with `Permission denied`:
    - Confirm the execute bit is present on `scripts/install_cron.sh` and `scripts/remove_cron.sh`.
    - If needed, restore it with:
 

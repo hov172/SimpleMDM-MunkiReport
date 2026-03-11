@@ -22,6 +22,7 @@ class Simplemdm_controller extends Module_controller
         require_once $this->module_path . '/simplemdm_webhook_event_model.php';
         require_once $this->module_path . '/simplemdm_relationship_edge_model.php';
         require_once $this->module_path . '/simplemdm_device_history_model.php';
+        require_once $this->module_path . '/simplemdm_sync_run_model.php';
 
         // Check if authorized (except token-protected sync endpoints)
         $is_sync_action = false;
@@ -61,6 +62,292 @@ class Simplemdm_controller extends Module_controller
             ['name' => (string)$name],
             ['value' => (string)$value]
         );
+    }
+
+    private function has_sync_runs_table()
+    {
+        static $has_table = null;
+        if ($has_table !== null) {
+            return $has_table;
+        }
+
+        try {
+            $has_table = \Illuminate\Database\Capsule\Manager::schema()->hasTable('simplemdm_sync_run');
+        } catch (\Throwable $e) {
+            $has_table = false;
+        }
+
+        return $has_table;
+    }
+
+    private function generate_sync_run_uuid()
+    {
+        try {
+            return bin2hex(random_bytes(16));
+        } catch (\Throwable $e) {
+            return uniqid('simplemdm_run_', true);
+        }
+    }
+
+    private function get_current_actor_label()
+    {
+        foreach (['user', 'login', 'username'] as $key) {
+            if (isset($_SESSION[$key]) && trim((string) $_SESSION[$key]) !== '') {
+                return trim((string) $_SESSION[$key]);
+            }
+        }
+        return '';
+    }
+
+    private function normalize_sync_datetime($value)
+    {
+        $raw = trim((string) $value);
+        if ($raw === '') {
+            return null;
+        }
+        if (strpos($raw, ' - ') !== false) {
+            $raw = trim(explode(' - ', $raw, 2)[0]);
+        }
+        if (substr($raw, -1) === 'Z') {
+            $raw = substr($raw, 0, -1) . '+00:00';
+        }
+        try {
+            return (new \DateTime($raw))->format('Y-m-d H:i:s');
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    private function format_sync_datetime($value)
+    {
+        if (! $value) {
+            return '';
+        }
+        try {
+            if ($value instanceof \DateTimeInterface) {
+                return $value->format('c');
+            }
+            return (new \DateTime((string) $value))->format('c');
+        } catch (\Throwable $e) {
+            return trim((string) $value);
+        }
+    }
+
+    private function normalize_run_status($value)
+    {
+        $status = strtolower(trim((string) $value));
+        if ($status === '') {
+            return '';
+        }
+        if (in_array($status, ['success', 'failed', 'running', 'queued', 'idle', 'skipped'], true)) {
+            return $status;
+        }
+        if (in_array($status, ['error', 'failure'], true)) {
+            return 'failed';
+        }
+        return $status;
+    }
+
+    private function format_run_status_label($value)
+    {
+        $status = $this->normalize_run_status($value);
+        if ($status === '') {
+            return '';
+        }
+        if ($status === 'idle') {
+            return 'Idle';
+        }
+        return ucwords(str_replace('_', ' ', $status));
+    }
+
+    private function extract_sync_counts($summary)
+    {
+        $summary = (string) $summary;
+        $counts = [
+            'devices_synced' => null,
+            'resources_synced' => null,
+            'commands_synced' => null,
+        ];
+        if (preg_match('/([0-9]+)\s+devices?/i', $summary, $m)) {
+            $counts['devices_synced'] = (int) $m[1];
+        }
+        if (preg_match('/([0-9]+)\s+resources?/i', $summary, $m)) {
+            $counts['resources_synced'] = (int) $m[1];
+        }
+        if (preg_match('/([0-9]+)\s+commands?/i', $summary, $m)) {
+            $counts['commands_synced'] = (int) $m[1];
+        }
+        return $counts;
+    }
+
+    private function create_sync_run($attributes)
+    {
+        if (! $this->has_sync_runs_table()) {
+            return null;
+        }
+
+        $payload = array_merge([
+            'run_uuid' => $this->generate_sync_run_uuid(),
+            'source' => '',
+            'status' => 'queued',
+            'requested_at' => null,
+            'started_at' => null,
+            'finished_at' => null,
+            'duration_ms' => null,
+            'devices_synced' => null,
+            'resources_synced' => null,
+            'commands_synced' => null,
+            'api_requests' => null,
+            'api_errors' => null,
+            'rate_limit_hits' => null,
+            'delta_mode' => null,
+            'scope' => null,
+            'summary' => null,
+            'error_summary' => null,
+            'requested_by' => null,
+            'trigger_context' => null,
+        ], $attributes);
+
+        return Simplemdm_sync_run_model::create($payload);
+    }
+
+    private function get_sync_run_by_uuid($run_uuid)
+    {
+        if (! $this->has_sync_runs_table()) {
+            return null;
+        }
+        $run_uuid = trim((string) $run_uuid);
+        if ($run_uuid === '') {
+            return null;
+        }
+        return Simplemdm_sync_run_model::where('run_uuid', $run_uuid)->first();
+    }
+
+    private function get_queued_sync_run()
+    {
+        if (! $this->has_sync_runs_table()) {
+            return null;
+        }
+        return Simplemdm_sync_run_model::where('status', 'queued')
+            ->orderBy('requested_at', 'asc')
+            ->orderBy('id', 'asc')
+            ->first();
+    }
+
+    private function get_running_sync_run()
+    {
+        if (! $this->has_sync_runs_table()) {
+            return null;
+        }
+        return Simplemdm_sync_run_model::where('status', 'running')
+            ->orderBy('started_at', 'desc')
+            ->orderBy('id', 'desc')
+            ->first();
+    }
+
+    private function get_latest_completed_sync_run()
+    {
+        if (! $this->has_sync_runs_table()) {
+            return null;
+        }
+        return Simplemdm_sync_run_model::whereIn('status', ['success', 'failed', 'skipped'])
+            ->orderBy('finished_at', 'desc')
+            ->orderBy('id', 'desc')
+            ->first();
+    }
+
+    private function get_recent_sync_runs($limit = 8)
+    {
+        if (! $this->has_sync_runs_table()) {
+            return [];
+        }
+        return Simplemdm_sync_run_model::orderBy('id', 'desc')
+            ->limit((int) $limit)
+            ->get();
+    }
+
+    private function serialize_sync_run($run)
+    {
+        if (! $run) {
+            return null;
+        }
+        return [
+            'run_uuid' => (string) $run->run_uuid,
+            'source' => (string) $run->source,
+            'status' => (string) $run->status,
+            'status_label' => $this->format_run_status_label($run->status),
+            'requested_at' => $this->format_sync_datetime($run->requested_at),
+            'started_at' => $this->format_sync_datetime($run->started_at),
+            'finished_at' => $this->format_sync_datetime($run->finished_at),
+            'duration_ms' => $run->duration_ms !== null ? (int) $run->duration_ms : null,
+            'devices_synced' => $run->devices_synced !== null ? (int) $run->devices_synced : null,
+            'resources_synced' => $run->resources_synced !== null ? (int) $run->resources_synced : null,
+            'commands_synced' => $run->commands_synced !== null ? (int) $run->commands_synced : null,
+            'api_requests' => $run->api_requests !== null ? (int) $run->api_requests : null,
+            'api_errors' => $run->api_errors !== null ? (int) $run->api_errors : null,
+            'rate_limit_hits' => $run->rate_limit_hits !== null ? (int) $run->rate_limit_hits : null,
+            'delta_mode' => $run->delta_mode !== null ? ((int) $run->delta_mode ? '1' : '0') : '',
+            'scope' => (string) $run->scope,
+            'summary' => (string) $run->summary,
+            'error_summary' => (string) $run->error_summary,
+            'requested_by' => (string) $run->requested_by,
+            'trigger_context' => (string) $run->trigger_context,
+        ];
+    }
+
+    private function derive_sync_state_from_runs()
+    {
+        if (! $this->has_sync_runs_table()) {
+            return [];
+        }
+
+        $queued = $this->get_queued_sync_run();
+        $running = $this->get_running_sync_run();
+        $completed = $this->get_latest_completed_sync_run();
+        $recent = [];
+        foreach ($this->get_recent_sync_runs() as $run) {
+            $recent[] = $this->serialize_sync_run($run);
+        }
+
+        $state = $running ? 'running' : ($queued ? 'queued' : 'idle');
+        $last_completed_status = $completed ? $this->format_run_status_label($completed->status) : '';
+        $last_completed_time = $completed ? (string) $completed->summary : '';
+        $last_completed_source = $completed ? (string) $completed->source : '';
+
+        return [
+            'sync_request_state' => $state,
+            'sync_requested_at' => $running
+                ? $this->format_sync_datetime($running->requested_at)
+                : ($queued ? $this->format_sync_datetime($queued->requested_at) : ''),
+            'sync_started_at' => $running ? $this->format_sync_datetime($running->started_at) : '',
+            'sync_request_source' => $running ? (string) $running->source : $last_completed_source,
+            'last_sync_status' => $running ? 'Running' : $last_completed_status,
+            'last_sync_time' => $running ? ((string) $running->summary ?: $this->format_sync_datetime($running->started_at)) : $last_completed_time,
+            'last_completed_sync_status' => $last_completed_status,
+            'last_completed_sync_time' => $last_completed_time,
+            'last_completed_sync_source' => $last_completed_source,
+            'active_sync_run_uuid' => $running ? (string) $running->run_uuid : '',
+            'active_sync_source' => $running ? (string) $running->source : '',
+            'pending_sync_run_uuid' => $queued ? (string) $queued->run_uuid : '',
+            'pending_sync_source' => $queued ? (string) $queued->source : '',
+            'sync_recent_runs' => $recent,
+        ];
+    }
+
+    private function refresh_legacy_sync_config_from_runs()
+    {
+        $state = $this->derive_sync_state_from_runs();
+        if (! $state) {
+            return;
+        }
+
+        $this->set_config_value('sync_request_state', $state['sync_request_state']);
+        $this->set_config_value('sync_requested_at', $state['sync_requested_at']);
+        $this->set_config_value('sync_started_at', $state['sync_started_at']);
+        $this->set_config_value('sync_request_source', $state['sync_request_source']);
+        $this->set_config_value('sync_pending_source', $state['pending_sync_source']);
+        $this->set_config_value('last_sync_status', $state['last_sync_status']);
+        $this->set_config_value('last_sync_time', $state['last_sync_time']);
     }
 
     private function is_valid_sync_token()
@@ -306,7 +593,7 @@ class Simplemdm_controller extends Module_controller
         $remove_script = $this->scripts_dir() . '/remove_cron.sh';
 
         $sync_command = sprintf(
-            "%s %s --api-key 'YOUR_SIMPLEMDM_API_KEY' --munkireport-url %s --force-run --max-parent-resources %s --verbose",
+            "%s %s --api-key 'YOUR_SIMPLEMDM_API_KEY' --munkireport-url %s --run-source manual_host --force-run --max-parent-resources %s --verbose",
             escapeshellarg($config['script_runner_python_bin']),
             escapeshellarg($sync_script),
             escapeshellarg($config['script_runner_munkireport_url']),
@@ -859,6 +1146,11 @@ class Simplemdm_controller extends Module_controller
             }
         }
 
+        $run_state = $this->derive_sync_state_from_runs();
+        foreach ($run_state as $key => $value) {
+            $config[$key] = $value;
+        }
+
         jsonView($config);
     }
 
@@ -1119,7 +1411,7 @@ class Simplemdm_controller extends Module_controller
 
         $commands = [
             'sync_now' => sprintf(
-                "%s %s --api-key %s --munkireport-url %s --force-run --max-parent-resources %s --verbose",
+                "%s %s --api-key %s --munkireport-url %s --run-source in_module_immediate --force-run --max-parent-resources %s --verbose",
                 $python,
                 $sync_script,
                 $api_key,
@@ -1154,11 +1446,10 @@ class Simplemdm_controller extends Module_controller
             return;
         }
 
-        if ($action === 'sync_now') {
-            $this->set_config_value('sync_request_source', 'in_module_immediate');
-        }
-
         $result = $this->run_local_script_command($commands[$action], $cwd);
+        if ($action === 'sync_now') {
+            $this->refresh_legacy_sync_config_from_runs();
+        }
         jsonView([
             'status' => $result['ok'] ? 'success' : 'error',
             'action' => $action,
@@ -1188,21 +1479,87 @@ class Simplemdm_controller extends Module_controller
         }
 
         $state = strtolower(trim($this->get_config_value('sync_request_state', 'idle')));
-        if ($state === 'running') {
+        if ($this->get_running_sync_run() || $state === 'running') {
             jsonView(['status' => 'success', 'message' => 'A sync is already running.', 'sync_request_state' => 'running']);
             return;
         }
 
+        $queued = $this->get_queued_sync_run();
+        if ($queued) {
+            $this->refresh_legacy_sync_config_from_runs();
+            jsonView([
+                'status' => 'success',
+                'message' => 'A queued sync request already exists and is waiting for pickup.',
+                'sync_request_state' => 'queued',
+                'sync_requested_at' => $this->format_sync_datetime($queued->requested_at),
+            ]);
+            return;
+        }
+
         $requested_at = date('c');
-        $this->set_config_value('sync_request_state', 'queued');
-        $this->set_config_value('sync_requested_at', $requested_at);
-        $this->set_config_value('sync_pending_source', 'queued_admin');
+        $run = $this->create_sync_run([
+            'source' => 'queued_admin',
+            'status' => 'queued',
+            'requested_at' => $this->normalize_sync_datetime($requested_at) ?: date('Y-m-d H:i:s'),
+            'requested_by' => $this->get_current_actor_label(),
+            'trigger_context' => 'admin_ui',
+        ]);
+        if (! $run) {
+            $this->set_config_value('sync_request_state', 'queued');
+            $this->set_config_value('sync_requested_at', $requested_at);
+            $this->set_config_value('sync_pending_source', 'queued_admin');
+        }
+        $this->refresh_legacy_sync_config_from_runs();
 
         jsonView([
             'status' => 'success',
             'message' => 'Sync queued. The next cron or manual runner execution will pick it up.',
             'sync_request_state' => 'queued',
             'sync_requested_at' => $requested_at,
+            'run_uuid' => $run ? (string) $run->run_uuid : '',
+        ]);
+    }
+
+    public function clear_sync_runs()
+    {
+        $this->connectDB();
+        if (! $this->require_global_authorized()) {
+            return;
+        }
+
+        if ($this->get_running_sync_run() || $this->get_queued_sync_run()) {
+            jsonView([
+                'status' => 'error',
+                'message' => 'Cannot clear run history while a sync is queued or running.',
+            ], 409);
+            return;
+        }
+
+        if ($this->has_sync_runs_table()) {
+            Simplemdm_sync_run_model::query()->delete();
+        }
+
+        foreach ([
+            'sync_request_state' => 'idle',
+            'sync_requested_at' => '',
+            'sync_started_at' => '',
+            'sync_request_source' => '',
+            'sync_pending_source' => '',
+            'last_sync_status' => '',
+            'last_sync_time' => '',
+            'sync_last_duration_ms' => '0',
+            'sync_last_api_requests' => '0',
+            'sync_last_api_errors' => '0',
+            'sync_last_rate_limit_hits' => '0',
+            'sync_last_delta_mode' => '0',
+            'sync_last_scope' => '',
+        ] as $key => $value) {
+            $this->set_config_value($key, $value);
+        }
+
+        jsonView([
+            'status' => 'success',
+            'message' => 'Run history cleared.',
         ]);
     }
 
@@ -1226,20 +1583,52 @@ class Simplemdm_controller extends Module_controller
         }
 
         $started_at = date('c');
-        if ($state === 'queued') {
-            $pending_source = strtolower(trim($this->get_config_value('sync_pending_source', 'queued_admin')));
-            $this->set_config_value('sync_request_source', $pending_source ?: 'queued_admin');
-            $this->set_config_value('sync_pending_source', '');
+        $run_uuid = '';
+        if ($this->has_sync_runs_table()) {
+            $run_source = strtolower(trim((string) post('run_source')));
+            $run = $this->get_queued_sync_run();
+            if ($run) {
+                $run->status = 'running';
+                $run->started_at = $this->normalize_sync_datetime($started_at) ?: date('Y-m-d H:i:s');
+                if (! trim((string) $run->source)) {
+                    $run->source = 'queued_admin';
+                }
+            } else {
+                if ($run_source === '') {
+                    $run_source = 'scheduled';
+                }
+                $run = $this->create_sync_run([
+                    'source' => $run_source,
+                    'status' => 'running',
+                    'requested_at' => $this->normalize_sync_datetime($started_at) ?: date('Y-m-d H:i:s'),
+                    'started_at' => $this->normalize_sync_datetime($started_at) ?: date('Y-m-d H:i:s'),
+                    'trigger_context' => 'worker',
+                ]);
+            }
+            if ($run) {
+                $run->summary = $started_at . ' - sync started';
+                $run->save();
+                $run_uuid = (string) $run->run_uuid;
+            }
         } else {
-            $this->set_config_value('sync_request_source', 'scheduled');
+            if ($state === 'queued') {
+                $pending_source = strtolower(trim($this->get_config_value('sync_pending_source', 'queued_admin')));
+                $this->set_config_value('sync_request_source', $pending_source ?: 'queued_admin');
+                $this->set_config_value('sync_pending_source', '');
+            } else {
+                $this->set_config_value('sync_request_source', strtolower(trim((string) post('run_source'))) ?: 'scheduled');
+            }
+            $this->set_config_value('sync_request_state', 'running');
+            $this->set_config_value('sync_started_at', $started_at);
         }
-        $this->set_config_value('sync_request_state', 'running');
-        $this->set_config_value('sync_started_at', $started_at);
+        $this->refresh_legacy_sync_config_from_runs();
 
         jsonView([
             'status' => 'success',
             'sync_request_state' => 'running',
             'sync_started_at' => $started_at,
+            'run_uuid' => $run_uuid,
+            'sync_request_source' => $this->get_config_value('sync_request_source', ''),
         ]);
     }
 
@@ -1524,6 +1913,78 @@ class Simplemdm_controller extends Module_controller
                 $state_value = $candidate;
             }
         }
+        $run = null;
+        if ($this->has_sync_runs_table()) {
+            $run = $this->get_sync_run_by_uuid(isset($post['run_uuid']) ? $post['run_uuid'] : '');
+            if (! $run && $state_value === 'running') {
+                $run = $this->get_running_sync_run();
+            }
+            if (! $run) {
+                $run = $this->get_running_sync_run();
+            }
+            if (! $run && in_array($state_value, ['idle', 'queued'], true)) {
+                $run = $this->get_latest_completed_sync_run();
+            }
+            if (! $run && (isset($post['last_sync_status']) || isset($post['last_sync_time']))) {
+                $run = $this->create_sync_run([
+                    'source' => trim((string) ($post['sync_request_source'] ?? $this->get_config_value('sync_request_source', 'legacy'))) ?: 'legacy',
+                    'status' => $this->normalize_run_status(isset($post['last_sync_status']) ? $post['last_sync_status'] : $state_value) ?: 'success',
+                    'requested_at' => $this->normalize_sync_datetime(isset($post['last_sync_time']) ? $post['last_sync_time'] : date('c')) ?: date('Y-m-d H:i:s'),
+                    'trigger_context' => 'status_update',
+                ]);
+            }
+            if ($run) {
+                $normalized_status = $this->normalize_run_status(isset($post['last_sync_status']) ? $post['last_sync_status'] : $state_value);
+                if ($normalized_status !== '') {
+                    $run->status = $normalized_status;
+                } elseif ($state_value !== '') {
+                    $run->status = $state_value;
+                }
+                if (isset($post['sync_request_source']) && trim((string) $post['sync_request_source']) !== '') {
+                    $run->source = trim((string) $post['sync_request_source']);
+                }
+                if ($run->requested_at === null) {
+                    $run->requested_at = $this->normalize_sync_datetime(isset($post['sync_requested_at']) ? $post['sync_requested_at'] : '') ?: date('Y-m-d H:i:s');
+                }
+                if ($state_value === 'running') {
+                    $run->started_at = $this->normalize_sync_datetime(isset($post['last_sync_time']) ? $post['last_sync_time'] : '') ?: ($run->started_at ?: date('Y-m-d H:i:s'));
+                }
+                if (isset($post['last_sync_time'])) {
+                    $run->summary = (string) $post['last_sync_time'];
+                    foreach ($this->extract_sync_counts($post['last_sync_time']) as $field => $count) {
+                        if ($count !== null) {
+                            $run->$field = $count;
+                        }
+                    }
+                }
+                if (isset($post['sync_last_duration_ms'])) {
+                    $run->duration_ms = (int) $post['sync_last_duration_ms'];
+                }
+                if (isset($post['sync_last_api_requests'])) {
+                    $run->api_requests = (int) $post['sync_last_api_requests'];
+                }
+                if (isset($post['sync_last_api_errors'])) {
+                    $run->api_errors = (int) $post['sync_last_api_errors'];
+                }
+                if (isset($post['sync_last_rate_limit_hits'])) {
+                    $run->rate_limit_hits = (int) $post['sync_last_rate_limit_hits'];
+                }
+                if (isset($post['sync_last_delta_mode'])) {
+                    $run->delta_mode = ((string) $post['sync_last_delta_mode']) === '1' ? 1 : 0;
+                }
+                if (isset($post['sync_last_scope'])) {
+                    $run->scope = (string) $post['sync_last_scope'];
+                }
+                if ($state_value !== 'running') {
+                    $run->finished_at = $this->normalize_sync_datetime(isset($post['last_sync_time']) ? $post['last_sync_time'] : '') ?: date('Y-m-d H:i:s');
+                    if ($run->status !== 'success') {
+                        $run->error_summary = isset($post['last_sync_time']) ? (string) $post['last_sync_time'] : (string) ($post['last_sync_status'] ?? '');
+                    }
+                }
+                $run->save();
+            }
+        }
+
         $this->set_config_value('sync_request_state', $state_value);
         if ($state_value !== 'running') {
             $this->set_config_value('sync_started_at', '');
@@ -1555,6 +2016,7 @@ class Simplemdm_controller extends Module_controller
                 );
             }
         }
+        $this->refresh_legacy_sync_config_from_runs();
 
         if (
             isset($post['last_sync_status'])
@@ -2653,6 +3115,7 @@ class Simplemdm_controller extends Module_controller
      **/
     public function get_sync_telemetry()
     {
+        $run_state = $this->derive_sync_state_from_runs();
         $keys = [
             'sync_request_state',
             'sync_requested_at',
@@ -2660,6 +3123,9 @@ class Simplemdm_controller extends Module_controller
             'sync_request_source',
             'last_sync_status',
             'last_sync_time',
+            'last_completed_sync_status',
+            'last_completed_sync_time',
+            'last_completed_sync_source',
             'last_sync_cursor',
             'sync_last_duration_ms',
             'sync_last_api_requests',
@@ -2670,9 +3136,14 @@ class Simplemdm_controller extends Module_controller
         ];
         $out = [];
         foreach ($keys as $key) {
+            if (array_key_exists($key, $run_state)) {
+                $out[$key] = $run_state[$key];
+                continue;
+            }
             $row = Simplemdm_config_model::where('name', $key)->first();
             $out[$key] = $row ? (string)$row->value : '';
         }
+        $out['sync_recent_runs'] = isset($run_state['sync_recent_runs']) ? $run_state['sync_recent_runs'] : [];
         jsonView($out);
     }
 

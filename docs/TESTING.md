@@ -36,12 +36,15 @@ Use these rules during testing:
 
 1. `Sync Status -> Queue Sync Request` is queue-based and should change queue state for the next worker pickup.
 2. `Last Queue Request` and `Queue Pickup Time` are queue-only fields; they should not be interpreted as the timestamp of the most recent scheduled run.
-3. `Last Sync Source` and the schedule panel `Last Run` / `Last Run Source` are the source of truth for the most recent completed sync.
-4. `In-Module Sync And Schedule -> Run Sync Now` is the immediate one-off run path.
-5. `Enable Scheduled Sync` / `Disable Scheduled Sync` control recurring schedule intent in the module.
-6. recurring schedule execution still requires cron to launch `simplemdm_sync.py`.
-7. `simplemdm_sync.py` is the worker; `install_cron.sh` is only a helper for installing its schedule.
-8. `sync_last_api_errors` should reflect real API failures only; expected unsupported endpoint probes should not inflate it.
+3. `Last Completed Source`, `Last Completed Status`, and `Last Completed Time` plus the schedule panel `Last Run` / `Last Run Source` are the source of truth for the most recent completed sync.
+4. `Recent Runs` should show the latest queued/running/completed rows from `simplemdm_sync_run`.
+5. The admin page should update queue/run cards automatically without a full browser refresh.
+6. `Clear Run History` should remove `Recent Runs` cards and reset last-completed sync UI when no sync is queued or running.
+7. `In-Module Sync And Schedule -> Run Sync Now` is the immediate one-off run path.
+8. `Enable Scheduled Sync` / `Disable Scheduled Sync` control recurring schedule intent in the module.
+9. recurring schedule execution still requires cron to launch `simplemdm_sync.py`.
+10. `simplemdm_sync.py` is the worker; `install_cron.sh` is only a helper for installing its schedule.
+11. `sync_last_api_errors` should reflect real API failures only; expected unsupported endpoint probes should not inflate it.
 
 ## 3) Hosted / VM Smoke Test
 
@@ -112,7 +115,7 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
 4. Schedule and one-off sync smoke test:
    - Open `Admin -> SimpleMDM Settings`
    - In `Sync Status`, click `Queue Sync Request`
-   - Confirm queue state changes and `Last Sync Time` updates after the worker runs
+   - Confirm queue state changes and `Last Completed Time` updates after the worker runs
    - If module execution is available, use `In-Module Sync And Schedule -> Run Sync Now`
    - Confirm the immediate run completes without waiting for cron
    - Set `Schedule` to `Every 15 Minutes` and click `Enable Scheduled Sync`
@@ -131,7 +134,7 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
   --verbose
 ```
 
-   - Confirm `Last Sync Time` updates
+   - Confirm `Last Completed Time` updates
    - Click `Disable Scheduled Sync`
    - Confirm `Schedule Config = Disabled`
 

@@ -132,6 +132,38 @@ if (is_readable($provides_path)) {
     display: grid;
     gap: 12px;
 }
+.simplemdm-runs-list {
+    display: grid;
+    gap: 10px;
+}
+.simplemdm-runs-empty {
+    color: var(--simplemdm-muted);
+}
+.simplemdm-runs-card {
+    border: 1px solid var(--simplemdm-border);
+    border-radius: 12px;
+    background: var(--simplemdm-surface);
+    padding: 12px 14px;
+}
+.simplemdm-runs-summary {
+    font-weight: 600;
+    line-height: 1.45;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+.simplemdm-runs-meta {
+    display: grid;
+    gap: 4px;
+    margin-top: 10px;
+}
+.simplemdm-runs-meta-line {
+    line-height: 1.35;
+}
+.simplemdm-runs-meta-label {
+    font-weight: 700;
+    color: var(--simplemdm-muted);
+    margin-right: 6px;
+}
 .simplemdm-script-row {
     border: 1px solid var(--simplemdm-border);
     border-radius: 12px;
@@ -350,15 +382,15 @@ if (is_readable($provides_path)) {
                             <td id="sync-started-at">-</td>
                         </tr>
                         <tr>
-                            <th>Last Sync Source</th>
+                            <th>Last Completed Source</th>
                             <td id="sync-source">-</td>
                         </tr>
                         <tr>
-                            <th>Last Sync Status</th>
+                            <th>Last Completed Status</th>
                             <td id="sync-status">-</td>
                         </tr>
                         <tr>
-                            <th>Last Sync Time</th>
+                            <th>Last Completed Time</th>
                             <td id="sync-time">-</td>
                         </tr>
                     </table>
@@ -367,6 +399,15 @@ if (is_readable($provides_path)) {
                         <span id="sync-request-message" class="text-muted"></span>
                     </div>
                     <p class="text-muted small" style="margin-top:10px;">This does not run immediately. It queues a sync request for the next host-side cron or manual worker pickup, which still executes <code>simplemdm_sync.py</code>.</p>
+                    <div style="margin-top:16px;">
+                        <div class="simplemdm-actions-row" style="justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
+                            <h4 style="margin:0;">Recent Runs</h4>
+                            <button type="button" class="btn btn-default btn-sm" id="clear-sync-runs-btn">Clear Run History</button>
+                        </div>
+                        <div id="sync-recent-runs" class="simplemdm-runs-list">
+                            <div class="simplemdm-runs-empty">Loading recent sync history...</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -605,6 +646,9 @@ $(document).on('appReady', function() {
     var syncPollTimer = null;
     var SYNC_POLL_INTERVAL_MS = 3000;
     var SYNC_POLL_TIMEOUT_MS = 180000;
+    var backgroundRefreshTimer = null;
+    var BACKGROUND_IDLE_REFRESH_MS = 5000;
+    var BACKGROUND_ACTIVE_REFRESH_MS = 2500;
 
     function parseIsoDate(value) {
         var raw = String(value || '').trim();
@@ -628,8 +672,8 @@ $(document).on('appReady', function() {
     function updateSyncMessageFromState(data) {
         var state = String(data.sync_request_state || 'idle');
         var requestedAt = String(data.sync_requested_at || '').trim();
-        var lastStatus = String(data.last_sync_status || '').trim();
-        var lastTime = String(data.last_sync_time || '').trim();
+        var lastStatus = String(data.last_completed_sync_status || data.last_sync_status || '').trim();
+        var lastTime = String(data.last_completed_sync_time || data.last_sync_time || '').trim();
         var intervalMinutes = parseInt(String(data.sync_interval_minutes || '15'), 10);
         if (isNaN(intervalMinutes) || intervalMinutes < 1) {
             intervalMinutes = 15;
@@ -663,13 +707,61 @@ $(document).on('appReady', function() {
         setSyncMessage('No sync is currently queued.', 'text-muted');
     }
 
+    function formatDurationMs(value) {
+        var ms = parseInt(String(value || ''), 10);
+        if (isNaN(ms) || ms < 1) {
+            return '-';
+        }
+        if (ms < 1000) {
+            return ms + ' ms';
+        }
+        var seconds = Math.round(ms / 1000);
+        if (seconds < 60) {
+            return seconds + 's';
+        }
+        var minutes = Math.floor(seconds / 60);
+        var remaining = seconds % 60;
+        return minutes + 'm ' + remaining + 's';
+    }
+
+    function escapeHtml(value) {
+        return $('<div>').text(String(value || '')).html();
+    }
+
+    function renderRecentRuns(runs) {
+        var list = $.isArray(runs) ? runs : [];
+        var $list = $('#sync-recent-runs');
+        $list.empty();
+
+        if (!list.length) {
+            $list.append('<div class="simplemdm-runs-empty">No sync runs recorded yet.</div>');
+            return;
+        }
+
+        list.forEach(function(run) {
+            var summary = String(run.summary || '').trim();
+            var label = summary ? summary : (run.run_uuid || '-');
+            var finishedAt = formatDateOrDash(run.finished_at || run.started_at || run.requested_at);
+            var card = '<div class="simplemdm-runs-card">' +
+                '<div class="simplemdm-runs-summary" title="' + escapeHtml(label) + '">' + escapeHtml(label) + '</div>' +
+                '<div class="simplemdm-runs-meta">' +
+                    '<div class="simplemdm-runs-meta-line"><span class="simplemdm-runs-meta-label">Source:</span>' + escapeHtml(formatRunSource(run.source || '')) + '</div>' +
+                    '<div class="simplemdm-runs-meta-line"><span class="simplemdm-runs-meta-label">Status:</span>' + escapeHtml(run.status_label || formatRunSource(run.status || '')) + '</div>' +
+                    '<div class="simplemdm-runs-meta-line"><span class="simplemdm-runs-meta-label">Finished:</span>' + escapeHtml(finishedAt) + '</div>' +
+                    '<div class="simplemdm-runs-meta-line"><span class="simplemdm-runs-meta-label">Duration:</span>' + escapeHtml(formatDurationMs(run.duration_ms)) + '</div>' +
+                '</div>' +
+                '</div>';
+            $list.append(card);
+        });
+    }
+
     function renderSyncStatus(data) {
         var queueState = String(data.sync_request_state || 'idle');
         var requestedAt = String(data.sync_requested_at || '').trim();
         var startedAt = String(data.sync_started_at || '').trim();
-        var source = formatRunSource(data.sync_request_source || '');
-        $('#sync-status').text(data.last_sync_status || 'Never');
-        $('#sync-time').text(data.last_sync_time || '-');
+        var source = formatRunSource(data.last_completed_sync_source || data.sync_request_source || '');
+        $('#sync-status').text(data.last_completed_sync_status || data.last_sync_status || 'Never');
+        $('#sync-time').text(data.last_completed_sync_time || data.last_sync_time || '-');
         $('#sync-request-state').text(queueState);
         $('#sync-requested-at').text(requestedAt || '-');
         $('#sync-started-at').text(
@@ -679,6 +771,7 @@ $(document).on('appReady', function() {
         );
         $('#sync-source').text(source);
         $('#simplemdm-sync-now').prop('disabled', queueState === 'running');
+        renderRecentRuns(data.sync_recent_runs || []);
         updateSyncMessageFromState(data);
     }
 
@@ -755,8 +848,8 @@ $(document).on('appReady', function() {
     function renderScheduleStatus(data) {
         var enabled = String(data.enable_scheduled_sync || '0') === '1';
         var schedule = String(data.script_runner_schedule || '');
-        var lastRunRaw = String(data.last_sync_time || '');
-        var lastRunSource = formatRunSource(data.sync_request_source || '');
+        var lastRunRaw = String(data.last_completed_sync_time || data.last_sync_time || '');
+        var lastRunSource = formatRunSource(data.last_completed_sync_source || data.sync_request_source || '');
         var statusText = enabled ? 'Enabled' : 'Disabled';
         var recurringReady = computeRecurringReady(data);
         var recurringReadyText = recurringReady ? 'Yes' : 'No';
@@ -1231,11 +1324,25 @@ $(document).on('appReady', function() {
         });
     }
 
-    function refreshSyncStatus() {
+    function refreshAllState() {
         $.getJSON(appUrl + '/module/simplemdm/get_config', function(data) {
-            renderSyncStatus(data);
-            renderScheduleStatus(data);
+            renderConfig(data);
+            if (String(data.sync_request_state || 'idle') === 'running' || String(data.sync_request_state || 'idle') === 'queued') {
+                scheduleBackgroundRefresh(BACKGROUND_ACTIVE_REFRESH_MS);
+            } else {
+                scheduleBackgroundRefresh(BACKGROUND_IDLE_REFRESH_MS);
+            }
         });
+    }
+
+    function scheduleBackgroundRefresh(delayMs) {
+        if (backgroundRefreshTimer) {
+            window.clearTimeout(backgroundRefreshTimer);
+            backgroundRefreshTimer = null;
+        }
+        backgroundRefreshTimer = window.setTimeout(function() {
+            refreshAllState();
+        }, delayMs || BACKGROUND_IDLE_REFRESH_MS);
     }
 
     function stopSyncPolling() {
@@ -1255,12 +1362,11 @@ $(document).on('appReady', function() {
 
         function tick() {
             $.getJSON(appUrl + '/module/simplemdm/get_config', function(data) {
-                renderSyncStatus(data);
-                renderScheduleStatus(data);
+                renderConfig(data);
 
                 var state = String(data.sync_request_state || 'idle');
-                var currentLastSyncTime = String(data.last_sync_time || '').trim();
-                var currentLastSyncStatus = String(data.last_sync_status || '').trim();
+                var currentLastSyncTime = String(data.last_completed_sync_time || data.last_sync_time || '').trim();
+                var currentLastSyncStatus = String(data.last_completed_sync_status || data.last_sync_status || '').trim();
                 var elapsed = Date.now() - startedAt;
 
                 if (mode === 'queue') {
@@ -1271,11 +1377,13 @@ $(document).on('appReady', function() {
                     } else if (currentLastSyncTime && currentLastSyncTime !== initialLastSyncTime) {
                         setSyncMessage('Queued sync completed with status: ' + (currentLastSyncStatus || 'Unknown') + '.', currentLastSyncStatus.toLowerCase() === 'success' ? 'text-success' : 'text-danger');
                         $('#simplemdm-sync-now').prop('disabled', false);
+                        scheduleBackgroundRefresh(BACKGROUND_IDLE_REFRESH_MS);
                         stopSyncPolling();
                         return;
                     } else if (elapsed >= SYNC_POLL_TIMEOUT_MS) {
                         setSyncMessage('Queued sync did not complete within 3 minutes. Check cron/manual runner status.', 'text-warning');
                         $('#simplemdm-sync-now').prop('disabled', false);
+                        scheduleBackgroundRefresh(BACKGROUND_IDLE_REFRESH_MS);
                         stopSyncPolling();
                         return;
                     }
@@ -1286,12 +1394,14 @@ $(document).on('appReady', function() {
                         if (typeof options.onComplete === 'function') {
                             options.onComplete(data);
                         }
+                        scheduleBackgroundRefresh(BACKGROUND_IDLE_REFRESH_MS);
                         stopSyncPolling();
                         return;
                     } else if (elapsed >= SYNC_POLL_TIMEOUT_MS) {
                         if (typeof options.onTimeout === 'function') {
                             options.onTimeout(data);
                         }
+                        scheduleBackgroundRefresh(BACKGROUND_IDLE_REFRESH_MS);
                         stopSyncPolling();
                         return;
                     }
@@ -1306,6 +1416,7 @@ $(document).on('appReady', function() {
                     } else if (typeof options.onTimeout === 'function') {
                         options.onTimeout({});
                     }
+                    scheduleBackgroundRefresh(BACKGROUND_IDLE_REFRESH_MS);
                     stopSyncPolling();
                     return;
                 }
@@ -1375,7 +1486,7 @@ $(document).on('appReady', function() {
             setScriptOutput('Immediate sync requested.\n\nPrerequisites validated:\n- API key present\n- In-module execution enabled\n- Runner URL set\n- Python binary set\n\nStarting simplemdm_sync.py ...');
             runScriptAction('sync_now', {
                 onSuccess: function(result) {
-                    loadConfig();
+                    refreshAllState();
                     loadRunnerStatus();
 
                     var exitCode = parseInt(result && result.exit_code, 10);
@@ -1388,12 +1499,12 @@ $(document).on('appReady', function() {
                             initialLastSyncTime: previousLastSyncTime,
                             mode: 'completion',
                             onComplete: function(data) {
-                                var latestLastSyncTime = String(data.last_sync_time || '').trim();
-                                var latestLastSyncStatus = String(data.last_sync_status || '').trim();
+                                var latestLastSyncTime = String(data.last_completed_sync_time || data.last_sync_time || '').trim();
+                                var latestLastSyncStatus = String(data.last_completed_sync_status || data.last_sync_status || '').trim();
                                 var success = latestLastSyncStatus.toLowerCase() === 'success';
                                 $('#script-runner-save-status').text(success ? 'Immediate sync completed successfully.' : 'Immediate sync finished with status: ' + (latestLastSyncStatus || 'Unknown') + '.').removeClass().addClass(success ? 'text-success' : 'text-danger');
                                 if (latestLastSyncTime && latestLastSyncTime !== previousLastSyncTime) {
-                                    setSyncMessage((success ? 'Immediate sync completed successfully.' : 'Immediate sync completed with status: ' + (latestLastSyncStatus || 'Unknown') + '.') + ' Last Sync Time updated.', success ? 'text-success' : 'text-danger');
+                                    setSyncMessage((success ? 'Immediate sync completed successfully.' : 'Immediate sync completed with status: ' + (latestLastSyncStatus || 'Unknown') + '.') + ' Last completed time updated.', success ? 'text-success' : 'text-danger');
                                 } else {
                                     setSyncMessage(success ? 'Immediate sync completed successfully.' : 'Immediate sync completed with status: ' + (latestLastSyncStatus || 'Unknown') + '.', success ? 'text-success' : 'text-danger');
                                 }
@@ -1408,7 +1519,7 @@ $(document).on('appReady', function() {
                     } else {
                         $('#script-runner-save-status').text('Immediate sync finished with errors. Review script output below.').removeClass().addClass('text-danger');
                         setSyncMessage('Immediate sync finished with errors. Review script output below.', 'text-danger');
-                        refreshSyncStatus();
+                        refreshAllState();
                         $button.prop('disabled', false);
                     }
                 },
@@ -1416,8 +1527,7 @@ $(document).on('appReady', function() {
                     var message = (payload && (payload.message || payload.error)) ? (payload.message || payload.error) : 'Immediate sync failed.';
                     $('#script-runner-save-status').text('Error: ' + message).removeClass().addClass('text-danger');
                     setSyncMessage('Immediate sync failed. Review script output below.', 'text-danger');
-                    refreshSyncStatus();
-                    loadConfig();
+                    refreshAllState();
                     loadRunnerStatus();
                     $button.prop('disabled', false);
                 }
@@ -1433,10 +1543,10 @@ $(document).on('appReady', function() {
     }
 
     // Load existing config
-    loadConfig();
+    refreshAllState();
     loadScriptCatalog();
     loadRunnerStatus();
-    window.setInterval(refreshSyncStatus, 15000);
+    scheduleBackgroundRefresh(BACKGROUND_IDLE_REFRESH_MS);
 
     $('#simplemdm-sync-now').on('click', function() {
         var $btn = $(this);
@@ -1458,7 +1568,7 @@ $(document).on('appReady', function() {
 
         $.post(appUrl + '/module/simplemdm/request_sync', {}, function(data) {
             if (data.status === 'success') {
-                refreshSyncStatus();
+                refreshAllState();
                 setSyncMessage('Sync request queued. Waiting for cron/manual worker pickup...', 'text-info');
                 pollSyncUntilSettled({
                     initialLastSyncTime: String($('#sync-time').text() || '').trim(),
@@ -1482,6 +1592,30 @@ $(document).on('appReady', function() {
         var $btn = $(this);
         $btn.prop('disabled', true);
         runImmediateSyncFromSchedule($btn);
+    });
+
+    $('#clear-sync-runs-btn').on('click', function() {
+        var $btn = $(this);
+        if (!confirmAction('Clear the recorded sync run history and reset the last completed sync cards?')) {
+            return;
+        }
+        $btn.prop('disabled', true);
+        $.post(appUrl + '/module/simplemdm/clear_sync_runs', {}, function(data) {
+            if (data.status === 'success') {
+                setSyncMessage('Run history cleared.', 'text-success');
+                refreshAllState();
+            } else {
+                setSyncMessage('Error: ' + (data.message || 'Unable to clear run history.'), 'text-danger');
+            }
+            $btn.prop('disabled', false);
+        }, 'json').fail(function(xhr) {
+            var msg = 'Unable to clear run history.';
+            if (xhr && xhr.responseJSON && (xhr.responseJSON.message || xhr.responseJSON.error)) {
+                msg = xhr.responseJSON.message || xhr.responseJSON.error;
+            }
+            setSyncMessage('Error: ' + msg, 'text-danger');
+            $btn.prop('disabled', false);
+        });
     });
 
     // Handle form submission

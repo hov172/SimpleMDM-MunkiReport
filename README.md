@@ -119,6 +119,7 @@ Important:
 - `Sync Status -> Queue Sync Request` is queue-based and still depends on a worker pickup.
 - `In-Module Sync And Schedule -> Run Sync Now` is immediate and does not require cron, but it does require module-side Python.
 - recurring scheduled sync still requires cron somewhere on the host.
+- the admin page updates itself without a full browser refresh; active sync states poll faster than idle states
 - `Schedule Config` shows whether the module schedule is enabled in settings.
 - `Recurring Sync Ready` shows whether recurring sync is actually ready to run, including cron being installed.
 
@@ -714,18 +715,28 @@ Use this section as the plain-language guide to every setting shown in `Admin ->
   - Meaning: when the worker claimed the current queued request.
   - Use case: helps distinguish “queued but not picked up yet” from “queue request is currently running.”
 
-- `Last Sync Source`
+- `Last Completed Source`
   - Meaning: where the most recent completed sync came from.
   - Use case: distinguishes `Scheduled`, `Queued Admin Request`, and `Immediate (In-Module)` runs.
   - Important: this does not change when a new queue request is created; it changes only after that run is actually picked up and completed.
 
-- `Last Sync Status`
+- `Last Completed Status`
   - Meaning: outcome of the most recently completed sync.
   - Use case: confirms whether the last run ended in success or failure.
 
-- `Last Sync Time`
+- `Last Completed Time`
   - Meaning: timestamp plus summary of the most recently completed sync.
   - Use case: quick confirmation that new data was actually ingested.
+
+- `Recent Runs`
+  - Meaning: recent queued, running, successful, failed, or skipped sync rows from the module run-history table.
+  - Use case: quick troubleshooting without querying the database or log files.
+  - Important: this is sourced from `simplemdm_sync_run`, not inferred from the latest config values.
+
+- `Clear Run History`
+  - Meaning: removes recorded sync run history and resets the last-completed sync cards.
+  - Use case: clear old test runs or reset the admin view before validating a fresh sync workflow.
+  - Important: this is blocked while a sync is queued or running.
 
 #### Widget Visibility
 

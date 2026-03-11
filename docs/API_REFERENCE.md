@@ -16,6 +16,8 @@ Workflow note:
 - `simplemdm_sync.py` is the sync worker.
 - `Sync Status -> Queue Sync Request` is a queue-based trigger path.
 - `In-Module Sync And Schedule -> Run Sync Now` is an immediate execution path when module-side execution is available.
+- `simplemdm_sync_run` is the source of truth for queued, running, and completed run history.
+- `clear_sync_runs` clears run history only when no sync is queued or running.
 - recurring schedule still requires cron to launch `simplemdm_sync.py`
 - host/manual runners should use an explicit `--api-key` or `SIMPLEMDM_API_KEY`
 - `install_cron.sh` and `remove_cron.sh` are helpers for managing that cron entry

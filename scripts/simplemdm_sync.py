@@ -888,6 +888,8 @@ def main():
     """Main sync routine."""
     config = get_config()
 
+    # Respect the saved admin schedule when this worker is being used as a
+    # cron/host runner. Manual and dry-run use cases can bypass this logic.
     if config.respect_schedule and not config.dry_run:
         run_now, reason = should_run_now(config)
         if not run_now:
@@ -895,6 +897,8 @@ def main():
             return
         logger.info(f"Schedule check passed: {reason}")
 
+    # Tell MunkiReport we are starting work before hitting the upstream API so
+    # multiple runners do not perform the same expensive sync simultaneously.
     if not config.dry_run:
         claimed, claim_result = begin_sync_run(
             config.munkireport_url,
@@ -930,7 +934,8 @@ def main():
     since_cursor = config.last_sync_cursor if config.delta and config.last_sync_cursor else ''
     scope = 'delta' if since_cursor else 'full'
 
-    # Fetch group maps for name lookup
+    # These lookup maps help convert related IDs in device payloads into more
+    # readable names before we send normalized records to MunkiReport.
     logger.info("Fetching device groups...")
     device_groups = fetch_device_groups(config.api_key)
     logger.info(f"Found {len(device_groups)} device groups")
@@ -939,7 +944,8 @@ def main():
     assignment_groups = fetch_assignment_groups(config.api_key)
     logger.info(f"Found {len(assignment_groups)} assignment groups")
 
-    # Fetch all devices
+    # Devices are the primary inventory dataset. Everything else in the sync is
+    # optional enrichment around this core device list.
     devices = fetch_all_devices(config.api_key, since_cursor)
     logger.info(f"Fetched {len(devices)} total devices from SimpleMDM")
 
@@ -962,7 +968,8 @@ def main():
             )
         return
 
-    # Transform device data
+    # Flatten raw SimpleMDM device JSON into the schema expected by the
+    # MunkiReport module tables.
     records = []
     skipped = 0
     for device in devices:
@@ -983,7 +990,8 @@ def main():
             logger.info(f"  ... and {len(records) - 5} more")
         return
 
-    # Submit to MunkiReport in batches of 50
+    # Device rows are submitted first because later resource/command records
+    # often reference device IDs or serials established by this step.
     batch_size = 50
     for i in range(0, len(records), batch_size):
         batch = records[i:i + batch_size]
@@ -1012,6 +1020,8 @@ def main():
 
     resource_records = []
     fetched_by_endpoint = {}
+    # These collection endpoints populate the generic resource table used for
+    # listings, linked-resource views, and resource-type widgets.
     for endpoint in RESOURCE_ENDPOINTS:
         if not probe_collection_endpoint(endpoint, config.api_key):
             logger.info(f"Endpoint not available in this tenant/API: {endpoint}")
@@ -1026,7 +1036,8 @@ def main():
             if transformed:
                 resource_records.append(transformed)
 
-    # Deep sync nested resources (apps/profiles/groups/enrollments children) when available.
+    # Some parent resources expose additional child collections. Those nested
+    # routes are probed first so unsupported tenants do not generate noisy 404s.
     for parent_endpoint, subpaths in SUBRESOURCE_MAP.items():
         parents = fetched_by_endpoint.get(parent_endpoint, [])
         if not parents:
@@ -1061,7 +1072,8 @@ def main():
                     if transformed:
                         resource_records.append(transformed)
 
-    # Optional deep sync for per-device child resources.
+    # Per-device child routes are intentionally optional because they can add a
+    # lot of API traffic on large fleets.
     if config.sync_device_subresources:
         device_children = ['profiles', 'installed_apps', 'users']
         device_source = records
@@ -1127,6 +1139,8 @@ def main():
                 sys.exit(1)
 
     command_records = []
+    # Command history is a separate feed from device/resource inventory. It is
+    # optional because some tenants or API versions do not expose /commands.
     if config.sync_commands:
         command_device_ids = [r.get('simplemdm_id') for r in records if r.get('simplemdm_id')]
         raw_commands = fetch_recent_commands(
@@ -1153,6 +1167,8 @@ def main():
 
     duration_ms = int((time.time() - start) * 1000)
 
+    # Finish by publishing a compact run summary back into MunkiReport so the
+    # admin UI can show status, timing, scope, and last successful cursor.
     update_sync_status(
         config.munkireport_url,
         config.api_key,

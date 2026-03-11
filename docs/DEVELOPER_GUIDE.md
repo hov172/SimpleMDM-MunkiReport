@@ -372,6 +372,52 @@ Use existing screenshots while changing UI:
    - `action_api_secret` validation
 4. Test both success and denied paths.
 
+### D) Adding New SimpleMDM APIs
+
+Expected difficulty depends on the kind of upstream API being added:
+
+- New read-only collection endpoint:
+  - usually low effort
+  - add endpoint fetch scope in `scripts/simplemdm_sync.py`
+  - confirm `ingest_resources` can store the normalized records
+  - optionally add listing/widget/report surfacing
+
+- New nested resource endpoint:
+  - usually low to moderate effort
+  - extend nested endpoint maps in `scripts/simplemdm_sync.py`
+  - confirm relationship/resource linking still works in `simplemdm_controller.php`
+  - optionally surface it in device/resource views
+
+- New per-device subresource endpoint:
+  - usually moderate effort
+  - extend device deep-sync maps in `scripts/simplemdm_sync.py`
+  - confirm `get_device_subresources` and related UI can expose it
+  - watch API volume and runtime impact when enabling it broadly
+
+- New mutating device action:
+  - usually moderate effort, but more sensitive than read-only sync
+  - update passthrough allowlists and action handling in `simplemdm_controller.php`
+  - update action UI in `views/simplemdm_device.php`
+  - keep auth and `action_api_secret` enforcement intact
+
+- New API that needs a new schema/model/query shape:
+  - moderate to high effort
+  - may require a new migration, model, controller query, and UI/report wiring
+  - usually only needed when the generic `simplemdm_resource` storage model is not sufficient
+
+Primary files to evaluate first:
+- `scripts/simplemdm_sync.py`
+- `simplemdm_controller.php`
+- `views/simplemdm_device.php`
+- `views/simplemdm_resources_listing.php`
+- `docs/API_REFERENCE.md`
+
+Rule of thumb:
+- collection resources are easiest
+- deep-sync resources are incremental but need runtime caution
+- device actions are straightforward structurally, but require the most care around auth/safety
+- schema changes are the main point where work stops being incremental
+
 ## 9) Security Boundaries
 
 - Ingest/write routes rely on sync auth token/API key checks.

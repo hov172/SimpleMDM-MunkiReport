@@ -2,8 +2,17 @@ FROM php:8.2-apache
 
 ENV APP_DIR /var/munkireport
 
-# Based on the upstream munkireport-php Dockerfile, with Python and cron
-# added so the SimpleMDM module can run in-module sync and inspect/manage cron.
+# Companion Dockerfile for a full MunkiReport checkout.
+# Build it from the MunkiReport repo root so the Docker build context contains
+# the entire application, not just this module directory, for example:
+#   docker build \
+#     -f local/modules/simplemdm/Dockerfile.munkireport-simplemdm \
+#     -t munkireport-php-munkireport:simplemdm \
+#     .
+#
+# This file mirrors the upstream app image and adds python3 plus cron so the
+# SimpleMDM module can run in-module sync and inspect/manage cron.
+# Runtime migrations must still be executed after the container starts.
 RUN apt-get update && \
     apt-get install --no-install-recommends -y \
     libldap2-dev \
@@ -38,8 +47,6 @@ RUN composer install --no-dev && \
 
 RUN mkdir -p app/db && \
     chmod -R 777 app/db
-
-RUN php please migrate
 
 RUN rm -rf /var/www/html && \
     ln -s /var/munkireport/public /var/www/html

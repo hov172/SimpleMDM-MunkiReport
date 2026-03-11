@@ -181,6 +181,7 @@ docker compose up -d --force-recreate
 If you do not want to add `python3` and `cron` to the container, keep using the host/manual runner workflow instead.
 
 If you prefer not to edit the main MunkiReport `Dockerfile`, this module also ships a companion image definition at `local/modules/simplemdm/Dockerfile.munkireport-simplemdm`.
+It is meant to be used from the full MunkiReport repo root as an alternate app Dockerfile. It is not a standalone Dockerfile for the module repo by itself.
 It mirrors the upstream image and adds `python3` plus `cron` for SimpleMDM in-module sync.
 
 Use it from the MunkiReport repo root with either approach below:
@@ -211,6 +212,17 @@ Then rebuild and recreate:
 docker compose build
 docker compose up -d --force-recreate
 ```
+
+After the container starts, run migrations at runtime:
+
+```bash
+docker compose exec munkireport php please migrate
+```
+
+Important:
+- build context must be the full MunkiReport app root
+- do not run `docker build` from `local/modules/simplemdm` by itself
+- the companion Dockerfile adds runtime packages only; it does not run DB migrations during image build
 
 ### Docker Build Warnings
 

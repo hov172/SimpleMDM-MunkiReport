@@ -393,6 +393,9 @@ def fetch_all_resources(endpoint, api_key, since_cursor=''):
         try:
             response = simplemdm_request(request_url, api_key)
         except urllib.error.HTTPError as e:
+            # Some tenants/endpoints do not support the delta filter. In that
+            # case, retry the same collection without updated_at_gt instead of
+            # treating the endpoint as permanently broken.
             if since_cursor and e.code in (400, 404):
                 logger.debug(f"Delta filter unsupported for {endpoint}, retrying full fetch")
                 since_cursor = ''
@@ -567,9 +570,13 @@ def enrich_relationships(relationships, device_groups=None, assignment_groups=No
 
     device_groups = device_groups or {}
     assignment_groups = assignment_groups or {}
+    # Work on a detached copy so we can add human-readable names without
+    # mutating the raw relationship payload that came from the API.
     rel = json.loads(json.dumps(relationships))
     assignment_group_name = None
 
+    # Device-group and assignment-group names make the MunkiReport UI much more
+    # readable than raw relationship IDs alone.
     device_group_data = rel.get('device_group', {}).get('data')
     if isinstance(device_group_data, dict):
         dg_id = device_group_data.get('id')
@@ -599,6 +606,9 @@ def transform_device(device_data, device_groups=None, assignment_groups=None, ap
     """Transform a SimpleMDM device API response into a flat record for MunkiReport."""
     attrs = device_data.get('attributes', {})
     relationships = device_data.get('relationships', attrs.get('relationships', {}))
+    # Relationship enrichment adds display-friendly names, but we still keep
+    # the complete payload so future UI/report work can use fields we do not
+    # flatten into first-class columns yet.
     relationships_enriched, assignment_group_name = enrich_relationships(
         relationships, device_groups, assignment_groups, api_key
     )
@@ -712,6 +722,8 @@ def transform_command(command):
 
     attrs = command.get('attributes', {})
     rels = command.get('relationships', {})
+    # Command payloads are less consistent than device payloads across tenants,
+    # so we normalize several possible field names into one stable schema.
     device_rel = rels.get('device', {}).get('data') if isinstance(rels, dict) else {}
     resource = command.get('id')
     command_uuid = attrs.get('uuid') or attrs.get('command_uuid') or command.get('id')

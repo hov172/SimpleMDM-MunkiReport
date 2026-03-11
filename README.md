@@ -210,6 +210,31 @@ docker compose build
 docker compose up -d --force-recreate
 ```
 
+### Docker Build Warnings
+
+When building the companion Dockerfile, Docker may report non-fatal build-check warnings such as:
+
+- `LegacyKeyValueFormat`
+- `SecretsUsedInArgOrEnv`
+
+These warnings are inherited from the upstream-style MunkiReport Dockerfile conventions that this companion file mirrors. They do not block the build and they do not prevent SimpleMDM from working.
+
+What they mean:
+
+- `LegacyKeyValueFormat`: Docker recommends modern `ENV key=value` syntax instead of the older `ENV key value` format.
+- `SecretsUsedInArgOrEnv`: Docker warns when an `ARG` or `ENV` name looks sensitive. In this companion file, that warning is triggered by names such as `AUTH_METHODS`, but the current value is not being used as a secret for the SimpleMDM workflow.
+
+How to resolve them:
+
+- Update legacy `ENV` lines to `ENV KEY=value` format in the Dockerfile if you want a cleaner build output.
+- Avoid putting real secrets in `ARG` or `ENV`; use Docker build secrets for sensitive values instead.
+
+Reference:
+
+- Docker build checks overview: https://docs.docker.com/build/checks/
+- `LegacyKeyValueFormat`: https://docs.docker.com/reference/build-checks/legacy-key-value-format/
+- `SecretsUsedInArgOrEnv`: https://docs.docker.com/reference/build-checks/secrets-used-in-arg-or-env/
+
 Recurring scheduled sync still depends on cron:
 
 - If module execution is available, the module can install/remove cron for you.

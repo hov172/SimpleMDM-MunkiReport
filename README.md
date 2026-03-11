@@ -68,7 +68,8 @@ Developer docs:
    - Enable `sync_device_subresources_enabled`
    - Set `device_subresource_limit` to `100` (test) or `0` (all devices)
 4. Configure the admin workflow in `Admin -> SimpleMDM Settings`:
-   - Use `Run Sync Now` for a one-time sync
+   - Use `Sync Status -> Run Sync Now` to queue the next worker pickup
+   - Use `In-Module Sync And Schedule -> Run Sync Now` for an immediate one-time sync when module-side execution is available
    - Use `Schedule` with preset `Every 15 Minutes` (recommended) or choose `Custom`
    - Use `Enable Scheduled Sync` to turn on scheduled reconciliation
    - Optional: enable in-module script execution if you want the module to install/remove cron for you
@@ -118,6 +119,8 @@ Important:
 - `Sync Status -> Run Sync Now` is queue-based and still depends on a worker pickup.
 - `In-Module Sync And Schedule -> Run Sync Now` is immediate and does not require cron, but it does require module-side Python.
 - recurring scheduled sync still requires cron somewhere on the host.
+- `Schedule Config` shows whether the module schedule is enabled in settings.
+- `Recurring Sync Ready` shows whether recurring sync is actually ready to run, including cron being installed.
 
 ### Script Permissions
 
@@ -680,6 +683,197 @@ php /path/to/munkireport/please migrate
 
 ![SimpleMDM Settings](docs/images/admin-settings.png)
 ![Advanced Sync & Compliance Settings](docs/images/advanced-sync-settings.png)
+
+### Settings Reference
+
+Use this section as the plain-language guide to every setting shown in `Admin -> SimpleMDM Settings`.
+
+#### API Configuration
+
+- `SimpleMDM API Key`
+  - Meaning: the module's primary credential for reading data from the SimpleMDM API and authenticating ingest/update calls back into MunkiReport.
+  - Use case: required for any real sync, whether host/manual, queued, scheduled, or in-module.
+  - When to change it: when rotating the API key in SimpleMDM, moving to a different tenant, or fixing auth failures.
+
+#### Sync Status
+
+- `Sync Status -> Run Sync Now`
+  - Meaning: queues a sync request for the next worker pickup.
+  - Use case: use this when you want the normal worker path to process the next run, for example when cron or a host-side runner is already in place.
+  - Important: this does not execute Python from the web request.
+
+- `Queue State`
+  - Meaning: current worker state (`idle`, `queued`, `running`).
+  - Use case: tells you whether work is waiting or already executing.
+
+- `Requested At`
+  - Meaning: when a queued sync request was created.
+  - Use case: helps determine whether a queued run is waiting too long for cron/manual pickup.
+
+- `Started At`
+  - Meaning: when the worker last claimed and started a sync.
+  - Use case: helps distinguish “queued but not picked up yet” from “currently running.”
+
+- `Last Sync Status`
+  - Meaning: outcome of the most recently completed sync.
+  - Use case: confirms whether the last run ended in success or failure.
+
+- `Last Sync Time`
+  - Meaning: timestamp plus summary of the most recently completed sync.
+  - Use case: quick confirmation that new data was actually ingested.
+
+#### Widget Visibility
+
+- `Widget Visibility`
+  - Meaning: per-widget on/off control for the SimpleMDM report/dashboard widgets.
+  - Use case: hide widgets your team does not use, simplify the report page, or reduce visual noise for operators.
+  - When to change it: when customizing the dashboard/report experience for a team.
+
+#### Advanced Sync & Compliance
+
+- `Webhook Secret`
+  - Meaning: shared secret for `module/simplemdm/index?op=webhook`.
+  - Use case: secure event-driven webhook updates from SimpleMDM.
+  - When to use it: when you want near-real-time updates between scheduled syncs.
+
+- `Action API Secret`
+  - Meaning: shared secret required for mutating `api_devices` actions.
+  - Use case: protects device actions such as restart, lock, wipe, or refresh.
+  - When to use it: always set this before allowing operators to use device actions.
+
+- `Compliance Minimum OS`
+  - Meaning: minimum OS version used by compliance calculations.
+  - Use case: define your fleet's baseline target for the compliance widgets.
+  - Example: `14.4` or `15.1.2`
+
+- `Enable Delta Sync Mode`
+  - Meaning: tells the worker to attempt cursor-based syncs where the API supports it.
+  - Use case: reduce runtime and API load on large tenants.
+  - When to use it: recommended once the initial full sync is stable.
+
+- `Enable Command Status Sync`
+  - Meaning: includes SimpleMDM command records in sync runs when supported by the tenant/API.
+  - Use case: populate command-related widgets and troubleshooting views.
+  - When to use it: when command status visibility matters operationally.
+
+- `Enable Scheduled Sync`
+  - Meaning: turns on the module-side schedule intent used by `--respect-schedule`.
+  - Use case: recurring syncs on a timer rather than only manual runs.
+  - Important: this does not install cron by itself unless module-side execution is enabled and you use the schedule actions.
+
+- `Scheduled Sync Interval (minutes)`
+  - Meaning: cadence used by the worker when respecting module schedule state.
+  - Use case: define how often the worker should run, such as every 15 minutes.
+  - When to change it: when balancing freshness vs API/runtime cost.
+
+- `Enable Deep Per-Device Subresource Sync`
+  - Meaning: fetches device-level child data such as profiles, installed apps, and users.
+  - Use case: richer device detail pages and more complete troubleshooting context.
+  - Tradeoff: increases API volume and sync time.
+
+- `Per-Device Deep Sync Limit`
+  - Meaning: caps how many devices participate in deep per-device subresource sync.
+  - Use case: safer testing or lower API usage on large environments.
+  - `0` means no limit.
+
+#### In-Module Sync And Schedule
+
+- `Preset`
+  - Meaning: quick schedule presets that populate the cron expression field.
+  - Use case: easier scheduling for common intervals without typing cron manually.
+
+- `Schedule`
+  - Meaning: cron expression used for recurring runs.
+  - Use case: custom schedule control when presets are not enough.
+
+- `Runner MunkiReport URL`
+  - Meaning: the base URL the Python worker posts data back into.
+  - Use case: required for both host/manual and in-module runs.
+  - When to change it: when the auto-detected value is wrong for your environment.
+
+- `Configured Python Path`
+  - Meaning: the Python binary path the runner should use.
+  - Use case: host/manual cron installs and in-module command construction.
+  - Important: this is not the same as proving Python is actually available inside the MunkiReport runtime.
+
+- `Cron Log Path`
+  - Meaning: output file path for cron-based sync runs.
+  - Use case: troubleshooting recurring runs.
+  - When to change it: when your container/server uses a different writable log location.
+
+- `Max Parent Resources`
+  - Meaning: limit for deep parent-child resource traversal such as `apps/{id}/installs`.
+  - Use case: reduce runtime/API load during testing or on very large tenants.
+  - `0` means unlimited.
+
+- `Allow In-Module Script Execution For Global Admins`
+  - Meaning: allows the module UI to execute approved runner actions directly from the app runtime.
+  - Use case: immediate in-module sync and module-managed cron install/remove.
+  - Important: this still requires Python to exist in the MunkiReport runtime.
+
+- `Schedule Config`
+  - Meaning: whether scheduled sync is enabled in module settings.
+  - Use case: tells you if the module schedule is on or off.
+  - Important: enabled config alone does not guarantee recurring runs will actually happen.
+
+- `Recurring Sync Ready`
+  - Meaning: whether recurring sync is operationally ready, including cron being installed.
+  - Use case: the “real readiness” indicator for scheduled sync.
+  - Important: this is the stronger status signal than `Schedule Config`.
+
+- `Last Run`
+  - Meaning: the most recent completed sync time, regardless of whether it was immediate, queued, or scheduled.
+  - Use case: confirms when the module last finished syncing anything successfully or unsuccessfully.
+
+- `Last Run Source`
+  - Meaning: where the most recent completed sync came from.
+  - Values you may see:
+    - `Immediate (In-Module)`
+    - `Queued Admin Request`
+    - `Scheduled`
+  - Use case: distinguishes manual operator-triggered runs from recurring worker runs.
+
+- `Next Expected Run`
+  - Meaning: the next calculated recurring run time based on the saved schedule.
+  - Use case: operator confirmation that the configured schedule makes sense.
+
+- `Run Sync Now` in the schedule panel
+  - Meaning: executes `simplemdm_sync.py` immediately from the module runtime.
+  - Use case: instant one-off sync when Python is available inside MunkiReport.
+
+- `Enable Scheduled Sync`
+  - Meaning: saves schedule settings and, when module execution is available, installs the cron entry.
+  - Use case: fully activate recurring sync from the UI.
+
+- `Disable Scheduled Sync`
+  - Meaning: disables schedule intent and, when module execution is available, removes the cron entry.
+  - Use case: stop future recurring runs from the module-managed path.
+
+- `Save Schedule Settings`
+  - Meaning: saves runner/schedule configuration without running or installing anything.
+  - Use case: prepare settings first, then execute or enable later.
+
+#### Manual / Outside-Module Access
+
+- `Download Module Bundle`
+  - Meaning: download the module as a zip archive.
+  - Use case: move the module to another MunkiReport environment or keep an offline copy.
+
+- `Download`
+  - Meaning: download an individual script.
+  - Use case: host-side/manual setup or inspection.
+
+- `Copy External Command`
+  - Meaning: copies the recommended host/manual command for the selected script action.
+  - Use case: operators who prefer running the worker or cron helper outside the module.
+
+- `Run In Module`
+  - Meaning: executes the approved action from the MunkiReport runtime.
+  - Use case: immediate testing or module-managed helper actions when runtime prerequisites are met.
+
+- `Script Output`
+  - Meaning: stdout/stderr/result output from module-run actions.
+  - Use case: troubleshooting action failures without leaving the UI.
 
 Current admin scope:
 - Admin currently manages API/auth, widget visibility, advanced sync/compliance settings, in-module runner settings, and manual download/access workflows.

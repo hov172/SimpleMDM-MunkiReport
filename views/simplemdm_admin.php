@@ -180,6 +180,27 @@ if (is_readable($provides_path)) {
     margin-right: 8px;
     margin-bottom: 8px;
 }
+.simplemdm-schedule-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 12px 10px;
+    margin-top: 18px;
+}
+.simplemdm-schedule-actions .btn {
+    margin-right: 0;
+    margin-bottom: 0;
+}
+.simplemdm-schedule-primary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.simplemdm-schedule-secondary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
 .simplemdm-prereq-row {
     display: flex;
     flex-wrap: wrap;
@@ -276,16 +297,16 @@ if (is_readable($provides_path)) {
         </div>
         <div class="simplemdm-kpi-strip">
             <div class="simplemdm-kpi">
-                <span class="simplemdm-kpi-label">Schedule Status</span>
-                <span class="simplemdm-kpi-value" id="schedule-status-kpi">Disabled</span>
+                <span class="simplemdm-kpi-label">Schedule Config</span>
+                <span class="simplemdm-kpi-value" id="schedule-config-kpi">Disabled</span>
+            </div>
+            <div class="simplemdm-kpi">
+                <span class="simplemdm-kpi-label">Recurring Sync Ready</span>
+                <span class="simplemdm-kpi-value" id="schedule-ready-kpi">No</span>
             </div>
             <div class="simplemdm-kpi">
                 <span class="simplemdm-kpi-label">Last Run</span>
                 <span class="simplemdm-kpi-value" id="schedule-last-run-kpi">-</span>
-            </div>
-            <div class="simplemdm-kpi">
-                <span class="simplemdm-kpi-label">Next Expected Run</span>
-                <span class="simplemdm-kpi-value" id="schedule-next-run-kpi">-</span>
             </div>
         </div>
     </div>
@@ -450,12 +471,20 @@ if (is_readable($provides_path)) {
                         <div class="table-responsive">
                             <table class="table table-striped">
                                 <tr>
-                                    <th>Schedule Status</th>
-                                    <td id="schedule-status">Disabled</td>
+                                    <th>Schedule Config</th>
+                                    <td id="schedule-config">Disabled</td>
+                                </tr>
+                                <tr>
+                                    <th>Recurring Sync Ready</th>
+                                    <td id="schedule-ready">No</td>
                                 </tr>
                                 <tr>
                                     <th>Last Run</th>
                                     <td id="schedule-last-run">-</td>
+                                </tr>
+                                <tr>
+                                    <th>Last Run Source</th>
+                                    <td id="schedule-last-run-source">-</td>
                                 </tr>
                                 <tr>
                                     <th>Next Expected Run</th>
@@ -520,14 +549,18 @@ if (is_readable($provides_path)) {
                             <p class="simplemdm-state-line"><span class="simplemdm-state-label">Cron Management:</span> <span id="cron-management-state">Checking...</span></p>
                             <p class="simplemdm-state-line text-muted" id="cron-management-detail">Waiting for status...</p>
                         </div>
-                        <div class="alert alert-info" id="module-runtime-guidance" style="margin-top:12px; margin-bottom:0;">
+                        <div class="alert alert-info" id="module-runtime-guidance" style="margin-top:16px; margin-bottom:0;">
                             Checking module guidance...
                         </div>
                         <div class="simplemdm-schedule-actions">
-                            <button type="button" class="btn btn-primary" id="run-sync-now-btn">Run Sync Now</button>
-                            <button type="button" class="btn btn-success" id="enable-schedule-btn">Enable Scheduled Sync</button>
-                            <button type="button" class="btn btn-default" id="disable-schedule-btn">Disable Scheduled Sync</button>
-                            <button type="submit" class="btn btn-default">Save Schedule Settings</button>
+                            <div class="simplemdm-schedule-primary">
+                                <button type="button" class="btn btn-primary" id="run-sync-now-btn">Run Sync Now</button>
+                                <button type="button" class="btn btn-success" id="enable-schedule-btn">Enable Scheduled Sync</button>
+                                <button type="button" class="btn btn-default" id="disable-schedule-btn">Disable Scheduled Sync</button>
+                            </div>
+                            <div class="simplemdm-schedule-secondary">
+                                <button type="submit" class="btn btn-default">Save Schedule Settings</button>
+                            </div>
                         </div>
                         <div id="script-runner-save-status" class="text-muted" style="margin-top:10px;"></div>
                         <p class="text-muted small" style="margin-top:10px;">One-off runs execute <code>simplemdm_sync.py</code> immediately. Repeating runs still use cron, which this module can install or remove when script execution is enabled.</p>
@@ -573,6 +606,12 @@ $(document).on('appReady', function() {
         var raw = String(value || '').trim();
         if (!raw) {
             return null;
+        }
+        if (raw.indexOf(' - ') !== -1) {
+            raw = raw.split(' - ', 1)[0].trim();
+        }
+        if (raw.slice(-1) === 'Z') {
+            raw = raw.slice(0, -1) + '+00:00';
         }
         var parsed = Date.parse(raw);
         return isNaN(parsed) ? null : new Date(parsed);
@@ -667,19 +706,57 @@ $(document).on('appReady', function() {
         return scheduleValue ? 'Custom schedule configured' : '-';
     }
 
+    function formatRunSource(value) {
+        var source = String(value || '').trim().toLowerCase();
+        if (!source) {
+            return '-';
+        }
+        if (source === 'in_module_immediate') {
+            return 'Immediate (In-Module)';
+        }
+        if (source === 'queued_admin') {
+            return 'Queued Admin Request';
+        }
+        if (source === 'scheduled') {
+            return 'Scheduled';
+        }
+        if (source === 'admin') {
+            return 'Admin';
+        }
+        return source.replace(/_/g, ' ').replace(/\b\w/g, function(chr) {
+            return chr.toUpperCase();
+        });
+    }
+
+    function computeRecurringReady(data) {
+        var enabled = String(data.enable_scheduled_sync || '0') === '1';
+        var schedule = String(data.script_runner_schedule || '').trim() !== '';
+        var logPath = String(data.script_runner_log_path || '').trim() !== '';
+        var runnerUrl = String(data.script_runner_munkireport_url || '').trim() !== '';
+        var apiKeyReady = String(data.api_key_set || (data.api_key ? '1' : '0')) === '1';
+        var cronInstalled = !!(runnerStatusCache && runnerStatusCache.cron && runnerStatusCache.cron.installed);
+
+        return enabled && schedule && logPath && runnerUrl && apiKeyReady && cronInstalled;
+    }
+
     function renderScheduleStatus(data) {
         var enabled = String(data.enable_scheduled_sync || '0') === '1';
         var schedule = String(data.script_runner_schedule || '');
         var lastRunRaw = String(data.last_sync_time || '');
+        var lastRunSource = formatRunSource(data.sync_request_source || '');
         var statusText = enabled ? 'Enabled' : 'Disabled';
+        var recurringReady = computeRecurringReady(data);
+        var recurringReadyText = recurringReady ? 'Yes' : 'No';
         var lastRunText = formatDateOrDash(lastRunRaw);
         var nextRunText = enabled ? computeNextExpectedRun(schedule, lastRunRaw) : '-';
-        $('#schedule-status').text(statusText);
+        $('#schedule-config').text(statusText);
+        $('#schedule-ready').text(recurringReadyText);
         $('#schedule-last-run').text(lastRunText);
+        $('#schedule-last-run-source').text(lastRunSource);
         $('#schedule-next-run').text(nextRunText);
-        $('#schedule-status-kpi').text(statusText);
+        $('#schedule-config-kpi').text(statusText);
+        $('#schedule-ready-kpi').text(recurringReadyText);
         $('#schedule-last-run-kpi').text(lastRunText);
-        $('#schedule-next-run-kpi').text(nextRunText);
         $('#enable-schedule-btn').prop('disabled', enabled);
         $('#disable-schedule-btn').prop('disabled', !enabled);
     }

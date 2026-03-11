@@ -114,7 +114,9 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
    - If module execution is available, use `In-Module Sync And Schedule -> Run Sync Now`
    - Confirm the immediate run completes without waiting for cron
    - Set `Schedule` to `Every 15 Minutes` and click `Enable Scheduled Sync`
-   - Confirm `Schedule Status = Enabled`
+   - Confirm `Schedule Config = Enabled`
+   - Confirm `Recurring Sync Ready = Yes` only after cron is actually installed
+   - Confirm `Last Run` and `Last Run Source` update after successful immediate or queued runs
    - Confirm `Next Expected Run` is populated
    - Wait for cron pickup or run:
 
@@ -129,7 +131,7 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
 
    - Confirm `Last Sync Time` updates
    - Click `Disable Scheduled Sync`
-   - Confirm `Schedule Status = Disabled`
+   - Confirm `Schedule Config = Disabled`
 
 ## 5) API/Auth Negative Tests
 

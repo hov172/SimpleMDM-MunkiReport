@@ -54,7 +54,7 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
 
 5. Verify:
    - `Admin -> SimpleMDM Settings` loads
-   - `Run Sync Now`, `Schedule`, `Schedule Status`, `Last Run`, and `Next Expected Run` appear as expected
+   - `Run Sync Now`, `Schedule`, `Schedule Config`, `Recurring Sync Ready`, `Last Run`, `Last Run Source`, and `Next Expected Run` appear as expected
    - the schedule panel clearly distinguishes module-side execution from host/manual execution
    - `reports/simplemdm` renders
    - device/resource listings return data
@@ -100,7 +100,7 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
 ```
 
 5. Verify:
-   - `http://localhost:8888/index.php?/module/simplemdm/admin` shows `Run Sync Now`, `Schedule`, `Schedule Status`, `Last Run`, and `Next Expected Run`
+   - `http://localhost:8888/index.php?/module/simplemdm/admin` shows `Run Sync Now`, `Schedule`, `Schedule Config`, `Recurring Sync Ready`, `Last Run`, `Last Run Source`, and `Next Expected Run`
    - the schedule panel shows whether Python is available in the module runtime and whether cron is module-managed or manual
    - `http://localhost:8888/reports/simplemdm`
    - `http://localhost:8888/show/listing/simplemdm/simplemdm`
@@ -114,7 +114,8 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
    - `last_sync_status = success`
    - `last_sync_time` updated recently
    - `sync_last_api_errors` reflects real failures only and should normally be `0` on a healthy supported run
-   - If using the schedule UI, confirm `Schedule Status` matches the intended state
+   - If using the schedule UI, confirm `Schedule Config` matches the intended state
+   - Confirm `Recurring Sync Ready` only reports `Yes` when cron is actually installed
    - If scheduled sync is enabled, confirm `Next Expected Run` is populated for preset schedules
 3. Data health:
    - counts non-zero where expected

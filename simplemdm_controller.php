@@ -1154,6 +1154,10 @@ class Simplemdm_controller extends Module_controller
             return;
         }
 
+        if ($action === 'sync_now') {
+            $this->set_config_value('sync_request_source', 'in_module_immediate');
+        }
+
         $result = $this->run_local_script_command($commands[$action], $cwd);
         jsonView([
             'status' => $result['ok'] ? 'success' : 'error',
@@ -1192,7 +1196,7 @@ class Simplemdm_controller extends Module_controller
         $requested_at = date('c');
         $this->set_config_value('sync_request_state', 'queued');
         $this->set_config_value('sync_requested_at', $requested_at);
-        $this->set_config_value('sync_request_source', 'admin');
+        $this->set_config_value('sync_request_source', 'queued_admin');
 
         jsonView([
             'status' => 'success',
@@ -1222,6 +1226,9 @@ class Simplemdm_controller extends Module_controller
         }
 
         $started_at = date('c');
+        if ($state !== 'queued') {
+            $this->set_config_value('sync_request_source', 'scheduled');
+        }
         $this->set_config_value('sync_request_state', 'running');
         $this->set_config_value('sync_started_at', $started_at);
 

@@ -92,6 +92,11 @@ All are called via:
 `begin_sync_run` is a worker-only claim endpoint used by the sync script. It is not meant to be called from the browser UI.
 
 `run_script` is used by the schedule panel for immediate module-side execution and module-managed cron helper actions.
+
+UI note:
+- `Schedule Config` is derived from `enable_scheduled_sync`
+- `Recurring Sync Ready` depends on both config and cron/runtime state
+- `Last Run Source` is derived from `sync_request_source`
 It now enforces the saved runner prerequisites server-side as well, so `sync_now` and `install_cron` require a configured runner plus verified module-runtime Python.
 
 ## 4) Listing and Data Endpoints

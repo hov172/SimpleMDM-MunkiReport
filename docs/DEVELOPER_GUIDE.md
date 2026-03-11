@@ -104,6 +104,10 @@ This guide is for contributors who need to understand and modify the module safe
   - `Sync Status -> Run Sync Now` queues a one-off run for the next worker pickup.
   - `In-Module Sync And Schedule -> Run Sync Now` executes an immediate one-off run when in-module execution is available.
   - `Enable Scheduled Sync` / `Disable Scheduled Sync` change module schedule state.
+  - `Schedule Config` reflects whether scheduled sync is enabled in module settings.
+  - `Recurring Sync Ready` reflects whether recurring sync is actually ready to run, including cron being installed.
+  - `Last Run` reflects the latest completed sync of any kind.
+  - `Last Run Source` distinguishes immediate in-module runs, queued admin requests, and scheduled runs.
   - `simplemdm_sync.py` is still the real worker; recurring runs require cron to launch it.
   - Host/manual runs should use an explicit `--api-key` or `SIMPLEMDM_API_KEY`; they should not rely on an authenticated browser session to bootstrap secrets.
   - In-module action buttons use the same runner prerequisite checks as the schedule panel, and the controller re-validates those prerequisites server-side.
@@ -125,6 +129,55 @@ This guide is for contributors who need to understand and modify the module safe
   - If module-side execution is enabled, the module can call `install_cron.sh` / `remove_cron.sh` on behalf of the admin.
   - `Runner MunkiReport URL` prefers canonical MunkiReport config (`WEBHOST` / `SUBDIRECTORY`) and falls back to the current request URL for local/placeholder deployments
   - The admin UI inspects whether Python exists in the module runtime and distinguishes in-module execution from host/manual execution.
+
+### Settings Semantics
+
+When documenting or extending the admin page, keep these meanings stable:
+
+- `SimpleMDM API Key`
+  - Required primary credential for sync and module ingest/update auth.
+- `Webhook Secret`
+  - Shared secret for webhook ingestion.
+- `Action API Secret`
+  - Shared secret for mutating `api_devices` actions.
+- `Compliance Minimum OS`
+  - Baseline OS target used by compliance widgets.
+- `Enable Delta Sync Mode`
+  - Allows cursor-based sync attempts where supported.
+- `Enable Command Status Sync`
+  - Includes command records when the tenant/API supports them.
+- `Enable Scheduled Sync`
+  - Enables module schedule intent for `--respect-schedule`.
+- `Scheduled Sync Interval`
+  - Defines the cadence used by the worker when schedule intent is enabled.
+- `Enable Deep Per-Device Subresource Sync`
+  - Fetches device-level child objects (`profiles`, `installed_apps`, `users`).
+- `Per-Device Deep Sync Limit`
+  - Caps the number of devices participating in deep child sync; `0` means unlimited.
+- `Preset`
+  - Convenience selector that writes a cron expression into `Schedule`.
+- `Schedule`
+  - Saved cron expression for recurring runs.
+- `Runner MunkiReport URL`
+  - Base URL used by the worker for posting data back into MunkiReport.
+- `Configured Python Path`
+  - Configured runner binary path; separate from proving Python exists in the module runtime.
+- `Cron Log Path`
+  - Target log file path for cron-driven runs.
+- `Max Parent Resources`
+  - Cap for deep parent-child resource traversal such as `apps/{id}/installs`; `0` means unlimited.
+- `Allow In-Module Script Execution For Global Admins`
+  - Enables approved runner actions from the UI, subject to runtime checks.
+- `Schedule Config`
+  - Reflects whether scheduled sync is enabled in settings.
+- `Recurring Sync Ready`
+  - Reflects whether recurring sync is truly operational, including cron being installed.
+- `Last Run`
+  - Reflects the most recent completed sync of any kind.
+- `Last Run Source`
+  - Distinguishes `Immediate (In-Module)`, `Queued Admin Request`, and `Scheduled`.
+- `Next Expected Run`
+  - Derived schedule preview for the next recurring run.
 
 ## 3) Module Layout
 
@@ -265,7 +318,7 @@ Primary file: `provides.yml`
 - `views/simplemdm_listing.php`: device listing page
 - `views/simplemdm_resources_listing.php`: resource listing page
 - `views/simplemdm_admin.php`: admin settings page
-  - includes schedule UX, `Run Sync Now`, schedule status, last run, next expected run, and manual access/downloads
+  - includes schedule UX, queue-based and immediate `Run Sync Now`, schedule config/readiness, last run/source, next expected run, and manual access/downloads
 - `views/simplemdm_device.php`: standalone device details and action runner
 - `views/simplemdm_widget_modern_assets.php`: shared JS/CSS behavior for widget layout/interactions
 

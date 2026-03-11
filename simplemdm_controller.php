@@ -1196,7 +1196,7 @@ class Simplemdm_controller extends Module_controller
         $requested_at = date('c');
         $this->set_config_value('sync_request_state', 'queued');
         $this->set_config_value('sync_requested_at', $requested_at);
-        $this->set_config_value('sync_request_source', 'queued_admin');
+        $this->set_config_value('sync_pending_source', 'queued_admin');
 
         jsonView([
             'status' => 'success',
@@ -1226,7 +1226,11 @@ class Simplemdm_controller extends Module_controller
         }
 
         $started_at = date('c');
-        if ($state !== 'queued') {
+        if ($state === 'queued') {
+            $pending_source = strtolower(trim($this->get_config_value('sync_pending_source', 'queued_admin')));
+            $this->set_config_value('sync_request_source', $pending_source ?: 'queued_admin');
+            $this->set_config_value('sync_pending_source', '');
+        } else {
             $this->set_config_value('sync_request_source', 'scheduled');
         }
         $this->set_config_value('sync_request_state', 'running');
@@ -1523,6 +1527,9 @@ class Simplemdm_controller extends Module_controller
         $this->set_config_value('sync_request_state', $state_value);
         if ($state_value !== 'running') {
             $this->set_config_value('sync_started_at', '');
+        }
+        if ($state_value !== 'queued') {
+            $this->set_config_value('sync_pending_source', '');
         }
 
         $telemetry_keys = [

@@ -68,7 +68,7 @@ Developer docs:
    - Enable `sync_device_subresources_enabled`
    - Set `device_subresource_limit` to `100` (test) or `0` (all devices)
 4. Configure the admin workflow in `Admin -> SimpleMDM Settings`:
-   - Use `Sync Status -> Run Sync Now` to queue the next worker pickup
+   - Use `Sync Status -> Queue Sync Request` to queue the next worker pickup
    - Use `In-Module Sync And Schedule -> Run Sync Now` for an immediate one-time sync when module-side execution is available
    - Use `Schedule` with preset `Every 15 Minutes` (recommended) or choose `Custom`
    - Use `Enable Scheduled Sync` to turn on scheduled reconciliation
@@ -103,7 +103,7 @@ This module README covers only:
 There are two supported ways to operate the sync workflow:
 
 1. In-module workflow
-   - Use `Sync Status -> Run Sync Now` to queue the next worker pickup.
+   - Use `Sync Status -> Queue Sync Request` to queue the next worker pickup.
    - Use `In-Module Sync And Schedule -> Run Sync Now` for an immediate one-off run when module-side execution is available.
    - Use `Schedule` plus `Enable Scheduled Sync` / `Disable Scheduled Sync` for recurring runs.
    - If `Allow in-module script execution for global admins` is enabled, the module can install/remove the cron job for you.
@@ -116,7 +116,7 @@ There are two supported ways to operate the sync workflow:
 Important:
 - `simplemdm_sync.py` is the worker that performs the sync.
 - cron is the scheduler that launches `simplemdm_sync.py` repeatedly.
-- `Sync Status -> Run Sync Now` is queue-based and still depends on a worker pickup.
+- `Sync Status -> Queue Sync Request` is queue-based and still depends on a worker pickup.
 - `In-Module Sync And Schedule -> Run Sync Now` is immediate and does not require cron, but it does require module-side Python.
 - recurring scheduled sync still requires cron somewhere on the host.
 - `Schedule Config` shows whether the module schedule is enabled in settings.
@@ -323,7 +323,7 @@ If you do not want the module to execute sync inside MunkiReport, you can still 
 
 - run `simplemdm_sync.py` directly with `python3`
 - install cron outside the module with `install_cron.sh --munkireport-url 'https://your-munkireport' --api-key 'YOUR_SIMPLEMDM_API_KEY' --install`
-- use `Sync Status -> Run Sync Now` only as a queue/request signal for the next host-side worker pickup
+- use `Sync Status -> Queue Sync Request` only as a queue/request signal for the next host-side worker pickup
 
 ### Hosted / VM Module Install
 
@@ -395,7 +395,7 @@ local/modules/simplemdm/scripts/install_cron.sh --remove
 ```
 
 Cron is not installed automatically when you clone the module. You must either add the crontab entry yourself or run the helper with `--install`.
-The `Sync Status` panel `Run Sync Now` button queues work for the next worker pickup.
+The `Sync Status` panel `Queue Sync Request` button queues work for the next worker pickup.
 The `In-Module Sync And Schedule` panel `Run Sync Now` button performs an immediate run when in-module execution is available.
 
 ### Docker Module Install
@@ -471,7 +471,7 @@ local/modules/simplemdm/scripts/install_cron.sh --remove
 ```
 
 Cron is not installed automatically when you clone the module. The helper updates the current user's crontab only when you run it with `--install`.
-The `Sync Status` panel `Run Sync Now` button queues work for the next worker pickup.
+The `Sync Status` panel `Queue Sync Request` button queues work for the next worker pickup.
 The `In-Module Sync And Schedule` panel `Run Sync Now` button performs an immediate run when in-module execution is available.
 
 ### Common Validation Checklist
@@ -507,7 +507,7 @@ python3 --version
      - Docker example in this doc: use `http://localhost:8888`.
      - Confirm app is reachable in browser before rerunning sync.
 
-4. `Sync Status -> Run Sync Now` stays queued:
+4. `Sync Status -> Queue Sync Request` stays queued:
    - Cause: no cron entry exists, cron is not running, or the queued request has not reached the next cron pickup yet.
    - Fix:
 
@@ -697,7 +697,7 @@ Use this section as the plain-language guide to every setting shown in `Admin ->
 
 #### Sync Status
 
-- `Sync Status -> Run Sync Now`
+- `Sync Status -> Queue Sync Request`
   - Meaning: queues a sync request for the next worker pickup.
   - Use case: use this when you want the normal worker path to process the next run, for example when cron or a host-side runner is already in place.
   - Important: this does not execute Python from the web request.
@@ -706,13 +706,18 @@ Use this section as the plain-language guide to every setting shown in `Admin ->
   - Meaning: current worker state (`idle`, `queued`, `running`).
   - Use case: tells you whether work is waiting or already executing.
 
-- `Requested At`
-  - Meaning: when a queued sync request was created.
+- `Last Queue Request`
+  - Meaning: when the queue-based `Sync Status -> Queue Sync Request` path most recently created a request.
   - Use case: helps determine whether a queued run is waiting too long for cron/manual pickup.
 
-- `Started At`
-  - Meaning: when the worker last claimed and started a sync.
-  - Use case: helps distinguish “queued but not picked up yet” from “currently running.”
+- `Queue Pickup Time`
+  - Meaning: when the worker claimed the current queued request.
+  - Use case: helps distinguish “queued but not picked up yet” from “queue request is currently running.”
+
+- `Last Sync Source`
+  - Meaning: where the most recent completed sync came from.
+  - Use case: distinguishes `Scheduled`, `Queued Admin Request`, and `Immediate (In-Module)` runs.
+  - Important: this does not change when a new queue request is created; it changes only after that run is actually picked up and completed.
 
 - `Last Sync Status`
   - Meaning: outcome of the most recently completed sync.
@@ -878,7 +883,7 @@ Use this section as the plain-language guide to every setting shown in `Admin ->
 Current admin scope:
 - Admin currently manages API/auth, widget visibility, advanced sync/compliance settings, in-module runner settings, and manual download/access workflows.
 - Admin exposes two sync paths:
-  - `Sync Status -> Run Sync Now` queues a run for the next worker pickup.
+  - `Sync Status -> Queue Sync Request` queues a run for the next worker pickup.
   - `In-Module Sync And Schedule -> Run Sync Now` performs an immediate run when in-module execution is enabled and Python is available in the MunkiReport runtime.
 - Layout ordering, full-width spans, and expand/collapse behavior are module-driven defaults (not separate admin toggles).
 - If the Admin menu item does not appear after module updates, refresh/restart MunkiReport so module `provides.yml` metadata is reloaded.
@@ -934,7 +939,7 @@ python3 /path/to/munkireport/local/modules/simplemdm/scripts/simplemdm_sync.py \
 4. Verify status in admin page:
    - `last_sync_status` should become `success`.
    - `last_sync_time` should update.
-   - `Sync Status -> Run Sync Now` changes queue state to `queued`/`running`; cron or a manual script invocation still executes the import.
+   - `Sync Status -> Queue Sync Request` changes queue state to `queued`/`running`; cron or a manual script invocation still executes the import.
    - `In-Module Sync And Schedule -> Run Sync Now` runs immediately when module execution prerequisites are met.
 5. Verify data exists:
    - Device listing: `show/listing/simplemdm/simplemdm`

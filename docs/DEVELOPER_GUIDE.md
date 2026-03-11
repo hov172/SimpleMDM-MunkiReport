@@ -101,13 +101,16 @@ This guide is for contributors who need to understand and modify the module safe
   - Registered under `admin_pages` in `provides.yml`.
   - View: `views/simplemdm_admin.php`.
   - Persists to `simplemdm_config`.
-  - `Sync Status -> Run Sync Now` queues a one-off run for the next worker pickup.
+  - `Sync Status -> Queue Sync Request` queues a one-off run for the next worker pickup.
   - `In-Module Sync And Schedule -> Run Sync Now` executes an immediate one-off run when in-module execution is available.
   - `Enable Scheduled Sync` / `Disable Scheduled Sync` change module schedule state.
+  - `Queue State`, `Last Queue Request`, and `Queue Pickup Time` are queue-only telemetry for the worker pickup path.
   - `Schedule Config` reflects whether scheduled sync is enabled in module settings.
   - `Recurring Sync Ready` reflects whether recurring sync is actually ready to run, including cron being installed.
   - `Last Run` reflects the latest completed sync of any kind.
   - `Last Run Source` distinguishes immediate in-module runs, queued admin requests, and scheduled runs.
+  - `Last Sync Source` in the `Sync Status` panel mirrors the most recent completed run source so queue telemetry and run history are not confused.
+  - Queue creation uses a separate pending-source marker internally so a new queued request does not overwrite the source of the last completed run before pickup.
   - `simplemdm_sync.py` is still the real worker; recurring runs require cron to launch it.
   - Host/manual runs should use an explicit `--api-key` or `SIMPLEMDM_API_KEY`; they should not rely on an authenticated browser session to bootstrap secrets.
   - In-module action buttons use the same runner prerequisite checks as the schedule panel, and the controller re-validates those prerequisites server-side.
@@ -122,7 +125,7 @@ This guide is for contributors who need to understand and modify the module safe
 - How:
   - The admin UI stores schedule settings in `simplemdm_config`.
   - Presets map to cron expressions.
-  - `Sync Status -> Run Sync Now` is queue-based and still depends on a worker pickup.
+  - `Sync Status -> Queue Sync Request` is queue-based and still depends on a worker pickup.
   - `In-Module Sync And Schedule -> Run Sync Now` is immediate and does not need cron, but it does require module-side Python execution.
   - Recurring scheduled sync still depends on cron.
   - Host/manual cron installs should include an explicit `--api-key` (or exported `SIMPLEMDM_API_KEY`) so the worker can read schedule/queue state without an authenticated browser session.

@@ -14,7 +14,7 @@ Use whichever form matches your configured MunkiReport `index_page`.
 
 Workflow note:
 - `simplemdm_sync.py` is the sync worker.
-- `Sync Status -> Run Sync Now` is a queue-based trigger path.
+- `Sync Status -> Queue Sync Request` is a queue-based trigger path.
 - `In-Module Sync And Schedule -> Run Sync Now` is an immediate execution path when module-side execution is available.
 - recurring schedule still requires cron to launch `simplemdm_sync.py`
 - host/manual runners should use an explicit `--api-key` or `SIMPLEMDM_API_KEY`

@@ -342,12 +342,16 @@ if (is_readable($provides_path)) {
                             <td id="sync-request-state">idle</td>
                         </tr>
                         <tr>
-                            <th>Requested At</th>
+                            <th>Last Queue Request</th>
                             <td id="sync-requested-at">-</td>
                         </tr>
                         <tr>
-                            <th>Started At</th>
+                            <th>Queue Pickup Time</th>
                             <td id="sync-started-at">-</td>
+                        </tr>
+                        <tr>
+                            <th>Last Sync Source</th>
+                            <td id="sync-source">-</td>
                         </tr>
                         <tr>
                             <th>Last Sync Status</th>
@@ -359,10 +363,10 @@ if (is_readable($provides_path)) {
                         </tr>
                     </table>
                     <div class="simplemdm-actions-row">
-                        <button type="button" class="btn btn-default" id="simplemdm-sync-now">Run Sync Now</button>
+                        <button type="button" class="btn btn-default" id="simplemdm-sync-now">Queue Sync Request</button>
                         <span id="sync-request-message" class="text-muted"></span>
                     </div>
-                    <p class="text-muted small" style="margin-top:10px;">This queues a sync request. The host-side cron or manual runner still executes <code>simplemdm_sync.py</code>.</p>
+                    <p class="text-muted small" style="margin-top:10px;">This does not run immediately. It queues a sync request for the next host-side cron or manual worker pickup, which still executes <code>simplemdm_sync.py</code>.</p>
                 </div>
             </div>
 
@@ -660,12 +664,21 @@ $(document).on('appReady', function() {
     }
 
     function renderSyncStatus(data) {
+        var queueState = String(data.sync_request_state || 'idle');
+        var requestedAt = String(data.sync_requested_at || '').trim();
+        var startedAt = String(data.sync_started_at || '').trim();
+        var source = formatRunSource(data.sync_request_source || '');
         $('#sync-status').text(data.last_sync_status || 'Never');
         $('#sync-time').text(data.last_sync_time || '-');
-        $('#sync-request-state').text(data.sync_request_state || 'idle');
-        $('#sync-requested-at').text(data.sync_requested_at || '-');
-        $('#sync-started-at').text(data.sync_started_at || '-');
-        $('#simplemdm-sync-now').prop('disabled', String(data.sync_request_state || 'idle') === 'running');
+        $('#sync-request-state').text(queueState);
+        $('#sync-requested-at').text(requestedAt || '-');
+        $('#sync-started-at').text(
+            queueState === 'running' || queueState === 'queued'
+                ? (startedAt || '-')
+                : '-'
+        );
+        $('#sync-source').text(source);
+        $('#simplemdm-sync-now').prop('disabled', queueState === 'running');
         updateSyncMessageFromState(data);
     }
 

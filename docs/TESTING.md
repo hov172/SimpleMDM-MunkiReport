@@ -27,6 +27,8 @@ php please migrate
 6. If validating scheduled sync behavior, ensure cron is actually installed on the host.
    - If in-module script execution is enabled, use `Enable Scheduled Sync` in the admin UI.
    - Otherwise install it manually with `local/modules/simplemdm/scripts/install_cron.sh --munkireport-url '<url>' --api-key 'YOUR_SIMPLEMDM_API_KEY' --install`.
+7. If you are validating shell helpers directly, confirm the execute bit is present.
+   - If needed: `chmod +x local/modules/simplemdm/scripts/install_cron.sh local/modules/simplemdm/scripts/remove_cron.sh`
 
 ## 2.1) Workflow Expectations
 

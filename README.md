@@ -119,6 +119,28 @@ Important:
 - `In-Module Sync And Schedule -> Run Sync Now` is immediate and does not require cron, but it does require module-side Python.
 - recurring scheduled sync still requires cron somewhere on the host.
 
+### Script Permissions
+
+The shell helper scripts in this repo are tracked as executable:
+- `scripts/install_cron.sh`
+- `scripts/remove_cron.sh`
+
+In normal use:
+- if you clone with Git on macOS/Linux, the execute bit should be preserved automatically
+- if that working tree is bind-mounted into Docker, the scripts should remain executable there too
+
+You may still need `chmod +x` if:
+- you downloaded the module as a zip instead of cloning with Git
+- your extraction or copy tool dropped Unix file modes
+- your Docker mount is coming from a filesystem that did not preserve the execute bit
+
+If needed:
+
+```bash
+chmod +x local/modules/simplemdm/scripts/install_cron.sh
+chmod +x local/modules/simplemdm/scripts/remove_cron.sh
+```
+
 ## Runner URL Detection
 
 The `Runner MunkiReport URL` field is auto-populated by the module.
@@ -519,7 +541,18 @@ docker compose up -d --build
 
    - Then rerun migration using your actual service name if not `munkireport`.
 
-7. Cron runs but no new data appears:
+7. `install_cron.sh` or `remove_cron.sh` fails with `Permission denied` or `bad interpreter`:
+   - Cause: the execute bit was lost on the shell script.
+   - Fix:
+
+```bash
+chmod +x local/modules/simplemdm/scripts/install_cron.sh
+chmod +x local/modules/simplemdm/scripts/remove_cron.sh
+```
+
+   - If you are using Docker with a bind-mounted repo, fix the permissions on the host checkout and retry.
+
+8. Cron runs but no new data appears:
    - Cause: bad absolute path, environment mismatch, or schedule gate settings.
    - Fix:
      - Ensure cron command uses a real absolute path to `simplemdm_sync.py`.

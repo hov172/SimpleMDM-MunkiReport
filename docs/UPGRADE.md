@@ -162,3 +162,11 @@ Notes:
    - If module-side Python is available, use `In-Module Sync And Schedule -> Run Sync Now` for an immediate run instead.
 6. Docker command failures:
    - Confirm compose service name (`munkireport`) and container status (`docker compose ps`).
+7. Cron helper scripts fail with `Permission denied`:
+   - Confirm the execute bit is present on `scripts/install_cron.sh` and `scripts/remove_cron.sh`.
+   - If needed, restore it with:
+
+```bash
+chmod +x local/modules/simplemdm/scripts/install_cron.sh
+chmod +x local/modules/simplemdm/scripts/remove_cron.sh
+```

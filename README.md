@@ -220,6 +220,47 @@ Additional requirements for this module:
 - a valid SimpleMDM API key
 - `python3` on the host that will run `simplemdm_sync.py`
 
+## Hosted / VM Python And Cron Runtime
+
+For non-Docker MunkiReport installs, the SimpleMDM module expects these host-level requirements:
+
+- `python3` installed on the same server that will run `simplemdm_sync.py`
+- `cron` / `crontab` available if you want scheduled sync
+- PHP local command execution available if you want the module UI to run sync or inspect cron directly
+
+Recommended checks on the MunkiReport server:
+
+```bash
+php -v
+python3 --version
+crontab -l
+```
+
+If `crontab -l` returns "no crontab for <user>", that is acceptable and just means no cron entry is installed yet.
+If `python3` is missing, install it with your system package manager before using in-module sync or scheduled sync.
+If `crontab` is missing, install your platform's cron package before using scheduled sync.
+
+Typical examples:
+
+```bash
+# Debian / Ubuntu
+sudo apt-get update
+sudo apt-get install -y python3 cron
+
+# RHEL / Rocky / AlmaLinux
+sudo dnf install -y python3 cronie
+
+# macOS host/manual runner
+python3 --version
+crontab -l
+```
+
+If you do not want the module to execute sync inside MunkiReport, you can still use the host/manual workflow:
+
+- run `simplemdm_sync.py` directly with `python3`
+- install cron outside the module with `install_cron.sh --install`
+- use `Sync Status -> Run Sync Now` only as a queue/request signal for the next host-side worker pickup
+
 ### Hosted / VM Module Install
 
 Run these commands from the MunkiReport repo root.

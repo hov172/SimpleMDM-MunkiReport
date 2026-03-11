@@ -565,6 +565,9 @@ $(document).on('appReady', function() {
     var runnerStatusRequest = null;
     var runnerStatusRefreshTimer = null;
     var RUNNER_STATUS_TIMEOUT_MS = 5000;
+    var syncPollTimer = null;
+    var SYNC_POLL_INTERVAL_MS = 3000;
+    var SYNC_POLL_TIMEOUT_MS = 180000;
 
     function parseIsoDate(value) {
         var raw = String(value || '').trim();
@@ -1097,7 +1100,8 @@ $(document).on('appReady', function() {
         });
     }
 
-    function runScriptAction(action) {
+    function runScriptAction(action, options) {
+        options = options || {};
         setScriptOutput('Running action: ' + action + ' ...');
         $.post(appUrl + '/module/simplemdm/run_script', { action: action }, function(data) {
             var parts = [];
@@ -1112,6 +1116,9 @@ $(document).on('appReady', function() {
             parts.push('STDERR');
             parts.push(data.stderr || '');
             setScriptOutput(parts.join('\n'));
+            if (typeof options.onSuccess === 'function') {
+                options.onSuccess(data);
+            }
         }, 'json').fail(function(xhr) {
             var msg = 'Script execution failed';
             var payload = (xhr && xhr.responseJSON) ? xhr.responseJSON : {};
@@ -1122,6 +1129,9 @@ $(document).on('appReady', function() {
                 payload.stderr || ''
             ];
             setScriptOutput(parts.join('\n').trim());
+            if (typeof options.onError === 'function') {
+                options.onError(xhr, payload);
+            }
         });
     }
 
@@ -1136,6 +1146,84 @@ $(document).on('appReady', function() {
             renderSyncStatus(data);
             renderScheduleStatus(data);
         });
+    }
+
+    function stopSyncPolling() {
+        if (syncPollTimer) {
+            window.clearTimeout(syncPollTimer);
+            syncPollTimer = null;
+        }
+    }
+
+    function pollSyncUntilSettled(options) {
+        options = options || {};
+        stopSyncPolling();
+
+        var startedAt = Date.now();
+        var initialLastSyncTime = String(options.initialLastSyncTime || '').trim();
+        var mode = String(options.mode || 'completion');
+
+        function tick() {
+            $.getJSON(appUrl + '/module/simplemdm/get_config', function(data) {
+                renderSyncStatus(data);
+                renderScheduleStatus(data);
+
+                var state = String(data.sync_request_state || 'idle');
+                var currentLastSyncTime = String(data.last_sync_time || '').trim();
+                var currentLastSyncStatus = String(data.last_sync_status || '').trim();
+                var elapsed = Date.now() - startedAt;
+
+                if (mode === 'queue') {
+                    if (state === 'queued') {
+                        setSyncMessage('Sync request queued. Waiting for cron/manual worker pickup...', 'text-info');
+                    } else if (state === 'running') {
+                        setSyncMessage('Queued sync was picked up and is now running.', 'text-info');
+                    } else if (currentLastSyncTime && currentLastSyncTime !== initialLastSyncTime) {
+                        setSyncMessage('Queued sync completed with status: ' + (currentLastSyncStatus || 'Unknown') + '.', currentLastSyncStatus.toLowerCase() === 'success' ? 'text-success' : 'text-danger');
+                        $('#simplemdm-sync-now').prop('disabled', false);
+                        stopSyncPolling();
+                        return;
+                    } else if (elapsed >= SYNC_POLL_TIMEOUT_MS) {
+                        setSyncMessage('Queued sync did not complete within 3 minutes. Check cron/manual runner status.', 'text-warning');
+                        $('#simplemdm-sync-now').prop('disabled', false);
+                        stopSyncPolling();
+                        return;
+                    }
+                } else {
+                    if (state === 'running') {
+                        setSyncMessage('Immediate sync is still running...', 'text-info');
+                    } else if (currentLastSyncTime && currentLastSyncTime !== initialLastSyncTime) {
+                        if (typeof options.onComplete === 'function') {
+                            options.onComplete(data);
+                        }
+                        stopSyncPolling();
+                        return;
+                    } else if (elapsed >= SYNC_POLL_TIMEOUT_MS) {
+                        if (typeof options.onTimeout === 'function') {
+                            options.onTimeout(data);
+                        }
+                        stopSyncPolling();
+                        return;
+                    }
+                }
+
+                syncPollTimer = window.setTimeout(tick, SYNC_POLL_INTERVAL_MS);
+            }).fail(function() {
+                if (Date.now() - startedAt >= SYNC_POLL_TIMEOUT_MS) {
+                    if (mode === 'queue') {
+                        setSyncMessage('Unable to confirm queued sync completion. Refresh the page or check sync status again.', 'text-warning');
+                        $('#simplemdm-sync-now').prop('disabled', false);
+                    } else if (typeof options.onTimeout === 'function') {
+                        options.onTimeout({});
+                    }
+                    stopSyncPolling();
+                    return;
+                }
+                syncPollTimer = window.setTimeout(tick, SYNC_POLL_INTERVAL_MS);
+            });
+        }
+
+        tick();
     }
 
     function saveScheduleSettings(extraPayload, successMessage, onSuccess) {
@@ -1164,6 +1252,7 @@ $(document).on('appReady', function() {
     }
 
     function runImmediateSyncFromSchedule($button) {
+        var previousLastSyncTime = String($('#sync-time').text() || '').trim();
         if (!validateActionRequirements(
             { apiKey: true, moduleExecution: true, runnerUrl: true, python: true, maxParentResources: true, modulePython: true },
             {
@@ -1191,11 +1280,58 @@ $(document).on('appReady', function() {
                 return;
             }
 
-            $('#script-runner-save-status').text('Starting immediate sync...').removeClass().addClass('text-info');
+            $('#script-runner-save-status').text('Running immediate sync inside the module...').removeClass().addClass('text-info');
             setSyncMessage('Running sync now inside the module.', 'text-info');
             setScriptOutput('Immediate sync requested.\n\nPrerequisites validated:\n- API key present\n- In-module execution enabled\n- Runner URL set\n- Python binary set\n\nStarting simplemdm_sync.py ...');
-            runScriptAction('sync_now');
-            $button.prop('disabled', false);
+            runScriptAction('sync_now', {
+                onSuccess: function(result) {
+                    loadConfig();
+                    loadRunnerStatus();
+
+                    var exitCode = parseInt(result && result.exit_code, 10);
+                    var completed = result && result.status === 'success' && !isNaN(exitCode) && exitCode === 0;
+
+                    if (completed) {
+                        $('#script-runner-save-status').text('Immediate sync finished. Confirming completion status...').removeClass().addClass('text-info');
+                        setSyncMessage('Immediate sync finished. Confirming completion status...', 'text-info');
+                        pollSyncUntilSettled({
+                            initialLastSyncTime: previousLastSyncTime,
+                            mode: 'completion',
+                            onComplete: function(data) {
+                                var latestLastSyncTime = String(data.last_sync_time || '').trim();
+                                var latestLastSyncStatus = String(data.last_sync_status || '').trim();
+                                var success = latestLastSyncStatus.toLowerCase() === 'success';
+                                $('#script-runner-save-status').text(success ? 'Immediate sync completed successfully.' : 'Immediate sync finished with status: ' + (latestLastSyncStatus || 'Unknown') + '.').removeClass().addClass(success ? 'text-success' : 'text-danger');
+                                if (latestLastSyncTime && latestLastSyncTime !== previousLastSyncTime) {
+                                    setSyncMessage((success ? 'Immediate sync completed successfully.' : 'Immediate sync completed with status: ' + (latestLastSyncStatus || 'Unknown') + '.') + ' Last Sync Time updated.', success ? 'text-success' : 'text-danger');
+                                } else {
+                                    setSyncMessage(success ? 'Immediate sync completed successfully.' : 'Immediate sync completed with status: ' + (latestLastSyncStatus || 'Unknown') + '.', success ? 'text-success' : 'text-danger');
+                                }
+                                $button.prop('disabled', false);
+                            },
+                            onTimeout: function() {
+                                $('#script-runner-save-status').text('Immediate sync finished, but the UI could not confirm completion within 3 minutes. Refresh to confirm status.').removeClass().addClass('text-warning');
+                                setSyncMessage('Immediate sync was triggered, but the UI could not confirm completion within 3 minutes. Refresh to confirm status.', 'text-warning');
+                                $button.prop('disabled', false);
+                            }
+                        });
+                    } else {
+                        $('#script-runner-save-status').text('Immediate sync finished with errors. Review script output below.').removeClass().addClass('text-danger');
+                        setSyncMessage('Immediate sync finished with errors. Review script output below.', 'text-danger');
+                        refreshSyncStatus();
+                        $button.prop('disabled', false);
+                    }
+                },
+                onError: function(xhr, payload) {
+                    var message = (payload && (payload.message || payload.error)) ? (payload.message || payload.error) : 'Immediate sync failed.';
+                    $('#script-runner-save-status').text('Error: ' + message).removeClass().addClass('text-danger');
+                    setSyncMessage('Immediate sync failed. Review script output below.', 'text-danger');
+                    refreshSyncStatus();
+                    loadConfig();
+                    loadRunnerStatus();
+                    $button.prop('disabled', false);
+                }
+            });
         }, 'json').fail(function(xhr) {
             var msg = 'Unable to save runner settings';
             if (xhr && xhr.responseJSON && (xhr.responseJSON.message || xhr.responseJSON.error)) {
@@ -1233,6 +1369,11 @@ $(document).on('appReady', function() {
         $.post(appUrl + '/module/simplemdm/request_sync', {}, function(data) {
             if (data.status === 'success') {
                 refreshSyncStatus();
+                setSyncMessage('Sync request queued. Waiting for cron/manual worker pickup...', 'text-info');
+                pollSyncUntilSettled({
+                    initialLastSyncTime: String($('#sync-time').text() || '').trim(),
+                    mode: 'queue'
+                });
             } else {
                 setSyncMessage('Error: ' + (data.message || 'Unknown'), 'text-danger');
                 $btn.prop('disabled', false);
@@ -1365,7 +1506,21 @@ $(document).on('appReady', function() {
         )) {
             return;
         }
-        runScriptAction(action);
+        runScriptAction(action, {
+            onSuccess: function(result) {
+                loadRunnerStatus();
+                refreshSyncStatus();
+                var exitCode = parseInt(result && result.exit_code, 10);
+                var ok = result && result.status === 'success' && !isNaN(exitCode) && exitCode === 0;
+                setActionNotice('#script-runner-save-status', ok ? 'Action `' + action + '` completed successfully.' : 'Action `' + action + '` finished with errors. Review script output below.', ok ? 'text-success' : 'text-danger');
+            },
+            onError: function(xhr, payload) {
+                var message = (payload && (payload.message || payload.error)) ? (payload.message || payload.error) : 'Action failed.';
+                setActionNotice('#script-runner-save-status', 'Error running `' + action + '`: ' + message, 'text-danger');
+                loadRunnerStatus();
+                refreshSyncStatus();
+            }
+        });
     });
 
     $('#script_runner_schedule_preset').on('change', function() {
@@ -1412,9 +1567,26 @@ $(document).on('appReady', function() {
         saveScheduleSettings({ enable_scheduled_sync: '1' }, 'Schedule enabled.', function() {
             if (canRunInModule) {
                 setScriptOutput('Installing cron for scheduled sync using the saved runner settings...');
-                runScriptAction('install_cron');
+                runScriptAction('install_cron', {
+                    onSuccess: function(result) {
+                        loadRunnerStatus();
+                        refreshSyncStatus();
+                        var exitCode = parseInt(result && result.exit_code, 10);
+                        var ok = result && result.status === 'success' && !isNaN(exitCode) && exitCode === 0;
+                        setActionNotice('#script-runner-save-status', ok ? 'Scheduled sync enabled and cron installed successfully.' : 'Scheduled sync was enabled, but cron installation reported errors. Review script output below.', ok ? 'text-success' : 'text-danger');
+                    },
+                    onError: function(xhr, payload) {
+                        var message = (payload && (payload.message || payload.error)) ? (payload.message || payload.error) : 'Cron install failed.';
+                        setActionNotice('#script-runner-save-status', 'Scheduled sync was enabled, but cron installation failed: ' + message, 'text-danger');
+                        loadRunnerStatus();
+                        refreshSyncStatus();
+                    }
+                });
             } else {
+                loadRunnerStatus();
+                refreshSyncStatus();
                 setScriptOutput('Schedule enabled in config. In-module execution is disabled, so cron was not installed automatically. Use the Manual Access section to run the install command outside the module.');
+                setActionNotice('#script-runner-save-status', 'Scheduled sync enabled in config. Manual cron install is still required outside the module.', 'text-warning');
             }
         });
     });
@@ -1428,9 +1600,26 @@ $(document).on('appReady', function() {
         saveScheduleSettings({ enable_scheduled_sync: '0' }, 'Schedule disabled.', function() {
             if (canRunInModule) {
                 setScriptOutput('Removing cron for scheduled sync...');
-                runScriptAction('remove_cron');
+                runScriptAction('remove_cron', {
+                    onSuccess: function(result) {
+                        loadRunnerStatus();
+                        refreshSyncStatus();
+                        var exitCode = parseInt(result && result.exit_code, 10);
+                        var ok = result && result.status === 'success' && !isNaN(exitCode) && exitCode === 0;
+                        setActionNotice('#script-runner-save-status', ok ? 'Scheduled sync disabled and cron removed successfully.' : 'Scheduled sync was disabled, but cron removal reported errors. Review script output below.', ok ? 'text-success' : 'text-danger');
+                    },
+                    onError: function(xhr, payload) {
+                        var message = (payload && (payload.message || payload.error)) ? (payload.message || payload.error) : 'Cron removal failed.';
+                        setActionNotice('#script-runner-save-status', 'Scheduled sync was disabled, but cron removal failed: ' + message, 'text-danger');
+                        loadRunnerStatus();
+                        refreshSyncStatus();
+                    }
+                });
             } else {
+                loadRunnerStatus();
+                refreshSyncStatus();
                 setScriptOutput('Schedule disabled in config. In-module execution is disabled, so cron was not removed automatically. Use the Manual Access section if you need to remove the host cron job manually.');
+                setActionNotice('#script-runner-save-status', 'Scheduled sync disabled in config. Remove the host cron job manually outside the module if needed.', 'text-warning');
             }
         });
     });

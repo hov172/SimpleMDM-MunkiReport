@@ -2,6 +2,10 @@
 
 This guide is for contributors who need to understand and modify the module safely.
 
+Optional future-extension note:
+
+- `CLIENT_REPORTER_ADDON.md` describes a proposal for a possible future client-side supplemental reporter for device-reality facts. It is not implemented and is not part of the current module behavior.
+
 ## Table of Contents
 
 - [1) Purpose and Use Cases](#1-purpose-and-use-cases)

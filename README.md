@@ -20,6 +20,7 @@ This module syncs devices and API resources from SimpleMDM server-side, stores t
 
 Developer docs:
 - See `docs/DEVELOPER_GUIDE.md` for architecture, code map, flow charts, and extension workflows.
+- Optional future proposal only: `docs/CLIENT_REPORTER_ADDON.md`
 - Security: `docs/SECURITY.md`
 - Upgrade runbook: `docs/UPGRADE.md`
 - API routes/auth reference: `docs/API_REFERENCE.md`
@@ -29,6 +30,7 @@ Developer docs:
 
 - [Key Points](#key-points)
 - [Developer Guide](docs/DEVELOPER_GUIDE.md)
+- [Client Reporter Add-On](docs/CLIENT_REPORTER_ADDON.md)
 - [Security Guide](docs/SECURITY.md)
 - [Upgrade Guide](docs/UPGRADE.md)
 - [API Reference](docs/API_REFERENCE.md)

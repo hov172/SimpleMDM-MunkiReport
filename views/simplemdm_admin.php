@@ -479,8 +479,9 @@ if (is_readable($provides_path)) {
                             <p class="help-block">The Python runner posts data back into this MunkiReport instance, so it needs the base URL when running inside the module or from cron.</p>
                         </div>
                         <div class="form-group">
-                            <label for="script_runner_python_bin">Python Binary</label>
+                            <label for="script_runner_python_bin">Configured Python Path</label>
                             <input type="text" class="form-control" id="script_runner_python_bin" name="script_runner_python_bin" placeholder="/usr/bin/python3">
+                            <p class="help-block">This path is used for the host/manual runner. In-module availability is verified separately below under `Module Python`.</p>
                         </div>
                         <div class="form-group">
                             <label for="script_runner_log_path">Cron Log Path</label>
@@ -499,17 +500,23 @@ if (is_readable($provides_path)) {
                         <div class="simplemdm-prereq-row" id="schedule-prereq-row">
                             <span class="simplemdm-prereq-badge" id="prereq-api-key">API Key</span>
                             <span class="simplemdm-prereq-badge" id="prereq-runner-url">Runner URL</span>
-                            <span class="simplemdm-prereq-badge" id="prereq-python">Python</span>
+                            <span class="simplemdm-prereq-badge" id="prereq-python">Python Path</span>
+                            <span class="simplemdm-prereq-badge" id="prereq-module-python">Module Python</span>
                             <span class="simplemdm-prereq-badge" id="prereq-schedule">Schedule</span>
                             <span class="simplemdm-prereq-badge" id="prereq-log-path">Log Path</span>
                             <span class="simplemdm-prereq-badge" id="prereq-module-exec">Module Execution</span>
                         </div>
+                        <p class="text-muted small" style="margin: 10px 0 12px;">`Python Path` is the configured path for host/manual sync. `Module Python` confirms whether Python is actually available inside the MunkiReport runtime for in-module sync.</p>
                         <div class="simplemdm-state-panel">
                             <p class="simplemdm-state-line"><span class="simplemdm-state-label">Immediate Run:</span> <span id="immediate-run-state">Checking...</span></p>
                             <p class="simplemdm-state-line"><span class="simplemdm-state-label">Scheduled Run:</span> <span id="scheduled-run-state">Checking...</span></p>
-                            <p class="simplemdm-state-line"><span class="simplemdm-state-label">Module Runtime:</span> <span id="module-runtime-state">Checking...</span></p>
+                            <p class="simplemdm-state-line"><span class="simplemdm-state-label">Module Runtime Python:</span> <span id="module-runtime-state">Checking...</span></p>
+                            <p class="simplemdm-state-line"><span class="simplemdm-state-label">Host/Manual Runner:</span> <span id="host-runner-state">Checking...</span></p>
                             <p class="simplemdm-state-line"><span class="simplemdm-state-label">Cron Management:</span> <span id="cron-management-state">Checking...</span></p>
                             <p class="simplemdm-state-line text-muted" id="cron-management-detail">Waiting for status...</p>
+                        </div>
+                        <div class="alert alert-info" id="module-runtime-guidance" style="margin-top:12px; margin-bottom:0;">
+                            Checking module guidance...
                         </div>
                         <div class="simplemdm-schedule-actions">
                             <button type="button" class="btn btn-primary" id="run-sync-now-btn">Run Sync Now</button>
@@ -549,6 +556,9 @@ if (is_readable($provides_path)) {
 <script>
 $(document).on('appReady', function() {
     var runnerStatusCache = null;
+    var runnerStatusRequest = null;
+    var runnerStatusRefreshTimer = null;
+    var RUNNER_STATUS_TIMEOUT_MS = 5000;
 
     function parseIsoDate(value) {
         var raw = String(value || '').trim();
@@ -779,14 +789,23 @@ $(document).on('appReady', function() {
         $el.text(label + ': ' + (ready ? 'Ready' : 'Missing'));
     }
 
+    function setGuidance(message, level) {
+        var $el = $('#module-runtime-guidance');
+        $el.removeClass('alert-info alert-warning alert-success');
+        $el.addClass(level || 'alert-info');
+        $el.text(message);
+    }
+
     function renderPrereqState() {
         var state = collectPrereqState();
         updatePrereqBadge('#prereq-api-key', state.apiKeyPresent, 'API Key');
         updatePrereqBadge('#prereq-runner-url', state.runnerUrlPresent, 'Runner URL');
-        updatePrereqBadge('#prereq-python', state.pythonPresent, 'Python');
+        updatePrereqBadge('#prereq-python', state.pythonPresent, 'Python Path');
+        updatePrereqBadge('#prereq-module-python', false, 'Module Python');
         updatePrereqBadge('#prereq-schedule', state.schedulePresent, 'Schedule');
         updatePrereqBadge('#prereq-log-path', state.logPathPresent, 'Log Path');
         updatePrereqBadge('#prereq-module-exec', state.moduleExecutionEnabled, 'Module Execution');
+        setGuidance('Reviewing runner settings, module runtime, and cron support...', 'alert-info');
     }
 
     function renderRunnerModeState(status) {
@@ -794,15 +813,26 @@ $(document).on('appReady', function() {
         var runtime = status && status.runtime ? status.runtime : null;
         var cronStatus = status && status.cron ? status.cron : null;
         var modulePythonAvailable = runtime ? !!runtime.python_available : false;
+        var configuredPythonPath = String((runtime && runtime.python_binary) || $('#script_runner_python_bin').val() || '/usr/bin/python3');
         var immediateReady = state.apiKeyPresent && state.moduleExecutionEnabled && state.runnerUrlPresent && state.pythonPresent && state.maxParentResourcesPresent && modulePythonAvailable;
         var scheduledReady = state.apiKeyPresent && state.runnerUrlPresent && state.pythonPresent && state.schedulePresent && state.logPathPresent && state.maxParentResourcesPresent;
 
-        $('#immediate-run-state').text(immediateReady ? 'Ready to run in module.' : 'Not ready for immediate in-module execution.');
+        updatePrereqBadge('#prereq-module-python', modulePythonAvailable, 'Module Python');
+
+        if (immediateReady) {
+            $('#immediate-run-state').text('Ready to run inside the module.');
+        } else if (!state.moduleExecutionEnabled) {
+            $('#immediate-run-state').text('Not ready. Enable module-side script execution first.');
+        } else if (!modulePythonAvailable) {
+            $('#immediate-run-state').text('Not ready. Module Python is missing at ' + configuredPythonPath + '. In Docker, add Python to the munkireport container or use host/manual sync.');
+        } else {
+            $('#immediate-run-state').text('Not ready for immediate in-module execution.');
+        }
 
         if (!scheduledReady) {
             $('#scheduled-run-state').text('Missing required settings for recurring scheduled sync.');
         } else if (state.moduleExecutionEnabled && !modulePythonAvailable) {
-            $('#scheduled-run-state').text('Recurring sync can be configured, but this module runtime cannot execute Python. Use host/manual cron.');
+            $('#scheduled-run-state').text('Recurring sync can be configured, but Module Python is missing at ' + configuredPythonPath + '. In Docker, install Python in the munkireport container; otherwise use host/manual cron.');
         } else if (cronStatus && cronStatus.installed) {
             $('#scheduled-run-state').text('Ready. Cron entry is installed.');
         } else if (state.moduleExecutionEnabled) {
@@ -812,9 +842,15 @@ $(document).on('appReady', function() {
         }
 
         if (runtime) {
-            $('#module-runtime-state').text(runtime.python_available ? 'Python available in module runtime.' : (runtime.message || 'Python unavailable in module runtime.'));
+            $('#module-runtime-state').text(runtime.python_available ? 'Verified: Module Python is available at ' + (runtime.python_path || configuredPythonPath) + '.' : ('Missing: Module Python at ' + configuredPythonPath + '. ' + (runtime.message || 'Add Python to the app container/server for in-module sync.')));
         } else {
-            $('#module-runtime-state').text('Checking module runtime...');
+            $('#module-runtime-state').text('Checking whether the module runtime can execute Python...');
+        }
+
+        if (!state.pythonPresent) {
+            $('#host-runner-state').text('Python path is not configured for host/manual sync.');
+        } else {
+            $('#host-runner-state').text('Configured to use ' + String($('#script_runner_python_bin').val() || '/usr/bin/python3') + ' for host/manual sync.');
         }
 
         if (!cronStatus) {
@@ -834,8 +870,35 @@ $(document).on('appReady', function() {
             $('#cron-management-detail').text(cronStatus.message || '');
         }
 
+        if (!state.moduleExecutionEnabled) {
+            setGuidance('To use immediate in-module sync, enable `Allow in-module script execution for global admins`, save the settings, and re-check `Module Python`. If you use Docker, see the module README for the recommended container update.', 'alert-info');
+        } else if (!modulePythonAvailable) {
+            setGuidance('Docker recommendation: add `python3` to the `munkireport` image, rebuild with `docker compose build`, then recreate with `docker compose up -d --force-recreate`. If you also want cron inspection or management inside the container, add the `cron` package too. Otherwise keep using host/manual sync. See the module README for the recommended Dockerfile example.', 'alert-warning');
+        } else if (cronStatus && cronStatus.available === false && cronStatus.message) {
+            setGuidance('Module Python is ready, but cron inspection or management is not. If you want the module to inspect or manage cron inside Docker, add the `cron` package to the `munkireport` image; otherwise manage cron on the host. See the module README for the recommended container changes.', 'alert-warning');
+        } else {
+            setGuidance('Module-side execution is available. You can run immediate sync here, and scheduled sync can be managed here when cron support is available.', 'alert-success');
+        }
+
         $('#run-sync-now-btn').prop('disabled', !immediateReady);
         $('#enable-schedule-btn').prop('disabled', !scheduledReady || (state.moduleExecutionEnabled && !modulePythonAvailable));
+    }
+
+    function renderRunnerStatusPending(reason) {
+        var state = collectPrereqState();
+        renderPrereqState();
+        $('#immediate-run-state').text(state.moduleExecutionEnabled ? 'Re-checking in-module readiness...' : 'Not ready. Enable module-side script execution first.');
+        $('#scheduled-run-state').text('Re-checking scheduled sync capability...');
+        $('#module-runtime-state').text(reason || 'Checking whether the module runtime can execute Python...');
+        if (!state.pythonPresent) {
+            $('#host-runner-state').text('Python path is not configured for host/manual sync.');
+        } else {
+            $('#host-runner-state').text('Configured to use ' + String($('#script_runner_python_bin').val() || '/usr/bin/python3') + ' for host/manual sync.');
+        }
+        updatePrereqBadge('#prereq-module-python', false, 'Module Python');
+        $('#cron-management-state').text('Checking...');
+        $('#cron-management-detail').text('Waiting for cron inspection.');
+        setGuidance(reason || 'Checking module runtime and cron support...', 'alert-info');
     }
 
     function validateActionRequirements(requirements, options) {
@@ -915,11 +978,29 @@ $(document).on('appReady', function() {
     }
 
     function loadRunnerStatus() {
-        $.getJSON(appUrl + '/module/simplemdm/get_runner_status', function(data) {
+        if (runnerStatusRequest && runnerStatusRequest.readyState !== 4) {
+            runnerStatusRequest.abort();
+        }
+
+        renderRunnerStatusPending();
+
+        runnerStatusRequest = $.ajax({
+            url: appUrl + '/module/simplemdm/get_runner_status',
+            dataType: 'json',
+            timeout: RUNNER_STATUS_TIMEOUT_MS
+        }).done(function(data) {
             runnerStatusCache = data || null;
             renderRunnerModeState(data || null);
-        }).fail(function(xhr) {
-            var message = 'Unable to inspect cron state from the module.';
+        }).fail(function(xhr, textStatus) {
+            var timedOut = textStatus === 'timeout';
+            var aborted = textStatus === 'abort';
+            if (aborted) {
+                return;
+            }
+
+            var message = timedOut
+                ? 'Timed out after ' + (RUNNER_STATUS_TIMEOUT_MS / 1000) + ' seconds while checking cron state from the module.'
+                : 'Unable to inspect cron state from the module.';
             if (xhr && xhr.responseJSON && (xhr.responseJSON.message || xhr.responseJSON.error)) {
                 message = xhr.responseJSON.message || xhr.responseJSON.error;
             }
@@ -931,7 +1012,10 @@ $(document).on('appReady', function() {
                 },
                 runtime: {
                     python_available: false,
-                    message: 'Unable to inspect module runtime.'
+                    python_binary: String($('#script_runner_python_bin').val() || '/usr/bin/python3'),
+                    message: timedOut
+                        ? 'Timed out after ' + (RUNNER_STATUS_TIMEOUT_MS / 1000) + ' seconds while checking the module runtime. If you are using Docker, verify the munkireport container is running and has Python installed.'
+                        : 'Unable to inspect the module runtime. If you are using Docker, verify the munkireport container is running and that Python is installed there.'
                 }
             };
             renderRunnerModeState(runnerStatusCache);
@@ -1202,7 +1286,11 @@ $(document).on('appReady', function() {
 
     $('#api_key, #script_runner_munkireport_url, #script_runner_python_bin, #script_runner_schedule, #script_runner_log_path, #script_runner_max_parent_resources, #allow_module_script_execution').on('input change', function() {
         renderPrereqState();
-        renderRunnerModeState(null);
+        renderRunnerStatusPending('Re-checking module runtime after unsaved changes...');
+        window.clearTimeout(runnerStatusRefreshTimer);
+        runnerStatusRefreshTimer = window.setTimeout(function() {
+            loadRunnerStatus();
+        }, 400);
     });
 
     $('#enable-schedule-btn').on('click', function() {

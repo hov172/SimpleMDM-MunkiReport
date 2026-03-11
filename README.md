@@ -156,6 +156,27 @@ For Docker deployments:
 - If the `munkireport` app container includes Python, in-module execution can work.
 - If the container does not include Python, the admin page will report that module-side execution is unavailable.
 - In that case, use the `Manual / Outside-Module Access` workflow from the host.
+- If you want the module to inspect or manage cron inside the container too, the runtime also needs the `cron` package (which provides the `crontab` command on Debian-based images).
+
+Recommended Docker image additions for in-module sync:
+
+```Dockerfile
+RUN apt-get update && \
+    apt-get install --no-install-recommends -y \
+    python3 \
+    cron && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+```
+
+After updating the image, rebuild and recreate the container:
+
+```bash
+docker compose build
+docker compose up -d --force-recreate
+```
+
+If you do not want to add `python3` and `cron` to the container, keep using the host/manual runner workflow instead.
 
 Recurring scheduled sync still depends on cron:
 

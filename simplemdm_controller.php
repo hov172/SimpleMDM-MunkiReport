@@ -420,7 +420,13 @@ class Simplemdm_controller extends Module_controller
 
         $inspect = $this->run_local_script_command('crontab -l', $this->scripts_dir());
         if ($inspect['exit_code'] !== 0 && strpos((string) $inspect['stderr'], 'no crontab for') === false) {
-            $result['message'] = 'Unable to inspect current crontab from the module.';
+            $stderr = trim((string) $inspect['stderr']);
+            if (stripos($stderr, 'crontab: not found') !== false) {
+                $result['message'] = 'The munkireport runtime does not include the crontab command, so the module cannot inspect or manage cron inside this container/server. Use host/manual cron or add crontab support to the runtime.';
+            } else {
+                $result['message'] = 'Unable to inspect current crontab from the module. The runtime may be missing crontab support or permission to read the active crontab.'
+                    . ($stderr !== '' ? ' Detail: ' . $stderr : '');
+            }
             return $result;
         }
 

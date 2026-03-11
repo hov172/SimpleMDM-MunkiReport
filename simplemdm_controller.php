@@ -681,6 +681,10 @@ class Simplemdm_controller extends Module_controller
     {
         $op = isset($_GET['op']) ? trim((string)$_GET['op']) : '';
         if ($op && in_array($op, $this->sync_actions, true)) {
+            if ($op === 'get_config') {
+                $this->get_config();
+                return;
+            }
             if ($op === 'ingest') {
                 $this->ingest();
                 return;

@@ -160,7 +160,7 @@ def get_config():
             # Fetch saved non-secret runner settings. If --api-key is provided,
             # pass it as the sync token so host/manual runs do not depend on an
             # authenticated browser session.
-            config_url = f"{args.munkireport_url.rstrip('/')}/module/simplemdm/get_config"
+            config_url = f"{args.munkireport_url.rstrip('/')}/module/simplemdm/index?op=get_config"
             req = urllib.request.Request(config_url)
             if args.munkireport_token:
                 req.add_header('X-API-Token', args.munkireport_token)

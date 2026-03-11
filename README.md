@@ -952,6 +952,7 @@ Sync mode decisions:
 - If admin toggle `sync_delta_enabled=1`, script uses delta mode for scheduled/default runs.
 - Manual `--sync-commands` enables commands even if admin toggle is off.
 - If admin toggle `sync_commands_enabled=1`, script includes commands for scheduled/default runs.
+- Command sync uses the tenant-wide `/commands` collection when that endpoint is available. If SimpleMDM does not expose `/commands` for your tenant/API version, the module skips command sync cleanly instead of probing per-device command routes.
 - Manual `--sync-device-subresources` enables per-device subresource sync even if admin toggle is off.
 - If admin toggle `sync_device_subresources_enabled=1`, script includes per-device subresources for scheduled/default runs.
 - If `device_subresource_limit` is set in admin config, script applies it unless CLI overrides it.

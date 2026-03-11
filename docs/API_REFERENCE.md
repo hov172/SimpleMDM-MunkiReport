@@ -21,6 +21,7 @@ Workflow note:
 - `install_cron.sh` and `remove_cron.sh` are helpers for managing that cron entry
 - when module-side execution is enabled, the admin UI can call those helpers for global admins
 - `Runner MunkiReport URL` prefers configured app URL (`WEBHOST` / `SUBDIRECTORY`) and falls back to the current browser URL for local/placeholder setups
+- Command sync uses the tenant-wide `/commands` collection only. If `/commands` is unavailable for the tenant/API version, the worker skips command sync instead of probing per-device command routes.
 
 | Route Group | Auth |
 |---|---|

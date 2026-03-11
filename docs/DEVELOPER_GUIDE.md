@@ -219,6 +219,7 @@ Primary file: `scripts/simplemdm_sync.py`
   - `--delta`
   - `--sync-commands`
   - `--sync-device-subresources`
+- Command sync uses the tenant-wide `/commands` collection only. If that endpoint is unavailable in the tenant/API version, the worker skips command sync instead of falling back to per-device command probes.
 
 ### Processor
 

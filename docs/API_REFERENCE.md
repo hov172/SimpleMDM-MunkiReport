@@ -2,6 +2,9 @@
 
 This reference documents module routes, expected auth, and common usage patterns.
 
+For step-by-step client deployment examples, see:
+- `docs/CLIENT_REPORTER_DEPLOYMENT.md`
+
 Base path examples use MunkiReport's default front-controller format:
 - `/index.php?/module/simplemdm/...`
 
@@ -14,7 +17,7 @@ Use whichever form matches your configured MunkiReport `index_page`.
 
 Workflow note:
 - `simplemdm_sync.py` is the sync worker.
-- `Sync Status -> Queue Sync Request` is a queue-based trigger path.
+- `Sync Status -> Queue Next Worker Run` is a queue-based trigger path.
 - `In-Module Sync And Schedule -> Run Sync Now` is an immediate execution path when module-side execution is available.
 - `simplemdm_sync_run` is the source of truth for queued, running, and completed run history.
 - `clear_sync_runs` clears run history only when no sync is queued or running.
@@ -31,6 +34,7 @@ Workflow note:
 | Config read (`get_config`) | Global admin session OR sync token header (non-global/sync-auth responses get masked secret flags) |
 | Config write (`save_config`) | Global admin session OR sync token header |
 | Admin sync queue (`request_sync`) | Global admin session |
+| Client reporter ingest (`op=ingest_client_facts`) | Client reporter secret header |
 | Ingest routes (`op=ingest*`, `op=update_sync_status`, `op=begin_sync_run`) | Sync token header |
 | Webhook (`op=webhook`) | Webhook secret header OR sync token header |
 | Device passthrough (`api_devices`) | Global admin session; mutating methods also require action secret |
@@ -39,6 +43,12 @@ Headers used by module:
 - Sync token: `X-SIMPLEMDM-API-KEY`
 - Webhook secret: `X-SIMPLEMDM-WEBHOOK-SECRET` (also accepts `X-WEBHOOK-SECRET`)
 - Action secret (preferred): `X-SIMPLEMDM-ACTION-SECRET`
+- Client reporter secret: `X-SIMPLEMDM-CLIENT-SECRET`
+- Optional client reporter hardening:
+  - `X-SIMPLEMDM-CLIENT-TIMESTAMP`
+  - `X-SIMPLEMDM-CLIENT-NONCE`
+  - `X-SIMPLEMDM-CLIENT-SIGNATURE`
+  - `X-SIMPLEMDM-CLIENT-TOKEN`
 
 ## 2) Ingest and Sync Status Endpoints
 
@@ -51,6 +61,7 @@ All are called via:
 | `ingest` | POST | Upsert device rows into `simplemdm` via processor | Sync token |
 | `ingest_resources` | POST | Upsert non-device resources into `simplemdm_resource` | Sync token |
 | `ingest_commands` | POST | Upsert command status rows into `simplemdm_command` | Sync token |
+| `ingest_client_facts` | POST | Upsert allowlisted client-reported facts into `simplemdm_client_fact` | Client reporter secret |
 | `update_sync_status` | POST | Update sync status and telemetry fields in `simplemdm_config` | Sync token |
 | `webhook` | POST | Store webhook event; best-effort device/command updates | Webhook secret OR sync token |
 
@@ -62,8 +73,10 @@ All are called via:
 | `/module/simplemdm/index?op=get_config` | GET | Worker-friendly config bootstrap route | Global admin session OR sync token header |
 | `/module/simplemdm/get_script_catalog` | GET | Read downloadable script metadata and external command templates | Global admin |
 | `/module/simplemdm/get_runner_status` | GET | Read module runtime, cron, and runner readiness state | Global admin |
+| `/module/simplemdm/get_supplemental_status` | GET | Read supplemental detection, freshness, and summary health | Global admin |
 | `/module/simplemdm/save_config` | POST | Save module settings | Global admin OR sync token |
 | `/module/simplemdm/request_sync` | POST | Queue a sync run from the admin UI | Global admin |
+| `/module/simplemdm/refresh_supplemental_summary` | POST | Rebuild supplemental summary rows | Global admin |
 | `/module/simplemdm/run_script` | POST | Execute an approved module-side script action | Global admin and script runner enabled |
 | `/module/simplemdm/download_script/{name}` | GET | Download an individual module script | Global admin |
 | `/module/simplemdm/download_module` | GET | Download the module as a zip archive | Global admin |
@@ -83,17 +96,135 @@ All are called via:
 - `script_runner_schedule`
 - `script_runner_log_path`
 - `script_runner_max_parent_resources`
+- `supplemental_enabled`
+- `supplemental_disabled_sources_json`
+- `supplemental_default_stale_after_minutes`
+- `supplemental_registry_json`
+- `client_reporter_enabled`
+- `client_reporter_secret`
+- `client_reporter_history_enabled`
+- `client_reporter_max_payload_bytes`
+- `client_reporter_allowed_fact_keys_json`
 - sync queue keys (`sync_request_state`, `sync_requested_at`, `sync_started_at`, `sync_request_source`)
 - telemetry/status keys (`last_sync_status`, `last_sync_time`, `last_sync_cursor`, etc.)
 - widget visibility config keys discovered from `provides.yml`
 
 `get_config` returns full secret values only to global admins. Sync-token-auth callers receive masked secret behavior (`api_key_set`, `webhook_secret_set`, `action_api_secret_set`) plus the non-secret runner/schedule settings needed by the worker.
 
+`get_supplemental_status` returns the current supplemental operating picture, including:
+- `enabled`
+- `client_reporter_enabled`
+- `disabled_source_ids`
+- `detected_sources`
+- `summary_row_count`
+- `freshness_counts`
+- `source_health`
+
 `request_sync` only queues the request. A host-side or manual `simplemdm_sync.py` run still claims and executes the sync.
 
 `begin_sync_run` is a worker-only claim endpoint used by the sync script. It is not meant to be called from the browser UI.
 
 `run_script` is used by the schedule panel for immediate module-side execution and module-managed cron helper actions.
+
+`ingest_client_facts` accepts a narrow allowlisted payload shape:
+
+This endpoint stores client-reported facts in the MunkiReport SimpleMDM module. It does not send data into the external SimpleMDM service.
+
+Use this endpoint when the data source is the endpoint itself, not the SimpleMDM API and not another loaded MunkiReport module. If another module already owns the data in its own table, prefer Option A supplemental enrichment instead of posting the same fact again through Option B.
+
+Option A and Option B can run at the same time. They are additive:
+
+- core sync supplies the module's native SimpleMDM data
+- Option A supplies read-only enrichment from other loaded MunkiReport modules
+- Option B supplies narrow client-reported facts stored in this module
+
+Recommended conflict rule:
+
+- do not use Option B to duplicate facts already owned by another loaded module unless you are intentionally comparing device-local reality against another source for drift detection
+
+```json
+{
+  "serial_number": "C02XXXXXXX",
+  "reported_at": "2026-03-11T15:20:00Z",
+  "client_version": "1.0.0",
+  "source": "client_reporter",
+  "facts": {
+    "mdm_profile_present": true,
+    "console_user": "jdoe",
+    "uptime_seconds": 86400,
+    "munki_last_run_result": "success",
+    "local_filevault_enabled": true
+  }
+}
+```
+
+Rules:
+- unknown fact keys are rejected
+- payloads larger than `client_reporter_max_payload_bytes` are rejected
+- current values upsert into `simplemdm_client_fact`
+- history rows append into `simplemdm_client_fact_history` when enabled
+- optional hardening can require:
+  - HMAC over `timestamp + "\n" + nonce + "\n" + raw_body`
+  - per-device token matched to the submitted serial
+  - trusted-proxy enforcement
+  - IP allowlist match on resolved client IP
+
+Typical Mac-side collection patterns:
+
+- LaunchDaemon that runs a small shell or Python reporter every 15 to 60 minutes
+- Munki postflight or preflight hook
+- another local management workflow that already has access to the device serial and the local fact being reported
+
+Included example clients:
+
+- `scripts/simplemdm_client_reporter_example.sh`
+- `scripts/simplemdm_client_reporter_hardened.py`
+- `scripts/com.googlecode.munkireport-simplemdm-client-reporter.plist.example`
+- `scripts/postflight_simplemdm_client_reporter_example.sh`
+
+Minimal payload contract from a Mac:
+
+1. collect the Mac serial number locally
+2. collect only allowlisted facts
+3. post JSON to `index?op=ingest_client_facts`
+4. include `X-SIMPLEMDM-CLIENT-SECRET`
+5. if enabled in admin, also include:
+   - `X-SIMPLEMDM-CLIENT-TIMESTAMP`
+   - `X-SIMPLEMDM-CLIENT-NONCE`
+   - `X-SIMPLEMDM-CLIENT-SIGNATURE`
+   - `X-SIMPLEMDM-CLIENT-TOKEN`
+
+Example:
+
+```bash
+SERIAL="$(system_profiler SPHardwareDataType | awk -F': ' '/Serial Number/ {print $2; exit}')"
+CONSOLE_USER="$(stat -f %Su /dev/console)"
+UPTIME_SECONDS="$(python3 -c 'import subprocess,time; out=subprocess.check_output([\"sysctl\",\"-n\",\"kern.boottime\"], text=True); sec=int(out.split(\"sec = \")[1].split(\",\")[0]); print(int(time.time())-sec)')"
+
+curl -X POST "https://YOUR_MUNKIREPORT/index.php?/module/simplemdm/index?op=ingest_client_facts" \
+  -H "Content-Type: application/json" \
+  -H "X-SIMPLEMDM-CLIENT-SECRET: YOUR_CLIENT_SECRET" \
+  -d "{
+    \"serial_number\": \"${SERIAL}\",
+    \"source\": \"client_reporter\",
+    \"facts\": {
+      \"console_user\": \"${CONSOLE_USER}\",
+      \"uptime_seconds\": ${UPTIME_SECONDS}
+    }
+  }"
+```
+
+Use Option B for:
+
+- device-local truth
+- custom lightweight checks
+- facts no other module already owns
+
+Do not use Option B for:
+
+- large inventories already handled by another module
+- authoritative SimpleMDM API fields
+- duplicating Option A facts without an explicit drift-detection reason
 
 UI note:
 - `Schedule Config` is derived from `enable_scheduled_sync`
@@ -109,6 +240,7 @@ It now enforces the saved runner prerequisites server-side as well, so `sync_now
 | `/module/simplemdm/resources` | GET | Resource listing page entry point |
 | `/module/simplemdm/get_resources_data` | GET | Resource listing data feed |
 | `/module/simplemdm/get_simplemdm_data/{serial}` | GET | Device row detail data |
+| `/module/simplemdm/get_supplemental_data/{serial}` | GET | Per-device supplemental source detail and freshness |
 | `/module/simplemdm/get_device_resources/{serial}` | GET | Connected/derived resource mapping for device |
 | `/module/simplemdm/get_device_subresources/{serial}` | GET | Synced per-device subresource tables |
 
@@ -128,6 +260,8 @@ It now enforces the saved runner prerequisites server-side as well, so `sync_now
 | `/module/simplemdm/get_sync_telemetry` | GET | Last sync telemetry |
 | `/module/simplemdm/get_dashboard_trend` | GET | Snapshot trend data |
 | `/module/simplemdm/get_os_security_stats` | GET | OS/security aggregate stats |
+| `/module/simplemdm/get_supplemental_overview_stats` | GET | Summary-backed supplemental fleet overview |
+| `/module/simplemdm/get_supplemental_applecare_stats` | GET | Summary-backed AppleCare lifecycle bands |
 
 ## 6) UI Page Routes
 

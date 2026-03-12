@@ -1,10 +1,29 @@
 # Supplemental Data Implementation Plan
 
-This document is a future implementation plan for extending the `simplemdm` module with supplemental device data.
+This document is now a historical design and implementation-planning reference.
 
-It is a design and planning document only.
+Large parts of Option A and Option B described here have since been implemented in the current module.
 
-It is not implemented in the current module.
+Use this document for rationale, tradeoffs, and original design intent.
+
+For current behavior, routes, admin settings, and supported data paths, use:
+
+- `README.md`
+- `docs/API_REFERENCE.md`
+- `docs/TESTING.md`
+- `docs/DEVELOPER_GUIDE.md`
+
+Implemented current-state highlights:
+
+- core SimpleMDM sync remains the primary source of native device/resource data
+- Option A is implemented with live device lookups plus `simplemdm_supplemental_summary`
+- Option A now includes built-in sources and generic auto-discovery of other loaded MunkiReport modules when a usable table and join key are found
+- Option B is implemented as `ingest_client_facts` with allowlisted fact storage in `simplemdm_client_fact` and optional history in `simplemdm_client_fact_history`
+- the admin page now exposes:
+  - source detection and health
+  - per-source opt-out controls
+  - Option A / Option B settings
+  - summary refresh and runtime guidance
 
 ## 1) Purpose
 

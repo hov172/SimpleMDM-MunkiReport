@@ -38,6 +38,8 @@ if (is_readable($provides_path)) {
     border-radius: 14px;
     overflow: hidden;
     box-shadow: 0 12px 32px rgba(16, 24, 40, 0.08);
+    height: auto;
+    align-self: start;
 }
 .simplemdm-admin-wrap .panel-title {
     text-transform: none;
@@ -69,7 +71,7 @@ if (is_readable($provides_path)) {
 }
 .simplemdm-admin-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 18px;
     align-items: start;
 }
@@ -79,6 +81,11 @@ if (is_readable($provides_path)) {
 .simplemdm-admin-stack {
     display: grid;
     gap: 18px;
+    align-content: start;
+}
+.simplemdm-admin-stack > .simplemdm-modern-widget {
+    min-width: 0;
+    margin-bottom: 0;
 }
 .simplemdm-admin-hero {
     display: flex;
@@ -303,6 +310,89 @@ if (is_readable($provides_path)) {
     word-break: break-word;
     overflow-wrap: anywhere;
 }
+.simplemdm-admin-collapsible .panel-heading {
+    cursor: pointer;
+}
+.simplemdm-admin-heading-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+.simplemdm-admin-heading-main {
+    min-width: 0;
+}
+.simplemdm-admin-heading-summary {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--simplemdm-muted);
+    font-weight: 600;
+    line-height: 1.4;
+}
+.simplemdm-admin-heading-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--simplemdm-border);
+    border-radius: 999px;
+    background: var(--simplemdm-card-bg);
+    color: var(--simplemdm-ink);
+    font-size: 11px;
+    font-weight: 800;
+    padding: 4px 10px;
+    white-space: nowrap;
+}
+.simplemdm-source-toggle-grid {
+    display: grid;
+    gap: 10px;
+    margin: 12px 0 14px;
+}
+.simplemdm-source-toggle-row {
+    border: 1px solid var(--simplemdm-border);
+    border-radius: 12px;
+    background: var(--simplemdm-surface);
+    padding: 12px 14px;
+}
+.simplemdm-source-toggle-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+}
+.simplemdm-source-toggle-title {
+    font-weight: 800;
+    color: var(--simplemdm-ink);
+}
+.simplemdm-source-toggle-meta {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--simplemdm-muted);
+    line-height: 1.45;
+}
+.simplemdm-admin-subsection {
+    margin: 16px 0 18px;
+    padding: 14px;
+    border: 1px solid var(--simplemdm-border);
+    border-radius: 12px;
+    background: var(--simplemdm-surface);
+}
+.simplemdm-admin-subsection:first-child {
+    margin-top: 0;
+}
+.simplemdm-admin-subsection-title {
+    margin: 0 0 6px;
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--simplemdm-ink);
+}
+.simplemdm-admin-subsection-copy {
+    margin: 0 0 12px;
+    color: var(--simplemdm-muted);
+    line-height: 1.45;
+}
+.simplemdm-admin-subsection-copy:last-child {
+    margin-bottom: 0;
+}
 #script-runner-output {
     width: 100%;
     min-height: 220px;
@@ -325,7 +415,7 @@ if (is_readable($provides_path)) {
     <div class="simplemdm-admin-hero">
         <div class="simplemdm-admin-hero-copy">
             <h1><i class="fa fa-cog"></i> SimpleMDM Settings</h1>
-            <p class="lead">Configure your SimpleMDM API connection and monitor sync health.</p>
+            <p class="lead">Configure core SimpleMDM sync, supplemental module enrichment, and client-reported data for this MunkiReport module.</p>
         </div>
         <div class="simplemdm-kpi-strip">
             <div class="simplemdm-kpi">
@@ -344,13 +434,20 @@ if (is_readable($provides_path)) {
     </div>
 
     <div class="simplemdm-admin-grid">
-        <div class="simplemdm-admin-column">
-            <div class="simplemdm-admin-stack">
-            <div class="panel panel-default simplemdm-modern-widget">
-                <div class="panel-heading">
-                    <h3 class="panel-title"><i class="fa fa-key"></i> API Configuration</h3>
+            <div class="simplemdm-admin-column">
+                <div class="simplemdm-admin-stack">
+            <div class="panel panel-default simplemdm-modern-widget simplemdm-admin-collapsible" data-collapsible="api" data-default-open="0">
+                <div class="panel-heading" data-collapsible-toggle="api">
+                    <div class="simplemdm-admin-heading-wrap">
+                        <div class="simplemdm-admin-heading-main">
+                            <h3 class="panel-title"><i class="fa fa-key"></i> API Configuration</h3>
+                            <div class="simplemdm-admin-heading-summary" id="summary-api">API key configured state</div>
+                        </div>
+                        <span class="simplemdm-admin-heading-toggle" id="toggle-api">Expand</span>
+                    </div>
                 </div>
-                <div class="panel-body">
+                <div class="panel-body" data-collapsible-body="api" style="display:none;">
+                    <p class="text-muted">Use this card to store the SimpleMDM API key this module uses for sync, reporting, and any module-managed runner actions.</p>
                     <form id="simplemdm-config-form">
                         <div class="form-group">
                             <label for="api_key">SimpleMDM API Key</label>
@@ -363,11 +460,289 @@ if (is_readable($provides_path)) {
                 </div>
             </div>
 
-            <div class="panel panel-default simplemdm-modern-widget">
-                <div class="panel-heading">
-                    <h3 class="panel-title"><i class="fa fa-refresh"></i> Sync Status</h3>
+            <div class="panel panel-default simplemdm-modern-widget simplemdm-admin-collapsible" data-collapsible="widgets" data-default-open="0">
+                <div class="panel-heading" data-collapsible-toggle="widgets">
+                    <div class="simplemdm-admin-heading-wrap">
+                        <div class="simplemdm-admin-heading-main">
+                            <h3 class="panel-title"><i class="fa fa-th-large"></i> Widget Visibility</h3>
+                            <div class="simplemdm-admin-heading-summary" id="summary-widgets">Enabled widget count</div>
+                        </div>
+                        <span class="simplemdm-admin-heading-toggle" id="toggle-widgets">Expand</span>
+                    </div>
                 </div>
-                <div class="panel-body">
+                <div class="panel-body" data-collapsible-body="widgets" style="display:none;">
+                    <p class="text-muted">Choose which SimpleMDM report widgets appear on the report page. This does not affect data collection or device detail pages.</p>
+                    <form id="simplemdm-widget-form">
+                        <?php foreach ($simplemdm_widgets as $widget): ?>
+                            <?php $key = 'widget_' . $widget['id']; ?>
+                            <input type="hidden" name="<?= htmlspecialchars($key, ENT_QUOTES, 'UTF-8') ?>" value="0">
+                            <div class="checkbox">
+                                <label>
+                                    <input
+                                        type="checkbox"
+                                        class="simplemdm-widget-toggle"
+                                        id="<?= htmlspecialchars($key, ENT_QUOTES, 'UTF-8') ?>"
+                                        data-widget-key="<?= htmlspecialchars($key, ENT_QUOTES, 'UTF-8') ?>"
+                                        value="1"
+                                    >
+                                    <?= htmlspecialchars($widget['label'], ENT_QUOTES, 'UTF-8') ?>
+                                </label>
+                            </div>
+                        <?php endforeach; ?>
+
+                        <button type="submit" class="btn btn-primary">Save Widget Settings</button>
+                        <span id="widget-save-status" style="margin-left: 10px;"></span>
+                        <p class="text-muted small" style="margin-top:10px;">Applies to the SimpleMDM report page widgets.</p>
+                    </form>
+                </div>
+            </div>
+
+            <div class="panel panel-default simplemdm-modern-widget simplemdm-admin-collapsible" data-collapsible="supplemental" data-default-open="1">
+                <div class="panel-heading" data-collapsible-toggle="supplemental">
+                    <div class="simplemdm-admin-heading-wrap">
+                        <div class="simplemdm-admin-heading-main">
+                            <h3 class="panel-title"><i class="fa fa-plus-square"></i> Supplemental Data</h3>
+                            <div class="simplemdm-admin-heading-summary" id="summary-supplemental">Detection, freshness, and client fact health</div>
+                        </div>
+                        <span class="simplemdm-admin-heading-toggle" id="toggle-supplemental">Collapse</span>
+                    </div>
+                </div>
+                <div class="panel-body" data-collapsible-body="supplemental">
+                    <p class="text-muted">This card covers the two supplemental paths layered on top of core SimpleMDM sync: Option A reads data from other loaded MunkiReport modules, and Option B adds client-reported facts stored by this module.</p>
+                    <div class="simplemdm-admin-subsection">
+                        <h4 class="simplemdm-admin-subsection-title">Summary Health</h4>
+                        <p class="simplemdm-admin-subsection-copy">These values show whether supplemental enrichment is enabled, how fresh the cached summary is, and whether refreshes are succeeding.</p>
+                        <table class="table table-striped">
+                            <tr>
+                                <th>Supplemental Enabled</th>
+                                <td id="supplemental-enabled-state">-</td>
+                            </tr>
+                            <tr>
+                                <th>Stale Threshold</th>
+                                <td id="supplemental-stale-threshold">-</td>
+                            </tr>
+                            <tr>
+                                <th>Summary Rows</th>
+                                <td id="supplemental-summary-count">-</td>
+                            </tr>
+                            <tr>
+                                <th>Last Summary Refresh</th>
+                                <td id="supplemental-last-refresh">-</td>
+                            </tr>
+                            <tr>
+                                <th>Last Summary Status</th>
+                                <td id="supplemental-last-status">-</td>
+                            </tr>
+                            <tr>
+                                <th>Fresh / Stale / Failed</th>
+                                <td id="supplemental-freshness-summary">-</td>
+                            </tr>
+                            <tr>
+                                <th>Client Facts / History</th>
+                                <td id="client-reporter-counts">-</td>
+                            </tr>
+                        </table>
+                        <div class="simplemdm-actions-row" style="margin-bottom:0;">
+                            <button type="button" class="btn btn-default" id="refresh-supplemental-btn">Refresh Supplemental Summary</button>
+                            <span id="supplemental-refresh-status" class="text-muted"></span>
+                        </div>
+                    </div>
+                    <div class="simplemdm-admin-subsection">
+                        <h4 class="simplemdm-admin-subsection-title">Detected Sources</h4>
+                        <p class="simplemdm-admin-subsection-copy">Each source below shows whether SimpleMDM can use that module’s data, whether it was built-in or auto-discovered, and whether it is currently enabled for enrichment.</p>
+                        <div id="supplemental-detected-sources" class="simplemdm-runs-list">
+                            <div class="simplemdm-runs-empty">Loading supplemental detection...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel panel-default simplemdm-modern-widget simplemdm-admin-collapsible" data-collapsible="enrichment" data-default-open="0">
+                <div class="panel-heading" data-collapsible-toggle="enrichment">
+                    <div class="simplemdm-admin-heading-wrap">
+                        <div class="simplemdm-admin-heading-main">
+                            <h3 class="panel-title"><i class="fa fa-puzzle-piece"></i> Supplemental And Client Reporter Settings</h3>
+                            <div class="simplemdm-admin-heading-summary" id="summary-enrichment">Enrichment toggles, source selection, registry overrides, and client reporter controls</div>
+                        </div>
+                        <span class="simplemdm-admin-heading-toggle" id="toggle-enrichment">Expand</span>
+                    </div>
+                </div>
+                <div class="panel-body" data-collapsible-body="enrichment" style="display:none;">
+                    <p class="text-muted">Core SimpleMDM sync brings in primary device data from the external SimpleMDM service. Use this card only for the two optional supplemental paths: Option A for other MunkiReport modules, and Option B for client-reported facts sent directly into this module.</p>
+                    <form id="simplemdm-enrichment-form">
+                        <div class="simplemdm-admin-subsection">
+                            <h4 class="simplemdm-admin-subsection-title">Supplemental Module Enrichment</h4>
+                            <p class="simplemdm-admin-subsection-copy"><strong>Option A</strong>: use detected tables from other loaded MunkiReport modules to enrich this module's SimpleMDM device data, listings, and summary views.</p>
+                            <div class="checkbox">
+                                <label>
+                                    <input type="checkbox" id="supplemental_enabled" name="supplemental_enabled" value="1">
+                                    Enable supplemental module data enrichment
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label for="supplemental_default_stale_after_minutes">Supplemental stale threshold (minutes)</label>
+                                <input type="number" min="1" step="1" class="form-control" id="supplemental_default_stale_after_minutes" name="supplemental_default_stale_after_minutes" placeholder="1440">
+                                <p class="help-block">Used for supplemental freshness badges when source modules do not expose their own last-updated timestamp.</p>
+                            </div>
+                            <div class="form-group">
+                                <label>Detected Supplemental Sources</label>
+                                <p class="help-block">Supported sources are auto-detected by schema presence and, for generic modules, inferred table usage. Uncheck any detected source to exclude it from supplemental enrichment and cached summary generation.</p>
+                                <div id="supplemental-source-toggle-list" class="simplemdm-source-toggle-grid">
+                                    <div class="simplemdm-runs-empty">Loading detected sources...</div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="supplemental_registry_json">Supplemental source registry overrides (JSON)</label>
+                                <textarea class="form-control" id="supplemental_registry_json" name="supplemental_registry_json" rows="8" placeholder='{"warranty":{"label":"AppleCare"},"speedtest":{"table":"speedtest","join_key":"serial_number","required_columns":["serial_number"]}}'></textarea>
+                                <p class="help-block">Optional JSON object keyed by source id. Use this to add or override supported source definitions without editing PHP.</p>
+                            </div>
+                        </div>
+                        <div class="simplemdm-admin-subsection">
+                            <h4 class="simplemdm-admin-subsection-title">Client Reporter Ingestion</h4>
+                            <p class="simplemdm-admin-subsection-copy"><strong>Option B</strong>: accept client-reported facts posted directly into this SimpleMDM module and include them in supplemental device data.</p>
+                            <div class="checkbox">
+                                <label>
+                                    <input type="checkbox" id="client_reporter_enabled" name="client_reporter_enabled" value="1">
+                                    Enable client reporter ingestion
+                                </label>
+                            </div>
+                            <div class="checkbox">
+                                <label>
+                                    <input type="checkbox" id="client_reporter_history_enabled" name="client_reporter_history_enabled" value="1">
+                                    Store client reporter history records
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label for="client_reporter_secret">Client Reporter Secret</label>
+                                <input type="password" class="form-control" id="client_reporter_secret" name="client_reporter_secret" placeholder="Required for ingest_client_facts">
+                                <p class="help-block">Accepted via `X-SIMPLEMDM-CLIENT-SECRET` when posting client facts into this MunkiReport module at `index?op=ingest_client_facts`.</p>
+                            </div>
+                            <div class="form-group">
+                                <label for="client_reporter_max_payload_bytes">Client Reporter Max Payload Bytes</label>
+                                <input type="number" min="1024" step="1" class="form-control" id="client_reporter_max_payload_bytes" name="client_reporter_max_payload_bytes" placeholder="16384">
+                            </div>
+                            <div class="form-group">
+                                <label for="client_reporter_allowed_fact_keys_json">Client Reporter Allowlist (JSON array)</label>
+                                <textarea class="form-control" id="client_reporter_allowed_fact_keys_json" name="client_reporter_allowed_fact_keys_json" rows="5" placeholder='["mdm_profile_present","console_user","uptime_seconds","munki_last_run_result","local_filevault_enabled"]'></textarea>
+                                <p class="help-block">Keep this narrow. Unknown keys are rejected by the ingest endpoint.</p>
+                            </div>
+                            <div class="simplemdm-admin-subsection" style="margin-top:18px;">
+                                <h5 class="simplemdm-admin-subsection-title" style="font-size:15px;">Optional Client Security Hardening</h5>
+                                <p class="simplemdm-admin-subsection-copy">These options are additive. Leave them off to keep the original shared-secret flow. Enable them only after updating the client-side reporter to send the extra headers or route through a trusted proxy.</p>
+                                <div class="checkbox">
+                                    <label>
+                                        <input type="checkbox" id="client_reporter_hmac_enabled" name="client_reporter_hmac_enabled" value="1">
+                                        Require HMAC-signed requests
+                                    </label>
+                                </div>
+                                <div class="checkbox">
+                                    <label>
+                                        <input type="checkbox" id="client_reporter_replay_protection_enabled" name="client_reporter_replay_protection_enabled" value="1">
+                                        Require timestamp + nonce replay protection
+                                    </label>
+                                </div>
+                                <div class="checkbox">
+                                    <label>
+                                        <input type="checkbox" id="client_reporter_per_device_tokens_enabled" name="client_reporter_per_device_tokens_enabled" value="1">
+                                        Require per-device client tokens
+                                    </label>
+                                </div>
+                                <div class="checkbox">
+                                    <label>
+                                        <input type="checkbox" id="client_reporter_proxy_only_enabled" name="client_reporter_proxy_only_enabled" value="1">
+                                        Require a trusted proxy for ingest
+                                    </label>
+                                </div>
+                                <div class="form-group">
+                                    <label for="client_reporter_max_time_skew_seconds">Max Timestamp Skew (seconds)</label>
+                                    <input type="number" min="30" step="1" class="form-control" id="client_reporter_max_time_skew_seconds" name="client_reporter_max_time_skew_seconds" placeholder="300">
+                                    <p class="help-block">Used by HMAC validation and replay protection. Clients outside this clock skew window are rejected.</p>
+                                </div>
+                                <div class="form-group">
+                                    <label for="client_reporter_ip_allowlist">Client Reporter IP Allowlist</label>
+                                    <textarea class="form-control" id="client_reporter_ip_allowlist" name="client_reporter_ip_allowlist" rows="3" placeholder="10.0.0.0/8&#10;192.168.1.10"></textarea>
+                                    <p class="help-block">Optional newline- or comma-separated exact IPs or CIDR ranges. When set, client reporter ingest is accepted only from matching client IPs.</p>
+                                </div>
+                                <div class="form-group">
+                                    <label for="client_reporter_trusted_proxy_ips">Trusted Proxy IPs</label>
+                                    <textarea class="form-control" id="client_reporter_trusted_proxy_ips" name="client_reporter_trusted_proxy_ips" rows="3" placeholder="127.0.0.1&#10;10.10.0.0/16"></textarea>
+                                    <p class="help-block">Optional newline- or comma-separated exact IPs or CIDR ranges. Required when <em>Require a trusted proxy for ingest</em> is enabled. The module will trust <code>X-Forwarded-For</code> and <code>X-Real-IP</code> only from these proxies.</p>
+                                </div>
+                                <div class="form-group">
+                                    <label for="client_reporter_device_tokens_json">Device Token Provisioning (JSON, write-only)</label>
+                                    <textarea class="form-control" id="client_reporter_device_tokens_json" name="client_reporter_device_tokens_json" rows="6" placeholder='{"C02ABC123":"token-for-this-device"}'></textarea>
+                                    <p class="help-block">Optional. Leave blank to keep existing device tokens. Submit <code>[]</code> to clear all tokens. Tokens are stored hashed and are not returned to the browser after save.</p>
+                                </div>
+                                <div class="form-group">
+                                    <label for="client_reporter_device_token_metadata_json">Configured Device Tokens</label>
+                                    <textarea class="form-control" id="client_reporter_device_token_metadata_json" rows="6" readonly>Loading token metadata...</textarea>
+                                    <p class="help-block">Metadata only. Raw device tokens are never returned once saved.</p>
+                                </div>
+                                <div class="form-group">
+                                    <label>Client Reporter Requirements</label>
+                                    <p class="help-block">Live summary of what the client must send with the current Option B settings. This is intended to reduce guesswork before deploying a reporter.</p>
+                                    <div id="client-reporter-requirements-panel" class="simplemdm-state-panel">
+                                        <div class="simplemdm-runs-empty">Loading client reporter requirements...</div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="client_reporter_required_headers_text">Required Headers</label>
+                                    <textarea class="form-control" id="client_reporter_required_headers_text" rows="5" readonly>Loading...</textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label for="client_reporter_sample_request_text">Sample Request Notes</label>
+                                    <textarea class="form-control" id="client_reporter_sample_request_text" rows="9" readonly>Loading...</textarea>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Save Enrichment Settings</button>
+                        <span id="enrichment-save-status" style="margin-left: 10px;"></span>
+                    </form>
+                </div>
+            </div>
+
+            <div class="panel panel-default simplemdm-modern-widget simplemdm-admin-collapsible" data-collapsible="manual" data-default-open="0">
+                <div class="panel-heading" data-collapsible-toggle="manual">
+                    <div class="simplemdm-admin-heading-wrap">
+                        <div class="simplemdm-admin-heading-main">
+                            <h3 class="panel-title"><i class="fa fa-download"></i> Manual / Outside-Module Access</h3>
+                            <div class="simplemdm-admin-heading-summary" id="summary-manual">Download scripts and copy external commands</div>
+                        </div>
+                        <span class="simplemdm-admin-heading-toggle" id="toggle-manual">Expand</span>
+                    </div>
+                </div>
+                <div class="panel-body" data-collapsible-body="manual" style="display:none;">
+                    <p class="text-muted">Use this section if you want to manage sync outside the module: download the module, copy commands, install cron manually, or run the scripts directly on the host.</p>
+                    <p class="text-muted small">Host/manual runner commands should include an explicit SimpleMDM API key via <code>--api-key</code> or <code>SIMPLEMDM_API_KEY</code>. They should not rely on an authenticated browser session to discover the key.</p>
+                    <p>
+                        <a class="btn btn-default" id="download-module-link" href="#">
+                            <i class="fa fa-archive"></i> Download Module Bundle
+                        </a>
+                    </p>
+                    <div id="script-catalog" class="simplemdm-script-grid"></div>
+                    <div class="form-group" style="margin-top:14px;">
+                        <label for="script-runner-output">Script Output</label>
+                        <textarea id="script-runner-output" class="form-control" readonly>Script output will appear here.</textarea>
+                    </div>
+                </div>
+            </div>
+                </div>
+            </div>
+
+            <div class="simplemdm-admin-column">
+                <div class="simplemdm-admin-stack">
+            <div class="panel panel-default simplemdm-modern-widget simplemdm-admin-collapsible" data-collapsible="sync" data-default-open="1">
+                <div class="panel-heading" data-collapsible-toggle="sync">
+                    <div class="simplemdm-admin-heading-wrap">
+                        <div class="simplemdm-admin-heading-main">
+                            <h3 class="panel-title"><i class="fa fa-refresh"></i> Sync Status</h3>
+                            <div class="simplemdm-admin-heading-summary" id="summary-sync">Current queue and latest completed run</div>
+                        </div>
+                        <span class="simplemdm-admin-heading-toggle" id="toggle-sync">Collapse</span>
+                    </div>
+                </div>
+                <div class="panel-body" data-collapsible-body="sync">
+                    <p class="text-muted">Use this card to see queue state, last completed runs, and whether work is waiting for cron or manual pickup. It is status and queue visibility, not the place where immediate in-module sync runs are configured.</p>
                     <table class="table table-striped">
                         <tr>
                             <th>Queue State</th>
@@ -395,10 +770,10 @@ if (is_readable($provides_path)) {
                         </tr>
                     </table>
                     <div class="simplemdm-actions-row">
-                        <button type="button" class="btn btn-default" id="simplemdm-sync-now">Queue Sync Request</button>
+                        <button type="button" class="btn btn-default" id="simplemdm-sync-now">Queue Next Worker Run</button>
                         <span id="sync-request-message" class="text-muted"></span>
                     </div>
-                    <p class="text-muted small" style="margin-top:10px;">This does not run immediately. It queues a sync request for the next host-side cron or manual worker pickup, which still executes <code>simplemdm_sync.py</code>.</p>
+                    <p class="text-muted small" style="margin-top:10px;">This does not run immediately. It queues a sync request for the next host-side cron or manual worker pickup, which still executes <code>simplemdm_sync.py</code>. Use <strong>Run Sync Now</strong> below for immediate in-module execution.</p>
                     <div style="margin-top:16px;">
                         <div class="simplemdm-actions-row" style="justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
                             <h4 style="margin:0;">Recent Runs</h4>
@@ -411,94 +786,64 @@ if (is_readable($provides_path)) {
                 </div>
             </div>
 
-            <div class="panel panel-default simplemdm-modern-widget">
-                <div class="panel-heading">
-                    <h3 class="panel-title"><i class="fa fa-th-large"></i> Widget Visibility</h3>
+            <div class="panel panel-default simplemdm-modern-widget simplemdm-admin-collapsible" data-collapsible="advanced" data-default-open="0">
+                <div class="panel-heading" data-collapsible-toggle="advanced">
+                        <div class="simplemdm-admin-heading-wrap">
+                            <div class="simplemdm-admin-heading-main">
+                            <h3 class="panel-title"><i class="fa fa-sliders"></i> Security And Sync Controls</h3>
+                            <div class="simplemdm-admin-heading-summary" id="summary-advanced">Secrets, compliance target, delta sync, command sync, and deep sync controls</div>
+                            </div>
+                            <span class="simplemdm-admin-heading-toggle" id="toggle-advanced">Expand</span>
+                        </div>
                 </div>
-                <div class="panel-body">
-                    <form id="simplemdm-widget-form">
-                        <?php foreach ($simplemdm_widgets as $widget): ?>
-                            <?php $key = 'widget_' . $widget['id']; ?>
-                            <input type="hidden" name="<?= htmlspecialchars($key, ENT_QUOTES, 'UTF-8') ?>" value="0">
+                <div class="panel-body" data-collapsible-body="advanced" style="display:none;">
+                    <p class="text-muted">Use this card for security-sensitive settings and sync behavior that changes how much data SimpleMDM collects from the API.</p>
+                    <form id="simplemdm-advanced-form">
+                        <div class="simplemdm-admin-subsection">
+                            <h4 class="simplemdm-admin-subsection-title">Endpoint Security</h4>
+                            <p class="simplemdm-admin-subsection-copy">These secrets protect inbound webhook traffic and mutating passthrough actions. Leave them blank only if you are not using those endpoints.</p>
+                            <div class="form-group">
+                                <label for="webhook_secret">Webhook Secret</label>
+                                <input type="password" class="form-control" id="webhook_secret" name="webhook_secret" placeholder="Optional shared secret">
+                                <p class="help-block">Used by `module/simplemdm/index?op=webhook` via `X-SIMPLEMDM-WEBHOOK-SECRET`.</p>
+                            </div>
+                            <div class="form-group">
+                                <label for="action_api_secret">Action API Secret</label>
+                                <input type="password" class="form-control" id="action_api_secret" name="action_api_secret" placeholder="Required for mutating device passthrough actions">
+                                <p class="help-block">Required header for `POST/PATCH/DELETE` under `module/simplemdm/api_devices/...` via `X-SIMPLEMDM-ACTION-SECRET`.</p>
+                            </div>
+                        </div>
+                        <div class="simplemdm-admin-subsection">
+                            <h4 class="simplemdm-admin-subsection-title">Sync Scope And API Load</h4>
+                            <p class="simplemdm-admin-subsection-copy">These settings control how much SimpleMDM data is collected and how expensive sync becomes. Deep sync improves detail views, but it can increase runtime and API load.</p>
+                            <div class="form-group">
+                                <label for="compliance_min_os">Compliance Minimum OS</label>
+                                <input type="text" class="form-control" id="compliance_min_os" name="compliance_min_os" placeholder="e.g. 14.0">
+                                <p class="help-block">Optional minimum OS target for compliance widget calculations.</p>
+                            </div>
                             <div class="checkbox">
                                 <label>
-                                    <input
-                                        type="checkbox"
-                                        class="simplemdm-widget-toggle"
-                                        id="<?= htmlspecialchars($key, ENT_QUOTES, 'UTF-8') ?>"
-                                        data-widget-key="<?= htmlspecialchars($key, ENT_QUOTES, 'UTF-8') ?>"
-                                        value="1"
-                                    >
-                                    <?= htmlspecialchars($widget['label'], ENT_QUOTES, 'UTF-8') ?>
+                                    <input type="checkbox" id="sync_delta_enabled" name="sync_delta_enabled" value="1">
+                                    Enable delta sync mode (when supported by API)
                                 </label>
                             </div>
-                        <?php endforeach; ?>
-
-                        <button type="submit" class="btn btn-primary">Save Widget Settings</button>
-                        <span id="widget-save-status" style="margin-left: 10px;"></span>
-                        <p class="text-muted small" style="margin-top:10px;">Applies to the SimpleMDM report page widgets.</p>
-                    </form>
-                </div>
-            </div>
-        </div>
-        </div>
-
-        <div class="simplemdm-admin-column">
-            <div class="simplemdm-admin-stack">
-            <div class="panel panel-default simplemdm-modern-widget">
-                <div class="panel-heading">
-                    <h3 class="panel-title"><i class="fa fa-sliders"></i> Advanced Sync & Compliance</h3>
-                </div>
-                <div class="panel-body">
-                    <form id="simplemdm-advanced-form">
-                        <div class="form-group">
-                            <label for="webhook_secret">Webhook Secret</label>
-                            <input type="password" class="form-control" id="webhook_secret" name="webhook_secret" placeholder="Optional shared secret">
-                            <p class="help-block">Used by `module/simplemdm/index?op=webhook` via `X-SIMPLEMDM-WEBHOOK-SECRET`.</p>
-                        </div>
-                        <div class="form-group">
-                            <label for="action_api_secret">Action API Secret</label>
-                            <input type="password" class="form-control" id="action_api_secret" name="action_api_secret" placeholder="Required for mutating device passthrough actions">
-                            <p class="help-block">Required header for `POST/PATCH/DELETE` under `module/simplemdm/api_devices/...` via `X-SIMPLEMDM-ACTION-SECRET`.</p>
-                        </div>
-                        <div class="form-group">
-                            <label for="compliance_min_os">Compliance Minimum OS</label>
-                            <input type="text" class="form-control" id="compliance_min_os" name="compliance_min_os" placeholder="e.g. 14.0">
-                            <p class="help-block">Optional minimum OS target for compliance widget calculations.</p>
-                        </div>
-                        <div class="checkbox">
-                            <label>
-                                <input type="checkbox" id="sync_delta_enabled" name="sync_delta_enabled" value="1">
-                                Enable delta sync mode (when supported by API)
-                            </label>
-                        </div>
-                        <div class="checkbox">
-                            <label>
-                                <input type="checkbox" id="sync_commands_enabled" name="sync_commands_enabled" value="1">
-                                Enable command status sync
-                            </label>
-                        </div>
-                        <div class="checkbox">
-                            <label>
-                                <input type="checkbox" id="enable_scheduled_sync" name="enable_scheduled_sync" value="1">
-                                Enable scheduled sync (cron must still call script)
-                            </label>
-                        </div>
-                        <div class="form-group">
-                            <label for="sync_interval_minutes">Scheduled sync interval (minutes)</label>
-                            <input type="number" min="1" step="1" class="form-control" id="sync_interval_minutes" name="sync_interval_minutes" placeholder="15">
-                            <p class="help-block">Used when script runs with <code>--respect-schedule</code>. Scheduling is enabled/disabled by the checkbox above.</p>
-                        </div>
-                        <div class="checkbox">
-                            <label>
-                                <input type="checkbox" id="sync_device_subresources_enabled" name="sync_device_subresources_enabled" value="1">
-                                Enable deep per-device subresource sync (profiles/apps/users)
-                            </label>
-                        </div>
-                        <div class="form-group">
-                            <label for="device_subresource_limit">Per-device deep sync limit</label>
-                            <input type="number" min="0" step="1" class="form-control" id="device_subresource_limit" name="device_subresource_limit" placeholder="0 = all devices">
-                            <p class="help-block">Set `0` for all devices, or cap the number of devices to reduce API load.</p>
+                            <div class="checkbox">
+                                <label>
+                                    <input type="checkbox" id="sync_commands_enabled" name="sync_commands_enabled" value="1">
+                                    Enable command status sync
+                                </label>
+                            </div>
+                            <div class="checkbox">
+                                <label>
+                                    <input type="checkbox" id="sync_device_subresources_enabled" name="sync_device_subresources_enabled" value="1">
+                                    Enable deep per-device subresource sync (profiles/apps/users)
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label for="device_subresource_limit">Per-device deep sync limit</label>
+                                <input type="number" min="0" step="1" class="form-control" id="device_subresource_limit" name="device_subresource_limit" placeholder="0 = all devices">
+                                <p class="help-block">Set `0` for all devices, or cap the number of devices to reduce API load.</p>
+                            </div>
                         </div>
                         <button type="submit" class="btn btn-primary">Save Advanced Settings</button>
                         <span id="advanced-save-status" style="margin-left: 10px;"></span>
@@ -506,134 +851,135 @@ if (is_readable($provides_path)) {
                 </div>
             </div>
 
-            <div class="panel panel-default simplemdm-modern-widget">
-                <div class="panel-heading">
-                    <h3 class="panel-title"><i class="fa fa-calendar"></i> In-Module Sync And Schedule</h3>
+            <div class="panel panel-default simplemdm-modern-widget simplemdm-admin-collapsible" data-collapsible="schedule" data-default-open="1">
+                <div class="panel-heading" data-collapsible-toggle="schedule">
+                    <div class="simplemdm-admin-heading-wrap">
+                        <div class="simplemdm-admin-heading-main">
+                            <h3 class="panel-title"><i class="fa fa-calendar"></i> In-Module Sync And Schedule</h3>
+                            <div class="simplemdm-admin-heading-summary" id="summary-schedule">Immediate run readiness and recurring schedule state</div>
+                        </div>
+                        <span class="simplemdm-admin-heading-toggle" id="toggle-schedule">Collapse</span>
+                    </div>
                 </div>
-                <div class="panel-body">
-                    <p class="text-muted">Use this section for actions the module can perform for you directly: immediate sync runs, schedule settings, and cron management when in-module execution is enabled.</p>
+                <div class="panel-body" data-collapsible-body="schedule">
+                    <p class="text-muted">Use this section for the recurring sync lifecycle: schedule enable/disable, cron cadence, worker interval, immediate runs, and cron management when in-module execution is enabled.</p>
                     <form id="simplemdm-script-runner-form">
-                        <div class="table-responsive">
-                            <table class="table table-striped">
-                                <tr>
-                                    <th>Schedule Config</th>
-                                    <td id="schedule-config">Disabled</td>
-                                </tr>
-                                <tr>
-                                    <th>Recurring Sync Ready</th>
-                                    <td id="schedule-ready">No</td>
-                                </tr>
-                                <tr>
-                                    <th>Last Run</th>
-                                    <td id="schedule-last-run">-</td>
-                                </tr>
-                                <tr>
-                                    <th>Last Run Source</th>
-                                    <td id="schedule-last-run-source">-</td>
-                                </tr>
-                                <tr>
-                                    <th>Next Expected Run</th>
-                                    <td id="schedule-next-run">-</td>
-                                </tr>
-                            </table>
-                        </div>
-                        <div class="form-group">
-                            <label for="script_runner_schedule_preset">Preset</label>
-                            <select class="form-control" id="script_runner_schedule_preset">
-                                <option value="*/5 * * * *">Every 5 Minutes</option>
-                                <option value="*/15 * * * *">Every 15 Minutes</option>
-                                <option value="0 * * * *">Hourly</option>
-                                <option value="0 0 * * *">Daily</option>
-                                <option value="custom">Custom</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="script_runner_schedule">Schedule</label>
-                            <input type="text" class="form-control" id="script_runner_schedule" name="script_runner_schedule" placeholder="*/15 * * * *">
-                            <p class="help-block">Use a preset or enter a custom cron expression.</p>
-                        </div>
-                        <div class="form-group">
-                            <label for="script_runner_munkireport_url">Runner MunkiReport URL</label>
-                            <input type="text" class="form-control" id="script_runner_munkireport_url" name="script_runner_munkireport_url" placeholder="https://your-munkireport.example.com">
-                            <p class="help-block">The Python runner posts data back into this MunkiReport instance, so it needs the base URL when running inside the module or from cron.</p>
-                        </div>
-                        <div class="form-group">
-                            <label for="script_runner_python_bin">Configured Python Path</label>
-                            <input type="text" class="form-control" id="script_runner_python_bin" name="script_runner_python_bin" placeholder="/usr/bin/python3">
-                            <p class="help-block">This path is used for the host/manual runner. In-module availability is verified separately below under `Module Python`.</p>
-                        </div>
-                        <div class="form-group">
-                            <label for="script_runner_log_path">Cron Log Path</label>
-                            <input type="text" class="form-control" id="script_runner_log_path" name="script_runner_log_path" placeholder="/var/log/simplemdm_sync.log">
-                        </div>
-                        <div class="form-group">
-                            <label for="script_runner_max_parent_resources">Max Parent Resources</label>
-                            <input type="number" min="0" step="1" class="form-control" id="script_runner_max_parent_resources" name="script_runner_max_parent_resources" placeholder="25">
-                        </div>
-                        <div class="checkbox">
-                            <label>
-                                <input type="checkbox" id="allow_module_script_execution" name="allow_module_script_execution" value="1">
-                                Allow in-module script execution for global admins
-                            </label>
-                        </div>
-                        <div class="simplemdm-prereq-row" id="schedule-prereq-row">
-                            <span class="simplemdm-prereq-badge" id="prereq-api-key">API Key</span>
-                            <span class="simplemdm-prereq-badge" id="prereq-runner-url">Runner URL</span>
-                            <span class="simplemdm-prereq-badge" id="prereq-python">Python Path</span>
-                            <span class="simplemdm-prereq-badge" id="prereq-module-python">Module Python</span>
-                            <span class="simplemdm-prereq-badge" id="prereq-schedule">Schedule</span>
-                            <span class="simplemdm-prereq-badge" id="prereq-log-path">Log Path</span>
-                            <span class="simplemdm-prereq-badge" id="prereq-module-exec">Module Execution</span>
-                        </div>
-                        <p class="text-muted small" style="margin: 10px 0 12px;">`Python Path` is the configured path for host/manual sync. `Module Python` confirms whether Python is actually available inside the MunkiReport runtime for in-module sync.</p>
-                        <div class="simplemdm-state-panel">
-                            <p class="simplemdm-state-line"><span class="simplemdm-state-label">Immediate Run:</span> <span id="immediate-run-state">Checking...</span></p>
-                            <p class="simplemdm-state-line"><span class="simplemdm-state-label">Scheduled Run:</span> <span id="scheduled-run-state">Checking...</span></p>
-                            <p class="simplemdm-state-line"><span class="simplemdm-state-label">Module Runtime Python:</span> <span id="module-runtime-state">Checking...</span></p>
-                            <p class="simplemdm-state-line"><span class="simplemdm-state-label">Host/Manual Runner:</span> <span id="host-runner-state">Checking...</span></p>
-                            <p class="simplemdm-state-line"><span class="simplemdm-state-label">Cron Management:</span> <span id="cron-management-state">Checking...</span></p>
-                            <p class="simplemdm-state-line text-muted" id="cron-management-detail">Waiting for status...</p>
-                        </div>
-                        <div class="alert alert-info" id="module-runtime-guidance" style="margin-top:16px; margin-bottom:0;">
-                            Checking module guidance...
-                        </div>
-                        <div class="simplemdm-schedule-actions">
-                            <div class="simplemdm-schedule-primary">
-                                <button type="button" class="btn btn-primary" id="run-sync-now-btn">Run Sync Now</button>
-                                <button type="button" class="btn btn-success" id="enable-schedule-btn">Enable Scheduled Sync</button>
-                                <button type="button" class="btn btn-default" id="disable-schedule-btn">Disable Scheduled Sync</button>
+                        <div class="simplemdm-admin-subsection">
+                            <h4 class="simplemdm-admin-subsection-title">Schedule Configuration</h4>
+                            <p class="simplemdm-admin-subsection-copy">Use this section to define when recurring sync should run and what runtime settings the worker should use.</p>
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <tr>
+                                        <th>Schedule Config</th>
+                                        <td id="schedule-config">Disabled</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Recurring Sync Ready</th>
+                                        <td id="schedule-ready">No</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Last Run</th>
+                                        <td id="schedule-last-run">-</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Last Run Source</th>
+                                        <td id="schedule-last-run-source">-</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Next Expected Run</th>
+                                        <td id="schedule-next-run">-</td>
+                                    </tr>
+                                </table>
                             </div>
-                            <div class="simplemdm-schedule-secondary">
-                                <button type="submit" class="btn btn-default">Save Schedule Settings</button>
+                            <p class="text-muted small" style="margin-bottom:10px;"><strong>Cron cadence</strong> controls how often cron launches the worker. <strong>Worker minimum interval</strong> controls how often the worker is actually allowed to sync when `--respect-schedule` is used.</p>
+                            <div class="form-group">
+                                <label for="script_runner_schedule_preset">Preset</label>
+                                <select class="form-control" id="script_runner_schedule_preset">
+                                    <option value="*/5 * * * *">Every 5 Minutes</option>
+                                    <option value="*/15 * * * *">Every 15 Minutes</option>
+                                    <option value="0 * * * *">Hourly</option>
+                                    <option value="0 0 * * *">Daily</option>
+                                    <option value="custom">Custom</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="script_runner_schedule">Schedule</label>
+                                <input type="text" class="form-control" id="script_runner_schedule" name="script_runner_schedule" placeholder="*/15 * * * *">
+                                <p class="help-block">Use a preset or enter a custom cron expression for how often cron launches the worker.</p>
+                            </div>
+                            <div class="form-group">
+                                <label for="sync_interval_minutes">Worker Minimum Interval (minutes)</label>
+                                <input type="number" min="1" step="1" class="form-control" id="sync_interval_minutes" name="sync_interval_minutes" placeholder="15">
+                                <p class="help-block">Used by <code>simplemdm_sync.py --respect-schedule</code>. Cron can run more often, but the worker will only sync when this interval says it is due.</p>
+                            </div>
+                            <div class="form-group">
+                                <label for="script_runner_munkireport_url">Runner MunkiReport URL</label>
+                                <input type="text" class="form-control" id="script_runner_munkireport_url" name="script_runner_munkireport_url" placeholder="https://your-munkireport.example.com">
+                                <p class="help-block">The Python runner posts data back into this MunkiReport instance, so it needs the base URL when running inside the module or from cron.</p>
+                            </div>
+                            <div class="form-group">
+                                <label for="script_runner_python_bin">Configured Python Path</label>
+                                <input type="text" class="form-control" id="script_runner_python_bin" name="script_runner_python_bin" placeholder="/usr/bin/python3">
+                                <p class="help-block">This path is used for the host/manual runner. In-module availability is verified separately below under `Module Python`.</p>
+                            </div>
+                            <div class="form-group">
+                                <label for="script_runner_log_path">Cron Log Path</label>
+                                <input type="text" class="form-control" id="script_runner_log_path" name="script_runner_log_path" placeholder="/var/log/simplemdm_sync.log">
+                            </div>
+                            <div class="form-group">
+                                <label for="script_runner_max_parent_resources">Max Parent Resources</label>
+                                <input type="number" min="0" step="1" class="form-control" id="script_runner_max_parent_resources" name="script_runner_max_parent_resources" placeholder="25">
+                            </div>
+                            <div class="checkbox">
+                                <label>
+                                    <input type="checkbox" id="allow_module_script_execution" name="allow_module_script_execution" value="1">
+                                    Allow in-module script execution for global admins
+                                </label>
                             </div>
                         </div>
-                        <div id="script-runner-save-status" class="text-muted" style="margin-top:10px;"></div>
-                        <p class="text-muted small" style="margin-top:10px;">One-off runs execute <code>simplemdm_sync.py</code> immediately. Repeating runs still use cron, which this module can install or remove when script execution is enabled.</p>
+                        <div class="simplemdm-admin-subsection">
+                            <h4 class="simplemdm-admin-subsection-title">Runtime Readiness And Actions</h4>
+                            <p class="simplemdm-admin-subsection-copy">Use this section to verify prerequisites, see whether module-side execution is available, and run or schedule sync actions.</p>
+                            <p class="text-muted small" style="margin-bottom:10px;"><strong>Prerequisites</strong> below show whether the current settings are sufficient for immediate runs, scheduled runs, and module-managed cron actions.</p>
+                            <div class="simplemdm-prereq-row" id="schedule-prereq-row">
+                                <span class="simplemdm-prereq-badge" id="prereq-api-key">API Key</span>
+                                <span class="simplemdm-prereq-badge" id="prereq-runner-url">Runner URL</span>
+                                <span class="simplemdm-prereq-badge" id="prereq-python">Python Path</span>
+                                <span class="simplemdm-prereq-badge" id="prereq-module-python">Module Python</span>
+                                <span class="simplemdm-prereq-badge" id="prereq-schedule">Schedule</span>
+                                <span class="simplemdm-prereq-badge" id="prereq-log-path">Log Path</span>
+                                <span class="simplemdm-prereq-badge" id="prereq-module-exec">Module Execution</span>
+                            </div>
+                            <p class="text-muted small" style="margin: 10px 0 12px;">`Python Path` is the configured path for host/manual sync. `Module Python` confirms whether Python is actually available inside the MunkiReport runtime for in-module sync.</p>
+                            <div class="simplemdm-state-panel">
+                                <p class="simplemdm-state-line"><span class="simplemdm-state-label">Immediate Run:</span> <span id="immediate-run-state">Checking...</span></p>
+                                <p class="simplemdm-state-line"><span class="simplemdm-state-label">Scheduled Run:</span> <span id="scheduled-run-state">Checking...</span></p>
+                                <p class="simplemdm-state-line"><span class="simplemdm-state-label">Module Runtime Python:</span> <span id="module-runtime-state">Checking...</span></p>
+                                <p class="simplemdm-state-line"><span class="simplemdm-state-label">Host/Manual Runner:</span> <span id="host-runner-state">Checking...</span></p>
+                                <p class="simplemdm-state-line"><span class="simplemdm-state-label">Cron Management:</span> <span id="cron-management-state">Checking...</span></p>
+                                <p class="simplemdm-state-line text-muted" id="cron-management-detail">Waiting for status...</p>
+                            </div>
+                            <div class="alert alert-info" id="module-runtime-guidance" style="margin-top:16px; margin-bottom:0;">
+                                Checking module guidance...
+                            </div>
+                            <div class="simplemdm-schedule-actions">
+                                <div class="simplemdm-schedule-primary">
+                                    <button type="button" class="btn btn-primary" id="run-sync-now-btn">Run Sync Now</button>
+                                    <button type="button" class="btn btn-success" id="enable-schedule-btn">Enable Scheduled Sync</button>
+                                    <button type="button" class="btn btn-default" id="disable-schedule-btn">Disable Scheduled Sync</button>
+                                </div>
+                                <div class="simplemdm-schedule-secondary">
+                                    <button type="submit" class="btn btn-default">Save Schedule Settings</button>
+                                </div>
+                            </div>
+                            <div id="script-runner-save-status" class="text-muted" style="margin-top:10px;"></div>
+                            <p class="text-muted small" style="margin-top:10px;">One-off runs execute <code>simplemdm_sync.py</code> immediately. Repeating runs still use cron, which this module can install or remove when script execution is enabled.</p>
+                        </div>
                     </form>
                 </div>
             </div>
-
-            <div class="panel panel-default simplemdm-modern-widget">
-                <div class="panel-heading">
-                    <h3 class="panel-title"><i class="fa fa-download"></i> Manual / Outside-Module Access</h3>
-                </div>
-                <div class="panel-body">
-                    <p class="text-muted">Use this section if you want to manage sync outside the module: download the module, copy commands, install cron manually, or run the scripts directly on the host.</p>
-                    <p class="text-muted small">Host/manual runner commands should include an explicit SimpleMDM API key via <code>--api-key</code> or <code>SIMPLEMDM_API_KEY</code>. They should not rely on an authenticated browser session to discover the key.</p>
-                    <p>
-                        <a class="btn btn-default" id="download-module-link" href="#">
-                            <i class="fa fa-archive"></i> Download Module Bundle
-                        </a>
-                    </p>
-                    <div id="script-catalog" class="simplemdm-script-grid"></div>
-                    <div class="form-group" style="margin-top:14px;">
-                        <label for="script-runner-output">Script Output</label>
-                        <textarea id="script-runner-output" class="form-control" readonly>Script output will appear here.</textarea>
-                    </div>
                 </div>
             </div>
-        </div>
-        </div>
     </div>
 </div>
 
@@ -642,6 +988,7 @@ $(document).on('appReady', function() {
     var runnerStatusCache = null;
     var runnerStatusRequest = null;
     var runnerStatusRefreshTimer = null;
+    var supplementalDisabledSourceIds = [];
     var RUNNER_STATUS_TIMEOUT_MS = 5000;
     var syncPollTimer = null;
     var SYNC_POLL_INTERVAL_MS = 3000;
@@ -726,6 +1073,25 @@ $(document).on('appReady', function() {
 
     function escapeHtml(value) {
         return $('<div>').text(String(value || '')).html();
+    }
+
+    function formatSupplementalReason(reason) {
+        var value = String(reason || '').trim();
+        if (!value) {
+            return '-';
+        }
+        var map = {
+            ok: 'Detected and ready',
+            no_rows: 'Detected, but no rows are present yet',
+            table_missing: 'Module is loaded, but its table is not present',
+            required_columns_missing: 'Table exists, but required columns are missing',
+            no_supported_join_key: 'Table exists, but no supported serial join column was found',
+            schema_error: 'Database schema check failed',
+            query_failed: 'The source query failed',
+            disabled_in_settings: 'Disabled in SimpleMDM settings',
+            client_reporter_disabled: 'Client Reporter is disabled'
+        };
+        return map[value] || value.replace(/_/g, ' ');
     }
 
     function renderRecentRuns(runs) {
@@ -834,6 +1200,41 @@ $(document).on('appReady', function() {
         });
     }
 
+    function updateCollapsibleSummary(id, text) {
+        $('#summary-' + id).text(text || '');
+    }
+
+    function syncCollapsibleState(id, open) {
+        var $body = $('[data-collapsible-body="' + id + '"]');
+        var $toggle = $('#toggle-' + id);
+        if (open) {
+            $body.show();
+            $toggle.text('Collapse');
+        } else {
+            $body.hide();
+            $toggle.text('Expand');
+        }
+    }
+
+    function initCollapsibles() {
+        $('[data-collapsible]').each(function() {
+            var id = String($(this).attr('data-collapsible') || '');
+            var defaultOpen = String($(this).attr('data-default-open') || '0') === '1';
+            syncCollapsibleState(id, defaultOpen);
+        });
+
+        $(document).off('click.simplemdmAdminCollapse').on('click.simplemdmAdminCollapse', '[data-collapsible-toggle]', function(e) {
+            if ($(e.target).closest('button, a, input, label, textarea, select').length) {
+                return;
+            }
+            var id = String($(this).attr('data-collapsible-toggle') || '');
+            var $body = $('[data-collapsible-body="' + id + '"]');
+            var open = !$body.is(':visible');
+            $body.stop(true, true).slideToggle(160);
+            $('#toggle-' + id).text(open ? 'Collapse' : 'Expand');
+        });
+    }
+
     function computeRecurringReady(data) {
         var enabled = String(data.enable_scheduled_sync || '0') === '1';
         var schedule = String(data.script_runner_schedule || '').trim() !== '';
@@ -865,6 +1266,7 @@ $(document).on('appReady', function() {
         $('#schedule-last-run-kpi').text(lastRunText);
         $('#enable-schedule-btn').prop('disabled', enabled);
         $('#disable-schedule-btn').prop('disabled', !enabled);
+        updateCollapsibleSummary('schedule', 'Config: ' + statusText + ', Ready: ' + recurringReadyText + ', Last Run: ' + lastRunText);
     }
 
     function renderConfig(data) {
@@ -888,10 +1290,27 @@ $(document).on('appReady', function() {
         $('#compliance_min_os').val(data.compliance_min_os || '');
         $('#sync_delta_enabled').prop('checked', String(data.sync_delta_enabled || '0') === '1');
         $('#sync_commands_enabled').prop('checked', String(data.sync_commands_enabled || '0') === '1');
-        $('#enable_scheduled_sync').prop('checked', String(data.enable_scheduled_sync || '0') === '1');
         $('#sync_interval_minutes').val(pickValue(data.sync_interval_minutes, '15'));
         $('#sync_device_subresources_enabled').prop('checked', String(data.sync_device_subresources_enabled || '0') === '1');
         $('#device_subresource_limit').val(pickValue(data.device_subresource_limit, '0'));
+        $('#supplemental_enabled').prop('checked', String(data.supplemental_enabled || '1') === '1');
+        $('#supplemental_default_stale_after_minutes').val(pickValue(data.supplemental_default_stale_after_minutes, '1440'));
+        $('#supplemental_registry_json').val(data.supplemental_registry_json || '');
+        $('#client_reporter_enabled').prop('checked', String(data.client_reporter_enabled || '0') === '1');
+        $('#client_reporter_history_enabled').prop('checked', String(data.client_reporter_history_enabled || '1') === '1');
+        $('#client_reporter_secret').val(data.client_reporter_secret || '');
+        $('#client_reporter_max_payload_bytes').val(pickValue(data.client_reporter_max_payload_bytes, '16384'));
+        $('#client_reporter_allowed_fact_keys_json').val(data.client_reporter_allowed_fact_keys_json || '');
+        $('#client_reporter_hmac_enabled').prop('checked', String(data.client_reporter_hmac_enabled || '0') === '1');
+        $('#client_reporter_replay_protection_enabled').prop('checked', String(data.client_reporter_replay_protection_enabled || '0') === '1');
+        $('#client_reporter_per_device_tokens_enabled').prop('checked', String(data.client_reporter_per_device_tokens_enabled || '0') === '1');
+        $('#client_reporter_proxy_only_enabled').prop('checked', String(data.client_reporter_proxy_only_enabled || '0') === '1');
+        $('#client_reporter_max_time_skew_seconds').val(pickValue(data.client_reporter_max_time_skew_seconds, '300'));
+        $('#client_reporter_ip_allowlist').val(data.client_reporter_ip_allowlist || '');
+        $('#client_reporter_trusted_proxy_ips').val(data.client_reporter_trusted_proxy_ips || '');
+        $('#client_reporter_device_tokens_json').val('');
+        $('#client_reporter_device_token_metadata_json').val(data.client_reporter_device_token_metadata_json || '[]');
+        renderClientReporterRequirements(data || {});
         $('#allow_module_script_execution').prop('checked', String(data.allow_module_script_execution || '0') === '1');
         $('#script_runner_munkireport_url').val(data.script_runner_munkireport_url || '');
         $('#script_runner_python_bin').val(pickValue(data.script_runner_python_bin, '/usr/bin/python3'));
@@ -906,14 +1325,230 @@ $(document).on('appReady', function() {
         $('#script_runner_max_parent_resources').val(pickValue(data.script_runner_max_parent_resources, '25'));
         renderScheduleStatus(data);
         renderPrereqState();
+        updateCollapsibleSummary('api', String(data.api_key || '').trim() !== '' ? 'API key saved' : 'API key not saved');
+        updateCollapsibleSummary('advanced',
+            'Delta ' + (String(data.sync_delta_enabled || '0') === '1' ? 'on' : 'off') +
+            ', Commands ' + (String(data.sync_commands_enabled || '0') === '1' ? 'on' : 'off') +
+            ', Deep Sync ' + (String(data.sync_device_subresources_enabled || '0') === '1' ? 'on' : 'off') +
+            ', Compliance OS ' + (String(data.compliance_min_os || '').trim() !== '' ? String(data.compliance_min_os) : 'not set')
+        );
+        updateCollapsibleSummary('enrichment',
+            'Supplemental ' + (String(data.supplemental_enabled || '1') === '1' ? 'on' : 'off') +
+            ', Client Reporter ' + (String(data.client_reporter_enabled || '0') === '1' ? 'on' : 'off') +
+            ', HMAC ' + (String(data.client_reporter_hmac_enabled || '0') === '1' ? 'on' : 'off') +
+            ', Source Opt-Outs ' + String(supplementalDisabledSourceIds.length)
+        );
+        var enabledWidgets = 0;
+        $('.simplemdm-widget-toggle').each(function() {
+            if ($(this).is(':checked')) {
+                enabledWidgets++;
+            }
+        });
+        updateCollapsibleSummary('widgets', enabledWidgets + ' widget(s) enabled');
+    }
+
+    function renderClientReporterRequirements(data) {
+        var enabled = String(data.client_reporter_enabled || '0') === '1';
+        var hmacEnabled = String(data.client_reporter_hmac_enabled || '0') === '1';
+        var replayEnabled = String(data.client_reporter_replay_protection_enabled || '0') === '1';
+        var deviceTokensEnabled = String(data.client_reporter_per_device_tokens_enabled || '0') === '1';
+        var proxyOnlyEnabled = String(data.client_reporter_proxy_only_enabled || '0') === '1';
+        var allowlistRules = String(data.client_reporter_ip_allowlist || '').trim();
+        var trustedProxyRules = String(data.client_reporter_trusted_proxy_ips || '').trim();
+        var skewSeconds = String(data.client_reporter_max_time_skew_seconds || '300');
+        var tokenMetadataRaw = String(data.client_reporter_device_token_metadata_json || '[]');
+        var tokenMetadata = [];
+
+        try {
+            tokenMetadata = JSON.parse(tokenMetadataRaw);
+            if (!$.isArray(tokenMetadata)) {
+                tokenMetadata = [];
+            }
+        } catch (err) {
+            tokenMetadata = [];
+        }
+
+        var headers = ['X-SIMPLEMDM-CLIENT-SECRET'];
+        if (hmacEnabled || replayEnabled) {
+            headers.push('X-SIMPLEMDM-CLIENT-TIMESTAMP');
+        }
+        if (replayEnabled) {
+            headers.push('X-SIMPLEMDM-CLIENT-NONCE');
+        }
+        if (hmacEnabled) {
+            headers.push('X-SIMPLEMDM-CLIENT-SIGNATURE');
+        }
+        if (deviceTokensEnabled) {
+            headers.push('X-SIMPLEMDM-CLIENT-TOKEN');
+        }
+
+        var factsAllowlist = String(data.client_reporter_allowed_fact_keys_json || '[]');
+        var panelLines = [];
+        panelLines.push('<div class="simplemdm-runs-meta-line"><span class="simplemdm-runs-meta-label">Mode:</span>' + escapeHtml(enabled ? 'Enabled' : 'Disabled') + '</div>');
+        panelLines.push('<div class="simplemdm-runs-meta-line"><span class="simplemdm-runs-meta-label">Shared Secret Flow:</span>' + escapeHtml(enabled ? 'Available' : 'Disabled') + '</div>');
+        panelLines.push('<div class="simplemdm-runs-meta-line"><span class="simplemdm-runs-meta-label">HMAC Signing:</span>' + escapeHtml(hmacEnabled ? 'Required' : 'Not required') + '</div>');
+        panelLines.push('<div class="simplemdm-runs-meta-line"><span class="simplemdm-runs-meta-label">Replay Protection:</span>' + escapeHtml(replayEnabled ? ('Required, max skew ' + skewSeconds + ' seconds') : 'Not required') + '</div>');
+        panelLines.push('<div class="simplemdm-runs-meta-line"><span class="simplemdm-runs-meta-label">Per-Device Token:</span>' + escapeHtml(deviceTokensEnabled ? 'Required' : 'Not required') + '</div>');
+        panelLines.push('<div class="simplemdm-runs-meta-line"><span class="simplemdm-runs-meta-label">Trusted Proxy:</span>' + escapeHtml(proxyOnlyEnabled ? 'Required' : 'Optional') + '</div>');
+        panelLines.push('<div class="simplemdm-runs-meta-line"><span class="simplemdm-runs-meta-label">Client IP Allowlist:</span>' + escapeHtml(allowlistRules || 'Not configured') + '</div>');
+        panelLines.push('<div class="simplemdm-runs-meta-line"><span class="simplemdm-runs-meta-label">Trusted Proxy IPs:</span>' + escapeHtml(trustedProxyRules || 'Not configured') + '</div>');
+        panelLines.push('<div class="simplemdm-runs-meta-line"><span class="simplemdm-runs-meta-label">Provisioned Device Tokens:</span>' + escapeHtml(String(tokenMetadata.length)) + '</div>');
+
+        $('#client-reporter-requirements-panel').html(
+            '<div class="simplemdm-runs-meta">' + panelLines.join('') + '</div>'
+        );
+
+        $('#client_reporter_required_headers_text').val(headers.join('\n'));
+
+        var sampleLines = [];
+        sampleLines.push('Endpoint: /index.php?/module/simplemdm/index?op=ingest_client_facts');
+        sampleLines.push('Required headers: ' + headers.join(', '));
+        sampleLines.push('Require HTTPS: yes');
+        sampleLines.push('Allowed fact keys: ' + factsAllowlist);
+        if (proxyOnlyEnabled) {
+            sampleLines.push('Network path: request must arrive through a trusted proxy that sets X-Forwarded-For or X-Real-IP.');
+        } else if (allowlistRules) {
+            sampleLines.push('Network path: request IP must match the configured client IP allowlist.');
+        } else {
+            sampleLines.push('Network path: no proxy/IP restriction configured.');
+        }
+        if (deviceTokensEnabled) {
+            sampleLines.push('Device token: client must send the token that matches its serial number.');
+        }
+        if (hmacEnabled) {
+            sampleLines.push('HMAC input: timestamp + "\\n" + nonce + "\\n" + raw_body');
+        }
+        if (replayEnabled) {
+            sampleLines.push('Replay rule: each nonce can be used only once and timestamp skew must be within ' + skewSeconds + ' seconds.');
+        }
+        sampleLines.push('Recommended client examples:');
+        sampleLines.push('- basic: scripts/simplemdm_client_reporter_example.sh');
+        sampleLines.push('- hardened: scripts/simplemdm_client_reporter_hardened.py');
+        sampleLines.push('- deployment guide: docs/CLIENT_REPORTER_DEPLOYMENT.md');
+
+        $('#client_reporter_sample_request_text').val(sampleLines.join('\n'));
+    }
+
+    function renderSupplementalStatus(data) {
+        var sources = $.isArray(data && data.detected_sources) ? data.detected_sources : [];
+        var $list = $('#supplemental-detected-sources').empty();
+        var $toggleList = $('#supplemental-source-toggle-list').empty();
+        supplementalDisabledSourceIds = $.isArray(data && data.disabled_source_ids) ? data.disabled_source_ids.slice() : [];
+
+        $('#supplemental-enabled-state').text(data && data.enabled ? 'Enabled' : 'Disabled');
+        $('#supplemental-stale-threshold').text(String((data && data.stale_after_minutes) || '-') + ' minutes');
+        $('#supplemental-summary-count').text(String((data && data.summary_row_count) || '0'));
+        $('#supplemental-last-refresh').text(formatDateOrDash((data && data.last_summary_refresh) || ''));
+        $('#supplemental-last-status').text((data && data.last_summary_status) || '-');
+        $('#client-reporter-counts').text(
+            String((data && data.client_fact_count) || 0) + ' / ' + String((data && data.client_fact_history_count) || 0)
+        );
+        var counts = (data && data.freshness_counts) ? data.freshness_counts : {};
+        $('#supplemental-freshness-summary').text(
+            'Fresh: ' + String(counts.fresh || 0) +
+            ' / Stale: ' + String(counts.stale || 0) +
+            ' / Failed: ' + String(counts.refresh_failed || 0)
+        );
+
+        if (!sources.length) {
+            $list.append('<div class="simplemdm-runs-empty">No supplemental sources detected.</div>');
+            $toggleList.append('<div class="simplemdm-runs-empty">No supported supplemental sources detected.</div>');
+            updateCollapsibleSummary('supplemental', 'No sources detected');
+            updateCollapsibleSummary('enrichment',
+                'Supplemental ' + (data && data.enabled ? 'on' : 'off') +
+                ', Client Reporter ' + (data && data.client_reporter_enabled ? 'on' : 'off') +
+                ', HMAC ' + ($('#client_reporter_hmac_enabled').is(':checked') ? 'on' : 'off') +
+                ', Source Opt-Outs 0'
+            );
+            return;
+        }
+
+        sources.forEach(function(source) {
+            var status = source.detected ? 'Detected' : 'Unavailable';
+            var reason = formatSupplementalReason(source.reason || '-');
+            var sourceEnabled = source.enabled !== false;
+            var health = (data && data.source_health && data.source_health[source.source_id]) ? data.source_health[source.source_id] : {};
+            $list.append(
+                '<div class="simplemdm-runs-card">' +
+                    '<div class="simplemdm-runs-summary">' + escapeHtml(source.label || source.source_id || '-') + '</div>' +
+                    '<div class="simplemdm-runs-meta">' +
+                        '<div class="simplemdm-runs-meta-line"><span class="simplemdm-runs-meta-label">Type:</span>' + escapeHtml(source.auto_discovered ? 'Loaded module (auto-discovered)' : 'Built-in mapping') + '</div>' +
+                        '<div class="simplemdm-runs-meta-line"><span class="simplemdm-runs-meta-label">Table:</span>' + escapeHtml(source.table || '-') + '</div>' +
+                        (source.auto_discovered && $.isArray(source.table_candidates) && source.table_candidates.length
+                            ? '<div class="simplemdm-runs-meta-line"><span class="simplemdm-runs-meta-label">Table Candidates:</span>' + escapeHtml(source.table_candidates.join(', ')) + '</div>'
+                            : '') +
+                        '<div class="simplemdm-runs-meta-line"><span class="simplemdm-runs-meta-label">Using:</span>' + escapeHtml(sourceEnabled ? 'Enabled' : 'Disabled') + '</div>' +
+                        '<div class="simplemdm-runs-meta-line"><span class="simplemdm-runs-meta-label">Status:</span>' + escapeHtml(status) + '</div>' +
+                        '<div class="simplemdm-runs-meta-line"><span class="simplemdm-runs-meta-label">Reason:</span>' + escapeHtml(reason) + '</div>' +
+                        '<div class="simplemdm-runs-meta-line"><span class="simplemdm-runs-meta-label">Fresh/Stale/Failed:</span>' + escapeHtml(String(health.fresh || 0) + '/' + String(health.stale || 0) + '/' + String(health.refresh_failed || 0)) + '</div>' +
+                    '</div>' +
+                '</div>'
+            );
+
+            if (String(source.source_id || '') === 'client_reporter') {
+                return;
+            }
+
+            $toggleList.append(
+                '<div class="simplemdm-source-toggle-row">' +
+                    '<div class="simplemdm-source-toggle-head">' +
+                        '<label style="margin:0;">' +
+                            '<input type="checkbox" class="simplemdm-source-toggle" data-source-id="' + escapeHtml(source.source_id || '') + '"' + (sourceEnabled ? ' checked' : '') + (source.detected ? '' : ' disabled') + '> ' +
+                            '<span class="simplemdm-source-toggle-title">' + escapeHtml(source.label || source.source_id || '-') + '</span>' +
+                        '</label>' +
+                        '<span class="label label-' + (source.detected ? 'success' : 'default') + '">' + escapeHtml(status) + '</span>' +
+                    '</div>' +
+                    '<div class="simplemdm-source-toggle-meta">Source ID: ' + escapeHtml(source.source_id || '-') + ' | Table: ' + escapeHtml(source.table || '-') + (source.auto_discovered && $.isArray(source.table_candidates) && source.table_candidates.length ? ' | Candidates: ' + escapeHtml(source.table_candidates.join(', ')) : '') + ' | ' + escapeHtml(source.auto_discovered ? 'Loaded module discovered automatically.' : 'Built-in supplemental mapping.') + ' ' + escapeHtml(source.detected ? 'Available for enrichment.' : 'Not currently available. Enable remains read-only until the source is detected.') + '</div>' +
+                '</div>'
+            );
+        });
+        updateCollapsibleSummary('supplemental',
+            'Rows: ' + String((data && data.summary_row_count) || 0) +
+            ', Client Facts: ' + String((data && data.client_fact_count) || 0) +
+            ', Fresh/Stale/Failed: ' + String(counts.fresh || 0) + '/' + String(counts.stale || 0) + '/' + String(counts.refresh_failed || 0)
+        );
+        updateCollapsibleSummary('enrichment',
+            'Supplemental ' + (data && data.enabled ? 'on' : 'off') +
+            ', Client Reporter ' + (data && data.client_reporter_enabled ? 'on' : 'off') +
+            ', HMAC ' + ($('#client_reporter_hmac_enabled').is(':checked') ? 'on' : 'off') +
+            ', Source Opt-Outs ' + String(supplementalDisabledSourceIds.length)
+        );
+    }
+
+    function loadSupplementalStatus() {
+        $.getJSON(appUrl + '/module/simplemdm/get_supplemental_status', function(data) {
+            renderSupplementalStatus(data || {});
+        }).fail(function(xhr) {
+            var message = 'Unable to load supplemental status.';
+            if (xhr && xhr.responseJSON && (xhr.responseJSON.message || xhr.responseJSON.error)) {
+                message = xhr.responseJSON.message || xhr.responseJSON.error;
+            }
+            $('#supplemental-detected-sources').html('<div class="simplemdm-runs-empty">' + escapeHtml(message) + '</div>');
+        });
     }
 
     function setScriptOutput(lines) {
         $('#script-runner-output').val(lines);
+        var count = $('#script-catalog .simplemdm-script-row').length;
+        updateCollapsibleSummary('manual', count + ' script action(s) available');
     }
 
     function setActionNotice(target, text, cssClass) {
         $(target).text(text).removeClass().addClass(cssClass || 'text-muted');
+    }
+
+    function getDisabledSupplementalSourceIdsFromForm() {
+        var disabled = [];
+        $('.simplemdm-source-toggle').each(function() {
+            var sourceId = String($(this).data('source-id') || '').trim();
+            if (!sourceId) {
+                return;
+            }
+            if (!$(this).is(':checked')) {
+                disabled.push(sourceId);
+            }
+        });
+        return disabled;
     }
 
     function setFormStatus(target, text, cssClass, autoHideMs) {
@@ -932,6 +1567,7 @@ $(document).on('appReady', function() {
             script_runner_munkireport_url: $('#script_runner_munkireport_url').val() || '',
             script_runner_python_bin: $('#script_runner_python_bin').val() || '/usr/bin/python3',
             script_runner_schedule: $('#script_runner_schedule').val() || '*/15 * * * *',
+            sync_interval_minutes: String($('#sync_interval_minutes').val() || '15'),
             script_runner_log_path: $('#script_runner_log_path').val() || '/var/log/simplemdm_sync.log',
             script_runner_max_parent_resources: String($('#script_runner_max_parent_resources').val() || '25')
         };
@@ -1321,12 +1957,14 @@ $(document).on('appReady', function() {
     function loadConfig() {
         $.getJSON(appUrl + '/module/simplemdm/get_config', function(data) {
             renderConfig(data);
+            loadSupplementalStatus();
         });
     }
 
     function refreshAllState() {
         $.getJSON(appUrl + '/module/simplemdm/get_config', function(data) {
             renderConfig(data);
+            loadSupplementalStatus();
             if (String(data.sync_request_state || 'idle') === 'running' || String(data.sync_request_state || 'idle') === 'queued') {
                 scheduleBackgroundRefresh(BACKGROUND_ACTIVE_REFRESH_MS);
             } else {
@@ -1543,9 +2181,11 @@ $(document).on('appReady', function() {
     }
 
     // Load existing config
+    initCollapsibles();
     refreshAllState();
     loadScriptCatalog();
     loadRunnerStatus();
+    loadSupplementalStatus();
     scheduleBackgroundRefresh(BACKGROUND_IDLE_REFRESH_MS);
 
     $('#simplemdm-sync-now').on('click', function() {
@@ -1676,8 +2316,6 @@ $(document).on('appReady', function() {
             compliance_min_os: $('#compliance_min_os').val() || '',
             sync_delta_enabled: $('#sync_delta_enabled').is(':checked') ? '1' : '0',
             sync_commands_enabled: $('#sync_commands_enabled').is(':checked') ? '1' : '0',
-            enable_scheduled_sync: $('#enable_scheduled_sync').is(':checked') ? '1' : '0',
-            sync_interval_minutes: String($('#sync_interval_minutes').val() || '15'),
             sync_device_subresources_enabled: $('#sync_device_subresources_enabled').is(':checked') ? '1' : '0',
             device_subresource_limit: String($('#device_subresource_limit').val() || '0')
         };
@@ -1700,9 +2338,87 @@ $(document).on('appReady', function() {
         });
     });
 
+    $('#simplemdm-enrichment-form').on('submit', function(e) {
+        e.preventDefault();
+        $('#enrichment-save-status').text('Saving...').removeClass().addClass('text-info');
+
+        var payload = {
+            supplemental_enabled: $('#supplemental_enabled').is(':checked') ? '1' : '0',
+            supplemental_disabled_sources_json: JSON.stringify(getDisabledSupplementalSourceIdsFromForm()),
+            supplemental_default_stale_after_minutes: String($('#supplemental_default_stale_after_minutes').val() || '1440'),
+            supplemental_registry_json: $('#supplemental_registry_json').val() || '',
+            client_reporter_enabled: $('#client_reporter_enabled').is(':checked') ? '1' : '0',
+            client_reporter_history_enabled: $('#client_reporter_history_enabled').is(':checked') ? '1' : '0',
+            client_reporter_secret: $('#client_reporter_secret').val() || '',
+            client_reporter_max_payload_bytes: String($('#client_reporter_max_payload_bytes').val() || '16384'),
+            client_reporter_allowed_fact_keys_json: $('#client_reporter_allowed_fact_keys_json').val() || '',
+            client_reporter_hmac_enabled: $('#client_reporter_hmac_enabled').is(':checked') ? '1' : '0',
+            client_reporter_replay_protection_enabled: $('#client_reporter_replay_protection_enabled').is(':checked') ? '1' : '0',
+            client_reporter_per_device_tokens_enabled: $('#client_reporter_per_device_tokens_enabled').is(':checked') ? '1' : '0',
+            client_reporter_proxy_only_enabled: $('#client_reporter_proxy_only_enabled').is(':checked') ? '1' : '0',
+            client_reporter_max_time_skew_seconds: String($('#client_reporter_max_time_skew_seconds').val() || '300'),
+            client_reporter_ip_allowlist: $('#client_reporter_ip_allowlist').val() || '',
+            client_reporter_trusted_proxy_ips: $('#client_reporter_trusted_proxy_ips').val() || '',
+            client_reporter_device_tokens_json: $('#client_reporter_device_tokens_json').val() || ''
+        };
+
+        $.post(appUrl + '/module/simplemdm/save_config', payload, function(data) {
+            if (data.status === 'success') {
+                $('#enrichment-save-status').text('Saved. Refreshing supplemental summary cache...').removeClass().addClass('text-info');
+                $.post(appUrl + '/module/simplemdm/refresh_supplemental_summary', {}, function(refreshData) {
+                    if (refreshData.status === 'success') {
+                        setFormStatus('#enrichment-save-status', 'Saved and refreshed supplemental summary cache.', 'text-success', 3500);
+                    } else {
+                        setFormStatus('#enrichment-save-status', 'Saved settings, but summary refresh failed: ' + (refreshData.message || 'Unknown'), 'text-warning', 5000);
+                    }
+                    loadConfig();
+                    loadSupplementalStatus();
+                }, 'json').fail(function(xhr) {
+                    var refreshMsg = 'Unable to refresh supplemental summary.';
+                    if (xhr && xhr.responseJSON && (xhr.responseJSON.message || xhr.responseJSON.error)) {
+                        refreshMsg = xhr.responseJSON.message || xhr.responseJSON.error;
+                    }
+                    setFormStatus('#enrichment-save-status', 'Saved settings, but summary refresh failed: ' + refreshMsg, 'text-warning', 5000);
+                    loadConfig();
+                    loadSupplementalStatus();
+                });
+            } else {
+                setFormStatus('#enrichment-save-status', 'Error: ' + (data.message || 'Unknown'), 'text-danger');
+            }
+        }, 'json').fail(function(xhr) {
+            var msg = 'Request failed';
+            if (xhr && xhr.responseJSON && xhr.responseJSON.error) {
+                msg = xhr.responseJSON.error;
+            }
+            setFormStatus('#enrichment-save-status', 'Error: ' + msg, 'text-danger');
+        });
+    });
+
     $('#simplemdm-script-runner-form').on('submit', function(e) {
         e.preventDefault();
         saveScheduleSettings({}, 'Saved successfully!');
+    });
+
+    $('#refresh-supplemental-btn').on('click', function() {
+        var $btn = $(this);
+        $btn.prop('disabled', true);
+        $('#supplemental-refresh-status').text('Refreshing supplemental summary...').removeClass().addClass('text-info');
+        $.post(appUrl + '/module/simplemdm/refresh_supplemental_summary', {}, function(data) {
+            if (data.status === 'success') {
+                $('#supplemental-refresh-status').text('Refreshed ' + String(data.refreshed || 0) + ' device summary rows.').removeClass().addClass('text-success');
+                loadSupplementalStatus();
+            } else {
+                $('#supplemental-refresh-status').text('Error: ' + (data.message || 'Unknown')).removeClass().addClass('text-danger');
+            }
+            $btn.prop('disabled', false);
+        }, 'json').fail(function(xhr) {
+            var message = 'Unable to refresh supplemental summary.';
+            if (xhr && xhr.responseJSON && (xhr.responseJSON.message || xhr.responseJSON.error)) {
+                message = xhr.responseJSON.message || xhr.responseJSON.error;
+            }
+            $('#supplemental-refresh-status').text(message).removeClass().addClass('text-danger');
+            $btn.prop('disabled', false);
+        });
     });
 
     $(document).on('click', '.simplemdm-copy-command', function() {
@@ -1755,13 +2471,46 @@ $(document).on('appReady', function() {
         renderPrereqState();
     });
 
-    $('#api_key, #script_runner_munkireport_url, #script_runner_python_bin, #script_runner_schedule, #script_runner_log_path, #script_runner_max_parent_resources, #allow_module_script_execution').on('input change', function() {
+    $('#api_key, #script_runner_munkireport_url, #script_runner_python_bin, #script_runner_schedule, #sync_interval_minutes, #script_runner_log_path, #script_runner_max_parent_resources, #allow_module_script_execution').on('input change', function() {
         renderPrereqState();
         renderRunnerStatusPending('Re-checking module runtime after unsaved changes...');
         window.clearTimeout(runnerStatusRefreshTimer);
         runnerStatusRefreshTimer = window.setTimeout(function() {
             loadRunnerStatus();
         }, 400);
+    });
+
+    $(document).on('change', '.simplemdm-source-toggle', function() {
+        updateCollapsibleSummary('enrichment',
+            'Supplemental ' + ($('#supplemental_enabled').is(':checked') ? 'on' : 'off') +
+            ', Client Reporter ' + ($('#client_reporter_enabled').is(':checked') ? 'on' : 'off') +
+            ', HMAC ' + ($('#client_reporter_hmac_enabled').is(':checked') ? 'on' : 'off') +
+            ', Source Opt-Outs ' + String(getDisabledSupplementalSourceIdsFromForm().length)
+        );
+    });
+
+    $('#supplemental_enabled, #client_reporter_enabled, #client_reporter_hmac_enabled').on('change', function() {
+        updateCollapsibleSummary('enrichment',
+            'Supplemental ' + ($('#supplemental_enabled').is(':checked') ? 'on' : 'off') +
+            ', Client Reporter ' + ($('#client_reporter_enabled').is(':checked') ? 'on' : 'off') +
+            ', HMAC ' + ($('#client_reporter_hmac_enabled').is(':checked') ? 'on' : 'off') +
+            ', Source Opt-Outs ' + String(getDisabledSupplementalSourceIdsFromForm().length)
+        );
+    });
+
+    $('#client_reporter_enabled, #client_reporter_hmac_enabled, #client_reporter_replay_protection_enabled, #client_reporter_per_device_tokens_enabled, #client_reporter_proxy_only_enabled, #client_reporter_max_time_skew_seconds, #client_reporter_ip_allowlist, #client_reporter_trusted_proxy_ips, #client_reporter_allowed_fact_keys_json').on('input change', function() {
+        renderClientReporterRequirements({
+            client_reporter_enabled: $('#client_reporter_enabled').is(':checked') ? '1' : '0',
+            client_reporter_hmac_enabled: $('#client_reporter_hmac_enabled').is(':checked') ? '1' : '0',
+            client_reporter_replay_protection_enabled: $('#client_reporter_replay_protection_enabled').is(':checked') ? '1' : '0',
+            client_reporter_per_device_tokens_enabled: $('#client_reporter_per_device_tokens_enabled').is(':checked') ? '1' : '0',
+            client_reporter_proxy_only_enabled: $('#client_reporter_proxy_only_enabled').is(':checked') ? '1' : '0',
+            client_reporter_max_time_skew_seconds: $('#client_reporter_max_time_skew_seconds').val() || '300',
+            client_reporter_ip_allowlist: $('#client_reporter_ip_allowlist').val() || '',
+            client_reporter_trusted_proxy_ips: $('#client_reporter_trusted_proxy_ips').val() || '',
+            client_reporter_allowed_fact_keys_json: $('#client_reporter_allowed_fact_keys_json').val() || '[]',
+            client_reporter_device_token_metadata_json: $('#client_reporter_device_token_metadata_json').val() || '[]'
+        });
     });
 
     $('#enable-schedule-btn').on('click', function() {

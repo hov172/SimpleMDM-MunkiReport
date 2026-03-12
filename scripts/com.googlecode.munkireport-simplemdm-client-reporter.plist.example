@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.googlecode.munkireport-simplemdm-client-reporter</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/sh</string>
+        <string>/usr/local/munki/simplemdm_client_reporter_example.sh</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>MUNKIREPORT_URL</key>
+        <string>https://munkireport.example.com</string>
+        <key>SIMPLEMDM_CLIENT_SECRET</key>
+        <string>replace-me</string>
+        <key>SIMPLEMDM_CLIENT_VERSION</key>
+        <string>1.0.0</string>
+    </dict>
+
+    <key>StartInterval</key>
+    <integer>900</integer>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/var/log/simplemdm_client_reporter.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/var/log/simplemdm_client_reporter.log</string>
+</dict>
+</plist>

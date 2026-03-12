@@ -4,12 +4,13 @@ This document explains authentication, secrets, trust boundaries, and hardening 
 
 ## 1) Security Model
 
-The module has four primary write paths:
+The module has five primary write paths:
 
 1. Sync ingest (`ingest`, `ingest_resources`, `ingest_commands`, `update_sync_status`)
 2. Sync queue control (`request_sync`, `begin_sync_run`)
 3. Webhook ingest (`webhook`)
 4. Device API passthrough (`api_devices`, mutating operations)
+5. Client reporter ingest (`ingest_client_facts`)
 
 Read/report/listing routes require a normal authenticated MunkiReport session.
 
@@ -24,6 +25,7 @@ Read/report/listing routes require a normal authenticated MunkiReport session.
 | `index?op=begin_sync_run` | Sync auth required | `X-SIMPLEMDM-API-KEY` |
 | `index?op=get_config` | Global admin OR sync auth | Session auth or `X-SIMPLEMDM-API-KEY` |
 | `index?op=webhook` | Webhook secret OR sync auth | `X-SIMPLEMDM-WEBHOOK-SECRET` or `X-SIMPLEMDM-API-KEY` |
+| `index?op=ingest_client_facts` | Client reporter secret | `X-SIMPLEMDM-CLIENT-SECRET` |
 | `save_config` | Global admin OR sync auth | Session auth or `X-SIMPLEMDM-API-KEY` |
 | `request_sync` | Global admin session | Session auth |
 | `api_devices` `GET` | Global admin session | Session auth |
@@ -66,6 +68,21 @@ Notes:
   - Header: `X-SIMPLEMDM-ACTION-SECRET` (preferred)
   - Also supported: legacy aliases and `action_secret` in body/query for compatibility.
 
+## `client_reporter_secret`
+
+- Purpose:
+  - Authenticates Option B client-reported fact submissions.
+- Storage:
+  - `simplemdm_config` (`name=client_reporter_secret`).
+- Header:
+  - `X-SIMPLEMDM-CLIENT-SECRET`.
+- Current trust model:
+  - shared secret plus HTTPS, allowlisted fact keys, payload-size limits, and type validation.
+  - optional hardening can also require HMAC signing, replay protection, per-device tokens, and trusted-proxy/IP controls.
+- Boundary:
+  - suitable for controlled supplemental reporting
+  - stronger per-device assurance requires the optional token or future certificate-based paths
+
 ## 4) Secret Rotation Procedure
 
 1. Generate new secret material (API key/secret) in your secret manager.
@@ -89,32 +106,72 @@ Notes:
    - `api_key`
    - `webhook_secret`
    - `action_api_secret`
-4. Restrict network ingress to MunkiReport where possible (WAF, IP ACL, VPN).
-5. Run sync from trusted host only; do not expose sync runner credentials broadly.
-6. Treat queued sync controls as privileged operations:
+4. If Option B is enabled, also set and protect `client_reporter_secret`.
+5. Restrict network ingress to MunkiReport where possible (WAF, IP ACL, VPN).
+6. Run sync from trusted host only; do not expose sync runner credentials broadly.
+7. Treat queued sync controls as privileged operations:
    - `request_sync` should remain global-admin only
    - `begin_sync_run` should remain sync-token only
    - do not invoke Python directly from PHP/web requests
-7. Monitor logs for repeated unauthorized attempts on:
+8. Keep the Option B allowlist narrow and avoid accepting high-impact or sensitive fields.
+9. Monitor logs for repeated unauthorized attempts on:
    - `index?op=webhook`
+   - `index?op=ingest_client_facts`
    - `request_sync`
    - `index?op=begin_sync_run`
    - `api_devices` mutating calls
-8. Rotate secrets on staff turnover or suspected exposure.
+10. Rotate secrets on staff turnover or suspected exposure.
 
-## 6) Logging and Sensitive Data
+## 6) Optional Hardening For Option B
+
+The current module now supports these optional Option B hardening layers:
+
+1. HMAC-signed requests
+   - each client request includes a signature over the body plus timestamp
+   - server verifies integrity and sender knowledge of the shared secret
+2. Timestamp and nonce replay protection
+   - reject stale or repeated client submissions
+   - reduces replay risk if a request is captured
+3. Per-device or per-group reporter tokens
+   - limits blast radius compared with one global client secret
+   - allows selective revocation
+4. Reverse-proxy or IP allowlist enforcement
+   - restricts where Option B ingest can be called from
+5. Optional mTLS or certificate-bound client identity
+   - strongest path for hostile or highly regulated environments
+
+Implemented optional controls:
+
+1. HMAC signatures
+2. timestamp + nonce replay checks
+3. per-device or scoped reporter tokens
+4. trusted-proxy enforcement
+5. IP allowlist filtering
+
+Still future-only:
+
+1. mTLS or certificate-bound client identity
+
+These controls improve client submission trust without changing the current supplemental data model.
+
+## 7) Logging and Sensitive Data
 
 1. Do not print API key or action secret in plain logs.
 2. Be careful with verbose debugging output and captured request payloads.
 3. Treat webhook payload storage (`simplemdm_webhook_event.payload_json`) as sensitive operational data.
 4. If exporting logs to SIEM, redact secret-like headers and tokens.
 
-## 7) Security Validation Checklist
+## 8) Security Validation Checklist
 
 1. Non-global user cannot retrieve raw `api_key`, `webhook_secret`, or `action_api_secret`.
 2. Ingest endpoints reject requests missing `X-SIMPLEMDM-API-KEY`.
 3. `begin_sync_run` rejects requests missing `X-SIMPLEMDM-API-KEY`.
 4. `request_sync` rejects non-global sessions.
 5. Webhook endpoint rejects invalid secret and invalid sync token.
-6. Mutating `api_devices` call fails without valid action secret.
-7. Read-only `api_devices` calls still require global admin session.
+6. `ingest_client_facts` rejects requests missing or invalid `X-SIMPLEMDM-CLIENT-SECRET`.
+7. If HMAC is enabled, `ingest_client_facts` rejects missing or invalid signature/timestamp headers.
+8. If replay protection is enabled, `ingest_client_facts` rejects reused nonces.
+9. If per-device tokens are enabled, `ingest_client_facts` rejects missing or invalid device tokens.
+10. If proxy-only or IP allowlist controls are enabled, `ingest_client_facts` rejects requests outside those network rules.
+11. Mutating `api_devices` call fails without valid action secret.
+12. Read-only `api_devices` calls still require global admin session.

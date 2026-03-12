@@ -8,7 +8,7 @@
  **/
 class Simplemdm_controller extends Module_controller
 {
-    private $sync_actions = ['ingest', 'ingest_resources', 'ingest_commands', 'webhook', 'update_sync_status', 'begin_sync_run', 'get_config'];
+    private $sync_actions = ['ingest', 'ingest_resources', 'ingest_commands', 'ingest_client_facts', 'webhook', 'update_sync_status', 'begin_sync_run', 'get_config'];
     private $downloadable_scripts = ['simplemdm_sync.py', 'install_cron.sh', 'remove_cron.sh'];
 
     function __construct()
@@ -23,6 +23,11 @@ class Simplemdm_controller extends Module_controller
         require_once $this->module_path . '/simplemdm_relationship_edge_model.php';
         require_once $this->module_path . '/simplemdm_device_history_model.php';
         require_once $this->module_path . '/simplemdm_sync_run_model.php';
+        require_once $this->module_path . '/simplemdm_supplemental_summary_model.php';
+        require_once $this->module_path . '/simplemdm_client_fact_model.php';
+        require_once $this->module_path . '/simplemdm_client_fact_history_model.php';
+        require_once $this->module_path . '/simplemdm_client_reporter_nonce_model.php';
+        require_once $this->module_path . '/simplemdm_client_reporter_token_model.php';
 
         // Check if authorized (except token-protected sync endpoints)
         $is_sync_action = false;
@@ -97,6 +102,1178 @@ class Simplemdm_controller extends Module_controller
             }
         }
         return '';
+    }
+
+    private function has_supplemental_summary_table()
+    {
+        static $has_table = null;
+        if ($has_table !== null) {
+            return $has_table;
+        }
+
+        try {
+            $has_table = \Illuminate\Database\Capsule\Manager::schema()->hasTable('simplemdm_supplemental_summary');
+        } catch (\Throwable $e) {
+            $has_table = false;
+        }
+
+        return $has_table;
+    }
+
+    private function has_client_fact_table()
+    {
+        static $has_table = null;
+        if ($has_table !== null) {
+            return $has_table;
+        }
+
+        try {
+            $has_table = \Illuminate\Database\Capsule\Manager::schema()->hasTable('simplemdm_client_fact');
+        } catch (\Throwable $e) {
+            $has_table = false;
+        }
+
+        return $has_table;
+    }
+
+    private function has_client_fact_history_table()
+    {
+        static $has_table = null;
+        if ($has_table !== null) {
+            return $has_table;
+        }
+
+        try {
+            $has_table = \Illuminate\Database\Capsule\Manager::schema()->hasTable('simplemdm_client_fact_history');
+        } catch (\Throwable $e) {
+            $has_table = false;
+        }
+
+        return $has_table;
+    }
+
+    private function has_client_reporter_nonce_table()
+    {
+        static $has_table = null;
+        if ($has_table !== null) {
+            return $has_table;
+        }
+
+        try {
+            $has_table = \Illuminate\Database\Capsule\Manager::schema()->hasTable('simplemdm_client_reporter_nonce');
+        } catch (\Throwable $e) {
+            $has_table = false;
+        }
+
+        return $has_table;
+    }
+
+    private function has_client_reporter_token_table()
+    {
+        static $has_table = null;
+        if ($has_table !== null) {
+            return $has_table;
+        }
+
+        try {
+            $has_table = \Illuminate\Database\Capsule\Manager::schema()->hasTable('simplemdm_client_reporter_token');
+        } catch (\Throwable $e) {
+            $has_table = false;
+        }
+
+        return $has_table;
+    }
+
+    private function supplemental_registry()
+    {
+        $registry = [
+            'filevault_status' => [
+                'source_id' => 'filevault_status',
+                'label' => 'FileVault Status',
+                'table' => 'filevault_status',
+                'join_key' => 'serial_number',
+                'required_columns' => ['serial_number', 'filevault_status'],
+            ],
+            'findmymac' => [
+                'source_id' => 'findmymac',
+                'label' => 'Find My Mac',
+                'table' => 'findmymac',
+                'join_key' => 'serial_number',
+                'required_columns' => ['serial_number', 'status'],
+            ],
+            'applecare' => [
+                'source_id' => 'applecare',
+                'label' => 'Warranty / AppleCare',
+                'table' => 'warranty',
+                'join_key' => 'serial_number',
+                'required_columns' => ['serial_number', 'end_date', 'status'],
+            ],
+            'profile' => [
+                'source_id' => 'profile',
+                'label' => 'Profiles',
+                'table' => 'profile',
+                'join_key' => 'serial_number',
+                'required_columns' => ['serial_number', 'timestamp'],
+            ],
+            'managedinstalls' => [
+                'source_id' => 'managedinstalls',
+                'label' => 'Managed Installs',
+                'table' => 'managedinstalls',
+                'join_key' => 'serial_number',
+                'required_columns' => ['serial_number', 'status'],
+            ],
+        ];
+
+        foreach ($this->discover_generic_supplemental_sources() as $source_id => $definition) {
+            if (! isset($registry[$source_id])) {
+                $registry[$source_id] = $definition;
+            }
+        }
+
+        $override_json = trim($this->get_config_value('supplemental_registry_json', ''));
+        if ($override_json !== '') {
+            $decoded = json_decode($override_json, true);
+            if (is_array($decoded)) {
+                foreach ($decoded as $source_id => $definition) {
+                    if (! is_array($definition)) {
+                        continue;
+                    }
+                    $source_id = trim((string) $source_id);
+                    if ($source_id === '') {
+                        continue;
+                    }
+                    $base = isset($registry[$source_id]) && is_array($registry[$source_id]) ? $registry[$source_id] : [];
+                    if (isset($definition['required_columns']) && ! is_array($definition['required_columns'])) {
+                        unset($definition['required_columns']);
+                    }
+                    $registry[$source_id] = array_merge($base, $definition, ['source_id' => $source_id]);
+                }
+            }
+        }
+
+        return $registry;
+    }
+
+    private function list_loaded_module_ids()
+    {
+        $modules_dir = APP_ROOT . 'local/modules';
+        if (! is_dir($modules_dir)) {
+            return [];
+        }
+
+        $ids = [];
+        foreach (glob($modules_dir . '/*', GLOB_ONLYDIR) ?: [] as $path) {
+            $module_id = basename((string) $path);
+            if ($module_id === '' || $module_id === 'simplemdm') {
+                continue;
+            }
+            $ids[$module_id] = $module_id;
+        }
+
+        ksort($ids);
+        return array_values($ids);
+    }
+
+    private function module_php_files($module_id)
+    {
+        $module_dir = APP_ROOT . 'local/modules/' . trim((string) $module_id);
+        if (! is_dir($module_dir)) {
+            return [];
+        }
+
+        $files = glob($module_dir . '/*.php') ?: [];
+        sort($files);
+        return $files;
+    }
+
+    private function infer_module_table_candidates($module_id)
+    {
+        $module_id = trim((string) $module_id);
+        if ($module_id === '') {
+            return [];
+        }
+
+        $candidates = [$module_id => $module_id];
+        $patterns = [
+            '/\bFROM\s+`?([a-zA-Z0-9_]+)`?/i',
+            '/\bJOIN\s+`?([a-zA-Z0-9_]+)`?/i',
+            '/->from\(\s*[\'"]([a-zA-Z0-9_]+)[\'"]\s*\)/i',
+            '/(?:Capsule|Manager)::table\(\s*[\'"]([a-zA-Z0-9_]+)[\'"]\s*\)/i',
+            '/->table\(\s*[\'"]([a-zA-Z0-9_]+)[\'"]\s*\)/i',
+            '/\$(?:this->)?table\s*=\s*[\'"]([a-zA-Z0-9_]+)[\'"]/i',
+        ];
+
+        foreach ($this->module_php_files($module_id) as $file) {
+            $contents = @file_get_contents($file);
+            if (! is_string($contents) || $contents === '') {
+                continue;
+            }
+
+            foreach ($patterns as $pattern) {
+                if (! preg_match_all($pattern, $contents, $matches)) {
+                    continue;
+                }
+                foreach ($matches[1] as $match) {
+                    $table = trim((string) $match);
+                    if ($table === '' || preg_match('/^(select|where|left|right|inner|outer|using|on)$/i', $table)) {
+                        continue;
+                    }
+                    $candidates[$table] = $table;
+                }
+            }
+        }
+
+        return array_values($candidates);
+    }
+
+    private function detect_generic_join_key_for_table($table)
+    {
+        foreach (['serial_number', 'machine_serial', 'serial'] as $column) {
+            if ($this->schema_has_columns($table, [$column])) {
+                return $column;
+            }
+        }
+
+        return '';
+    }
+
+    private function detect_generic_freshness_column($table)
+    {
+        foreach (['updated_at', 'timestamp', 'add_time', 'profile_install_date', 'install_date', 'date', 'end_date'] as $column) {
+            if ($this->schema_has_columns($table, [$column])) {
+                return $column;
+            }
+        }
+
+        return '';
+    }
+
+    private function discover_generic_supplemental_sources()
+    {
+        static $registry = null;
+        if ($registry !== null) {
+            return $registry;
+        }
+
+        $registry = [];
+        try {
+            $schema = \Illuminate\Database\Capsule\Manager::schema();
+        } catch (\Throwable $e) {
+            return $registry;
+        }
+
+        foreach ($this->list_loaded_module_ids() as $module_id) {
+            if (in_array($module_id, ['filevault_status', 'findmymac', 'profile', 'managedinstalls', 'warranty'], true)) {
+                continue;
+            }
+            $table_candidates = $this->infer_module_table_candidates($module_id);
+            $selected_table = $module_id;
+            $join_key = '';
+            $table_exists = false;
+
+            foreach ($table_candidates as $candidate) {
+                try {
+                    if (! $schema->hasTable($candidate)) {
+                        continue;
+                    }
+                } catch (\Throwable $e) {
+                    continue;
+                }
+
+                $candidate_join_key = $this->detect_generic_join_key_for_table($candidate);
+                if ($candidate_join_key !== '') {
+                    $selected_table = $candidate;
+                    $join_key = $candidate_join_key;
+                    $table_exists = true;
+                    break;
+                }
+                if (! $table_exists) {
+                    $selected_table = $candidate;
+                    $table_exists = true;
+                }
+            }
+
+            if ($join_key === '' && $table_exists) {
+                $join_key = $this->detect_generic_join_key_for_table($selected_table);
+            }
+
+            $registry[$module_id] = [
+                'source_id' => $module_id,
+                'label' => ucwords(str_replace('_', ' ', $module_id)),
+                'table' => $selected_table,
+                'join_key' => $join_key,
+                'required_columns' => $join_key !== '' ? [$join_key] : [],
+                'generic' => true,
+                'auto_discovered' => true,
+                'table_candidates' => $table_candidates,
+                'freshness_column' => $table_exists ? $this->detect_generic_freshness_column($selected_table) : '',
+            ];
+        }
+
+        return $registry;
+    }
+
+    private function supplemental_enabled()
+    {
+        return $this->get_config_value('supplemental_enabled', '1') !== '0';
+    }
+
+    private function supplemental_disabled_source_ids()
+    {
+        $raw = trim($this->get_config_value('supplemental_disabled_sources_json', '[]'));
+        if ($raw === '') {
+            return [];
+        }
+
+        $decoded = json_decode($raw, true);
+        if (! is_array($decoded)) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($decoded as $value) {
+            $source_id = trim((string) $value);
+            if ($source_id !== '') {
+                $ids[$source_id] = true;
+            }
+        }
+
+        return array_keys($ids);
+    }
+
+    private function supplemental_source_is_enabled($source_id)
+    {
+        return ! in_array((string) $source_id, $this->supplemental_disabled_source_ids(), true);
+    }
+
+    private function client_reporter_enabled()
+    {
+        return $this->get_config_value('client_reporter_enabled', '0') === '1';
+    }
+
+    private function client_reporter_history_enabled()
+    {
+        return $this->get_config_value('client_reporter_history_enabled', '1') === '1';
+    }
+
+    private function client_reporter_max_payload_bytes()
+    {
+        $bytes = (int) $this->get_config_value('client_reporter_max_payload_bytes', '16384');
+        return $bytes > 0 ? $bytes : 16384;
+    }
+
+    private function client_reporter_hmac_enabled()
+    {
+        return $this->get_config_value('client_reporter_hmac_enabled', '0') === '1';
+    }
+
+    private function client_reporter_replay_protection_enabled()
+    {
+        return $this->get_config_value('client_reporter_replay_protection_enabled', '0') === '1';
+    }
+
+    private function client_reporter_per_device_tokens_enabled()
+    {
+        return $this->get_config_value('client_reporter_per_device_tokens_enabled', '0') === '1';
+    }
+
+    private function client_reporter_proxy_only_enabled()
+    {
+        return $this->get_config_value('client_reporter_proxy_only_enabled', '0') === '1';
+    }
+
+    private function client_reporter_max_time_skew_seconds()
+    {
+        $seconds = (int) $this->get_config_value('client_reporter_max_time_skew_seconds', '300');
+        return $seconds >= 30 ? $seconds : 300;
+    }
+
+    private function client_reporter_ip_rules($key)
+    {
+        $raw = trim($this->get_config_value($key, ''));
+        if ($raw === '') {
+            return [];
+        }
+
+        $parts = preg_split('/[\s,]+/', $raw) ?: [];
+        $rules = [];
+        foreach ($parts as $part) {
+            $rule = trim((string) $part);
+            if ($rule !== '') {
+                $rules[$rule] = $rule;
+            }
+        }
+
+        return array_values($rules);
+    }
+
+    private function client_reporter_allowed_fact_keys()
+    {
+        $defaults = ['mdm_profile_present', 'console_user', 'uptime_seconds', 'munki_last_run_result', 'local_filevault_enabled'];
+        $raw = trim($this->get_config_value('client_reporter_allowed_fact_keys_json', json_encode($defaults)));
+        if ($raw === '') {
+            return $defaults;
+        }
+        $decoded = json_decode($raw, true);
+        if (! is_array($decoded)) {
+            return $defaults;
+        }
+        $keys = [];
+        foreach ($decoded as $value) {
+            $key = trim((string) $value);
+            if ($key !== '') {
+                $keys[] = $key;
+            }
+        }
+        return $keys ?: $defaults;
+    }
+
+    private function client_fact_registry()
+    {
+        return [
+            'mdm_profile_present' => ['fact_type' => 'mdm_health', 'type' => 'bool', 'label' => 'MDM Profile Present'],
+            'console_user' => ['fact_type' => 'session', 'type' => 'string', 'label' => 'Console User'],
+            'uptime_seconds' => ['fact_type' => 'session', 'type' => 'int', 'label' => 'Uptime Seconds'],
+            'munki_last_run_result' => ['fact_type' => 'software', 'type' => 'string', 'label' => 'Munki Last Run Result'],
+            'local_filevault_enabled' => ['fact_type' => 'security', 'type' => 'bool', 'label' => 'Local FileVault Enabled'],
+        ];
+    }
+
+    private function client_reporter_token_metadata()
+    {
+        if (! $this->has_client_reporter_token_table()) {
+            return [];
+        }
+
+        $rows = [];
+        foreach (Simplemdm_client_reporter_token_model::orderBy('serial_number')->orderBy('label')->get() as $row) {
+            $rows[] = [
+                'serial_number' => (string) $row->serial_number,
+                'label' => trim((string) $row->label) !== '' ? (string) $row->label : 'default',
+                'enabled' => (int) $row->enabled === 1,
+                'last_used_at' => (string) $row->last_used_at,
+                'updated_at' => (string) $row->updated_at,
+                'has_token' => trim((string) $row->token_hash) !== '',
+            ];
+        }
+
+        return $rows;
+    }
+
+    private function normalize_client_reporter_token_rows($raw)
+    {
+        $raw = trim((string) $raw);
+        if ($raw === '') {
+            return null;
+        }
+
+        $decoded = json_decode($raw, true);
+        if (! is_array($decoded)) {
+            throw new \RuntimeException('Client reporter device tokens must be a JSON object or array.');
+        }
+
+        $rows = [];
+        if (array_keys($decoded) !== range(0, count($decoded) - 1)) {
+            foreach ($decoded as $serial_number => $token) {
+                $rows[] = [
+                    'serial_number' => trim((string) $serial_number),
+                    'label' => 'default',
+                    'token' => (string) $token,
+                    'enabled' => true,
+                ];
+            }
+        } else {
+            foreach ($decoded as $item) {
+                if (! is_array($item)) {
+                    continue;
+                }
+                $rows[] = [
+                    'serial_number' => trim((string) ($item['serial_number'] ?? '')),
+                    'label' => trim((string) ($item['label'] ?? 'default')) ?: 'default',
+                    'token' => (string) ($item['token'] ?? ''),
+                    'enabled' => ! array_key_exists('enabled', $item) || (string) $item['enabled'] !== '0',
+                ];
+            }
+        }
+
+        $normalized = [];
+        foreach ($rows as $row) {
+            $serial_number = strtoupper(trim((string) $row['serial_number']));
+            $label = trim((string) $row['label']) ?: 'default';
+            $token = trim((string) $row['token']);
+            if ($serial_number === '' || $token === '') {
+                continue;
+            }
+            $normalized[] = [
+                'serial_number' => $serial_number,
+                'label' => $label,
+                'token_hash' => hash('sha256', $token),
+                'enabled' => ! empty($row['enabled']) ? 1 : 0,
+            ];
+        }
+
+        return $normalized;
+    }
+
+    private function sync_client_reporter_tokens($raw)
+    {
+        $rows = $this->normalize_client_reporter_token_rows($raw);
+        if ($rows === null) {
+            return null;
+        }
+
+        if (! $this->has_client_reporter_token_table()) {
+            throw new \RuntimeException('Client reporter token table is unavailable. Run migrations first.');
+        }
+
+        Simplemdm_client_reporter_token_model::query()->delete();
+        $now = date('Y-m-d H:i:s');
+        foreach ($rows as $row) {
+            Simplemdm_client_reporter_token_model::create([
+                'serial_number' => $row['serial_number'],
+                'label' => $row['label'],
+                'token_hash' => $row['token_hash'],
+                'enabled' => $row['enabled'],
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
+
+        return count($rows);
+    }
+
+    private function supplemental_stale_after_minutes()
+    {
+        $minutes = (int) $this->get_config_value('supplemental_default_stale_after_minutes', '1440');
+        return $minutes > 0 ? $minutes : 1440;
+    }
+
+    private function schema_has_columns($table, $columns)
+    {
+        try {
+            $schema = \Illuminate\Database\Capsule\Manager::schema();
+            foreach ((array) $columns as $column) {
+                if (! $schema->hasColumn($table, $column)) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    private function detect_supplemental_source($source)
+    {
+        $registry = $this->supplemental_registry();
+        if (! isset($registry[$source])) {
+            return [
+                'source_id' => (string) $source,
+                'detected' => false,
+                'reason' => 'unknown_source',
+            ];
+        }
+
+        $definition = $registry[$source];
+        $table = $definition['table'];
+
+        try {
+            $schema = \Illuminate\Database\Capsule\Manager::schema();
+            if (! $schema->hasTable($table)) {
+                return array_merge($definition, [
+                    'detected' => false,
+                    'reason' => 'table_missing',
+                    'has_data' => false,
+                ]);
+            }
+        } catch (\Throwable $e) {
+            return array_merge($definition, [
+                'detected' => false,
+                'reason' => 'schema_error',
+                'has_data' => false,
+            ]);
+        }
+
+        if (! empty($definition['generic']) && empty($definition['join_key'])) {
+            return array_merge($definition, [
+                'detected' => false,
+                'reason' => 'no_supported_join_key',
+                'has_data' => false,
+            ]);
+        }
+
+        if (! $this->schema_has_columns($table, $definition['required_columns'])) {
+            return array_merge($definition, [
+                'detected' => false,
+                'reason' => 'required_columns_missing',
+                'has_data' => false,
+            ]);
+        }
+
+        try {
+            $has_data = \Illuminate\Database\Capsule\Manager::table($table)->limit(1)->count() > 0;
+        } catch (\Throwable $e) {
+            $has_data = false;
+        }
+
+        return array_merge($definition, [
+            'detected' => true,
+            'reason' => $has_data ? 'ok' : 'no_rows',
+            'has_data' => $has_data,
+        ]);
+    }
+
+    private function get_detected_supplemental_sources()
+    {
+        $detected = [];
+        foreach (array_keys($this->supplemental_registry()) as $source_id) {
+            $detected[$source_id] = array_merge(
+                $this->detect_supplemental_source($source_id),
+                ['enabled' => $this->supplemental_source_is_enabled($source_id)]
+            );
+        }
+        return $detected;
+    }
+
+    private function parse_supplemental_datetime($value, $is_epoch = false)
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if ($is_epoch) {
+            $epoch = (int) $value;
+            if ($epoch <= 0) {
+                return null;
+            }
+            return gmdate('c', $epoch);
+        }
+
+        try {
+            return (new \DateTime((string) $value))->format('c');
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    private function format_supplemental_freshness($source_timestamp, $summary_refresh, $is_detected, $refresh_status = 'success')
+    {
+        if (! $is_detected) {
+            return [
+                'state' => 'module_not_detected',
+                'source_timestamp' => null,
+                'summary_refresh' => $summary_refresh,
+                'basis' => null,
+            ];
+        }
+
+        if ($refresh_status === 'failed') {
+            return [
+                'state' => 'refresh_failed',
+                'source_timestamp' => $source_timestamp,
+                'summary_refresh' => $summary_refresh,
+                'basis' => $source_timestamp ? 'source_timestamp' : ($summary_refresh ? 'summary_refresh' : null),
+            ];
+        }
+
+        $basis = $source_timestamp ?: $summary_refresh;
+        if (! $basis) {
+            return [
+                'state' => 'missing',
+                'source_timestamp' => null,
+                'summary_refresh' => $summary_refresh,
+                'basis' => null,
+            ];
+        }
+
+        try {
+            $age_minutes = (int) floor((time() - (new \DateTime($basis))->getTimestamp()) / 60);
+        } catch (\Throwable $e) {
+            $age_minutes = 0;
+        }
+
+        return [
+            'state' => $age_minutes > $this->supplemental_stale_after_minutes() ? 'stale' : 'fresh',
+            'source_timestamp' => $source_timestamp,
+            'summary_refresh' => $summary_refresh,
+            'basis' => $source_timestamp ? 'source_timestamp' : 'summary_refresh',
+            'age_minutes' => max(0, $age_minutes),
+        ];
+    }
+
+    private function normalize_filevault_enabled($status)
+    {
+        $value = strtolower(trim((string) $status));
+        if ($value === '') {
+            return null;
+        }
+        if (strpos($value, 'off') !== false || strpos($value, 'disable') !== false) {
+            return 0;
+        }
+        if (strpos($value, 'on') !== false || strpos($value, 'encrypt') !== false) {
+            return 1;
+        }
+        return null;
+    }
+
+    private function normalize_findmymac_enabled($status)
+    {
+        $value = strtolower(trim((string) $status));
+        if ($value === '') {
+            return null;
+        }
+        if (in_array($value, ['disabled', 'off', 'inactive', '0', 'unknown'], true)) {
+            return 0;
+        }
+        return 1;
+    }
+
+    private function build_supplemental_source_payload($source_id, $serial_number, $summary_refresh = null, $refresh_status = 'success')
+    {
+        $source = $this->detect_supplemental_source($source_id);
+        $payload = [
+            'source_id' => $source_id,
+            'label' => isset($source['label']) ? (string) $source['label'] : (string) $source_id,
+            'table' => isset($source['table']) ? (string) $source['table'] : '',
+            'detected' => ! empty($source['detected']),
+            'enabled' => $this->supplemental_source_is_enabled($source_id),
+            'generic' => ! empty($source['generic']),
+            'auto_discovered' => ! empty($source['auto_discovered']),
+            'reason' => isset($source['reason']) ? (string) $source['reason'] : '',
+            'present' => null,
+            'summary' => [],
+            'detail' => [],
+            'freshness' => $this->format_supplemental_freshness(null, $summary_refresh, ! empty($source['detected']), $refresh_status),
+        ];
+
+        if (empty($source['detected'])) {
+            return $payload;
+        }
+
+        if (! $payload['enabled']) {
+            $payload['present'] = 0;
+            $payload['reason'] = 'disabled_in_settings';
+            $payload['freshness'] = [
+                'state' => 'disabled_in_settings',
+                'source_timestamp' => null,
+                'summary_refresh' => $summary_refresh,
+                'basis' => null,
+            ];
+            return $payload;
+        }
+
+        try {
+            switch ($source_id) {
+                case 'filevault_status':
+                    $row = \Illuminate\Database\Capsule\Manager::table('filevault_status')
+                        ->where('serial_number', $serial_number)
+                        ->first();
+                    $payload['present'] = $row ? 1 : 0;
+                    if (! $row) {
+                        return $payload;
+                    }
+                    $enabled = $this->normalize_filevault_enabled($row->filevault_status ?? null);
+                    $payload['summary'] = [
+                        'enabled' => $enabled,
+                        'status' => (string) ($row->filevault_status ?? ''),
+                    ];
+                    $payload['detail'] = [
+                        'FileVault Status' => (string) ($row->filevault_status ?? ''),
+                        'Users' => (string) ($row->filevault_users ?? ''),
+                        'Auth Restart Support' => isset($row->auth_restart_support) ? (int) $row->auth_restart_support : null,
+                        'Personal Recovery Key' => isset($row->has_personal_recovery_key) ? (int) $row->has_personal_recovery_key : null,
+                        'Institutional Recovery Key' => isset($row->has_institutional_recovery_key) ? (int) $row->has_institutional_recovery_key : null,
+                        'Using Recovery Key' => isset($row->using_recovery_key) ? (int) $row->using_recovery_key : null,
+                        'Conversion State' => (string) ($row->conversion_state ?? ''),
+                        'Conversion Percent' => isset($row->conversion_percent) ? (int) $row->conversion_percent : null,
+                        'Bootstrap Token Supported' => isset($row->bootstraptoken_supported) ? (int) $row->bootstraptoken_supported : null,
+                        'Bootstrap Token Escrowed' => isset($row->bootstraptoken_escrowed) ? (int) $row->bootstraptoken_escrowed : null,
+                    ];
+                    $payload['freshness'] = $this->format_supplemental_freshness(null, $summary_refresh, true, $refresh_status);
+                    return $payload;
+
+                case 'findmymac':
+                    $row = \Illuminate\Database\Capsule\Manager::table('findmymac')
+                        ->where('serial_number', $serial_number)
+                        ->first();
+                    $payload['present'] = $row ? 1 : 0;
+                    if (! $row) {
+                        return $payload;
+                    }
+                    $source_timestamp = $this->parse_supplemental_datetime($row->add_time ?? null, true);
+                    $payload['summary'] = [
+                        'enabled' => $this->normalize_findmymac_enabled($row->status ?? null),
+                        'status' => (string) ($row->status ?? ''),
+                    ];
+                    $payload['detail'] = [
+                        'Status' => (string) ($row->status ?? ''),
+                        'Owner' => (string) ($row->ownerdisplayname ?? ''),
+                        'Email' => (string) ($row->email ?? ''),
+                        'Hostname' => (string) ($row->hostname ?? ''),
+                        'Added At' => $source_timestamp,
+                    ];
+                    $payload['freshness'] = $this->format_supplemental_freshness($source_timestamp, $summary_refresh, true, $refresh_status);
+                    return $payload;
+
+                case 'applecare':
+                    $row = \Illuminate\Database\Capsule\Manager::table('warranty')
+                        ->where('serial_number', $serial_number)
+                        ->first();
+                    $payload['present'] = $row ? 1 : 0;
+                    if (! $row) {
+                        return $payload;
+                    }
+                    $payload['summary'] = [
+                        'coverage_end' => (string) ($row->end_date ?? ''),
+                        'coverage_status' => (string) ($row->status ?? ''),
+                    ];
+                    $payload['detail'] = [
+                        'Purchase Date' => (string) ($row->purchase_date ?? ''),
+                        'Coverage End' => (string) ($row->end_date ?? ''),
+                        'Status' => (string) ($row->status ?? ''),
+                        'Estimated Manufacture Date' => (string) ($row->est_mfg_date ?? ''),
+                        'iCloud Logged In' => isset($row->icloud_logged_in) ? (int) $row->icloud_logged_in : null,
+                    ];
+                    $payload['freshness'] = $this->format_supplemental_freshness(null, $summary_refresh, true, $refresh_status);
+                    return $payload;
+
+                case 'profile':
+                    $rows = \Illuminate\Database\Capsule\Manager::table('profile')
+                        ->where('serial_number', $serial_number)
+                        ->orderBy('timestamp', 'desc')
+                        ->get();
+                    $payload['present'] = $rows->count() > 0 ? 1 : 0;
+                    if (! $rows->count()) {
+                        return $payload;
+                    }
+                    $latest_timestamp = null;
+                    $profiles = [];
+                    foreach ($rows->take(25) as $row) {
+                        $profile_timestamp = $this->parse_supplemental_datetime($row->timestamp ?? null, true);
+                        if ($latest_timestamp === null && $profile_timestamp) {
+                            $latest_timestamp = $profile_timestamp;
+                        }
+                        $profiles[] = [
+                            'name' => (string) ($row->profile_name ?: $row->payload_display ?: $row->payload_name ?: ''),
+                            'organization' => (string) ($row->profile_organization ?? ''),
+                            'install_date' => $this->parse_supplemental_datetime($row->profile_install_date ?? null, true),
+                            'verification_state' => (string) ($row->profile_verification_state ?? ''),
+                            'method' => (string) ($row->profile_method ?? ''),
+                            'user' => (string) ($row->user ?? ''),
+                        ];
+                    }
+                    $payload['summary'] = [
+                        'profile_count' => $rows->count(),
+                    ];
+                    $payload['detail'] = [
+                        'Profile Count' => $rows->count(),
+                        'Profiles' => $profiles,
+                    ];
+                    $payload['freshness'] = $this->format_supplemental_freshness($latest_timestamp, $summary_refresh, true, $refresh_status);
+                    return $payload;
+
+                case 'managedinstalls':
+                    $rows = \Illuminate\Database\Capsule\Manager::table('managedinstalls')
+                        ->where('serial_number', $serial_number)
+                        ->orderBy('display_name', 'asc')
+                        ->get();
+                    $payload['present'] = $rows->count() > 0 ? 1 : 0;
+                    if (! $rows->count()) {
+                        return $payload;
+                    }
+                    $warning_count = 0;
+                    $error_count = 0;
+                    $status_breakdown = [];
+                    $items = [];
+                    foreach ($rows as $row) {
+                        $status = strtolower(trim((string) $row->status));
+                        if ($status !== '') {
+                            if (! isset($status_breakdown[$status])) {
+                                $status_breakdown[$status] = 0;
+                            }
+                            $status_breakdown[$status]++;
+                            if (strpos($status, 'error') !== false || strpos($status, 'fail') !== false) {
+                                $error_count++;
+                            } elseif (strpos($status, 'warning') !== false || strpos($status, 'pending') !== false) {
+                                $warning_count++;
+                            }
+                        }
+                    }
+                    foreach ($rows->take(25) as $row) {
+                        $items[] = [
+                            'name' => (string) ($row->display_name ?: $row->name ?: ''),
+                            'version' => (string) ($row->version ?? ''),
+                            'status' => (string) ($row->status ?? ''),
+                            'type' => (string) ($row->type ?? ''),
+                            'installed' => isset($row->installed) ? (int) $row->installed : null,
+                        ];
+                    }
+                    $payload['summary'] = [
+                        'warning_count' => $warning_count,
+                        'error_count' => $error_count,
+                        'item_count' => $rows->count(),
+                    ];
+                    $payload['detail'] = [
+                        'Managed Installs Count' => $rows->count(),
+                        'Warning Count' => $warning_count,
+                        'Error Count' => $error_count,
+                        'Status Breakdown' => $status_breakdown,
+                        'Items' => $items,
+                    ];
+                    $payload['freshness'] = $this->format_supplemental_freshness(null, $summary_refresh, true, $refresh_status);
+                    return $payload;
+
+                default:
+                    if (! empty($source['generic'])) {
+                        $table = (string) ($source['table'] ?? '');
+                        $join_key = (string) ($source['join_key'] ?? '');
+                        $freshness_column = (string) ($source['freshness_column'] ?? '');
+                        if ($table === '' || $join_key === '') {
+                            return $payload;
+                        }
+
+                        $base_query = \Illuminate\Database\Capsule\Manager::table($table)->where($join_key, $serial_number);
+                        $row_count = (int) $base_query->count();
+                        $payload['present'] = $row_count > 0 ? 1 : 0;
+                        $payload['summary'] = ['row_count' => $row_count];
+                        if ($row_count < 1) {
+                            return $payload;
+                        }
+
+                        $row_query = \Illuminate\Database\Capsule\Manager::table($table)->where($join_key, $serial_number);
+                        if ($freshness_column !== '') {
+                            $row_query->orderBy($freshness_column, 'desc');
+                        }
+                        $row = $row_query->first();
+                        if (! $row) {
+                            return $payload;
+                        }
+
+                        $source_timestamp = null;
+                        if ($freshness_column !== '' && isset($row->{$freshness_column})) {
+                            $source_timestamp = $this->parse_supplemental_datetime(
+                                $row->{$freshness_column},
+                                $freshness_column === 'add_time'
+                            );
+                            if ($source_timestamp !== null) {
+                                $payload['summary']['latest_timestamp'] = $source_timestamp;
+                            }
+                        }
+
+                        $detail = [
+                            'Table' => $table,
+                            'Join Key' => $join_key,
+                            'Row Count' => $row_count,
+                        ];
+                        $added = 0;
+                        foreach ((array) $row as $column => $value) {
+                            if ($added >= 12) {
+                                break;
+                            }
+                            if (is_array($value) || is_object($value)) {
+                                continue;
+                            }
+                            $detail[ucwords(str_replace('_', ' ', (string) $column))] = $value === null ? '' : (string) $value;
+                            $added++;
+                        }
+                        $payload['detail'] = $detail;
+                        $payload['freshness'] = $this->format_supplemental_freshness($source_timestamp, $summary_refresh, true, $refresh_status);
+                        return $payload;
+                    }
+            }
+        } catch (\Throwable $e) {
+            $payload['present'] = null;
+            $payload['reason'] = 'query_failed';
+            $payload['detail'] = ['error' => $e->getMessage()];
+            $payload['freshness'] = $this->format_supplemental_freshness(null, $summary_refresh, true, 'failed');
+            return $payload;
+        }
+
+        return $payload;
+    }
+
+    private function format_client_fact_value_for_output($row)
+    {
+        if ($row->fact_value_bool !== null) {
+            return (int) $row->fact_value_bool;
+        }
+        if ($row->fact_value_int !== null) {
+            return (int) $row->fact_value_int;
+        }
+        if ($row->fact_value_json !== null && trim((string) $row->fact_value_json) !== '') {
+            $decoded = json_decode((string) $row->fact_value_json, true);
+            return $decoded !== null ? $decoded : (string) $row->fact_value_json;
+        }
+        return (string) $row->fact_value_string;
+    }
+
+    private function build_client_reporter_payload($serial_number)
+    {
+        $payload = [
+            'source_id' => 'client_reporter',
+            'label' => 'Client Reporter',
+            'table' => 'simplemdm_client_fact',
+            'detected' => $this->has_client_fact_table(),
+            'reason' => $this->has_client_fact_table() ? 'ok' : 'table_missing',
+            'present' => 0,
+            'summary' => [],
+            'detail' => [],
+            'freshness' => $this->format_supplemental_freshness(null, null, $this->has_client_fact_table(), 'success'),
+        ];
+
+        if (! $this->client_reporter_enabled()) {
+            $payload['reason'] = 'client_reporter_disabled';
+            return $payload;
+        }
+
+        if (! $this->has_client_fact_table()) {
+            return $payload;
+        }
+
+        $rows = Simplemdm_client_fact_model::where('serial_number', $serial_number)
+            ->orderBy('fact_key', 'asc')
+            ->get();
+        if (! $rows->count()) {
+            return $payload;
+        }
+
+        $payload['present'] = 1;
+        $latest_reported_at = null;
+        $detail = [];
+        $summary = [];
+        $registry = $this->client_fact_registry();
+        foreach ($rows as $row) {
+            $value = $this->format_client_fact_value_for_output($row);
+            $label = isset($registry[$row->fact_key]['label']) ? $registry[$row->fact_key]['label'] : (string) $row->fact_key;
+            $detail[$label] = $value;
+            $summary[$row->fact_key] = $value;
+            $reported_at = $this->format_sync_datetime($row->reported_at);
+            if ($reported_at !== '') {
+                if ($latest_reported_at === null || strtotime($reported_at) > strtotime($latest_reported_at)) {
+                    $latest_reported_at = $reported_at;
+                }
+            }
+        }
+        $detail['Reported Facts'] = $rows->count();
+        $payload['summary'] = $summary;
+        $payload['detail'] = $detail;
+        $payload['freshness'] = $this->format_supplemental_freshness($latest_reported_at, null, true, 'success');
+        return $payload;
+    }
+
+    private function build_supplemental_summary_payload($serial_number)
+    {
+        $refresh_time = gmdate('c');
+        $sources = [];
+        $source_modules = [];
+        $source_freshness = [];
+        $status = 'success';
+
+        foreach (array_keys($this->supplemental_registry()) as $source_id) {
+            $payload = $this->build_supplemental_source_payload($source_id, $serial_number, $refresh_time, 'success');
+            $sources[$source_id] = $payload;
+            $source_freshness[$source_id] = $payload['freshness'];
+            if ($payload['reason'] === 'query_failed') {
+                $status = $status === 'success' ? 'partial' : $status;
+            }
+            if ((int) $payload['present'] === 1) {
+                $source_modules[] = $source_id;
+            }
+        }
+
+        return [
+            'row' => [
+                'serial_number' => $serial_number,
+                'source_modules_json' => json_encode(array_values($source_modules)),
+                'last_refresh' => $this->normalize_sync_datetime($refresh_time) ?: gmdate('Y-m-d H:i:s'),
+                'last_refresh_status' => $status,
+                'source_freshness_json' => json_encode($source_freshness),
+                'filevault_present' => $sources['filevault_status']['present'],
+                'filevault_enabled' => $sources['filevault_status']['summary']['enabled'] ?? null,
+                'findmymac_present' => $sources['findmymac']['present'],
+                'findmymac_enabled' => $sources['findmymac']['summary']['enabled'] ?? null,
+                'applecare_present' => $sources['applecare']['present'],
+                'applecare_coverage_end' => $sources['applecare']['summary']['coverage_end'] ?? null,
+                'applecare_coverage_status' => $sources['applecare']['summary']['coverage_status'] ?? null,
+                'profile_present' => $sources['profile']['present'],
+                'profile_count' => $sources['profile']['summary']['profile_count'] ?? null,
+                'managedinstalls_present' => $sources['managedinstalls']['present'],
+                'managedinstalls_warning_count' => $sources['managedinstalls']['summary']['warning_count'] ?? null,
+                'managedinstalls_error_count' => $sources['managedinstalls']['summary']['error_count'] ?? null,
+            ],
+            'sources' => $sources,
+        ];
+    }
+
+    private function refresh_supplemental_summary_for_serial($serial_number)
+    {
+        if (! $this->has_supplemental_summary_table()) {
+            return null;
+        }
+
+        $serial_number = trim((string) $serial_number);
+        if ($serial_number === '') {
+            return null;
+        }
+
+        $payload = $this->build_supplemental_summary_payload($serial_number);
+        return Simplemdm_supplemental_summary_model::updateOrCreate(
+            ['serial_number' => $serial_number],
+            $payload['row']
+        );
+    }
+
+    private function maybe_refresh_supplemental_summary_for_serial($serial_number)
+    {
+        if (! $this->has_supplemental_summary_table()) {
+            return null;
+        }
+
+        $row = Simplemdm_supplemental_summary_model::where('serial_number', $serial_number)->first();
+        if (! $row) {
+            return $this->refresh_supplemental_summary_for_serial($serial_number);
+        }
+
+        $should_refresh = false;
+        try {
+            if (! $row->last_refresh) {
+                $should_refresh = true;
+            } else {
+                $age_minutes = (int) floor((time() - (new \DateTime((string) $row->last_refresh))->getTimestamp()) / 60);
+                $should_refresh = $age_minutes > $this->supplemental_stale_after_minutes();
+            }
+        } catch (\Throwable $e) {
+            $should_refresh = true;
+        }
+
+        return $should_refresh ? $this->refresh_supplemental_summary_for_serial($serial_number) : $row;
+    }
+
+    private function serialize_supplemental_summary_row($row)
+    {
+        if (! $row) {
+            return null;
+        }
+
+        return [
+            'serial_number' => (string) $row->serial_number,
+            'source_modules' => json_decode((string) $row->source_modules_json, true) ?: [],
+            'last_refresh' => $this->format_sync_datetime($row->last_refresh),
+            'last_refresh_status' => (string) $row->last_refresh_status,
+            'source_freshness' => json_decode((string) $row->source_freshness_json, true) ?: [],
+            'filevault_present' => $row->filevault_present !== null ? (int) $row->filevault_present : null,
+            'filevault_enabled' => $row->filevault_enabled !== null ? (int) $row->filevault_enabled : null,
+            'findmymac_present' => $row->findmymac_present !== null ? (int) $row->findmymac_present : null,
+            'findmymac_enabled' => $row->findmymac_enabled !== null ? (int) $row->findmymac_enabled : null,
+            'applecare_present' => $row->applecare_present !== null ? (int) $row->applecare_present : null,
+            'applecare_coverage_end' => (string) $row->applecare_coverage_end,
+            'applecare_coverage_status' => (string) $row->applecare_coverage_status,
+            'profile_present' => $row->profile_present !== null ? (int) $row->profile_present : null,
+            'profile_count' => $row->profile_count !== null ? (int) $row->profile_count : null,
+            'managedinstalls_present' => $row->managedinstalls_present !== null ? (int) $row->managedinstalls_present : null,
+            'managedinstalls_warning_count' => $row->managedinstalls_warning_count !== null ? (int) $row->managedinstalls_warning_count : null,
+            'managedinstalls_error_count' => $row->managedinstalls_error_count !== null ? (int) $row->managedinstalls_error_count : null,
+        ];
     }
 
     private function normalize_sync_datetime($value)
@@ -376,6 +1553,328 @@ class Simplemdm_controller extends Module_controller
             return false;
         }
         return $provided !== '' && hash_equals($stored, $provided);
+    }
+
+    private function is_valid_client_reporter_secret()
+    {
+        $provided = '';
+        foreach ([
+            'HTTP_X_SIMPLEMDM_CLIENT_SECRET',
+            'HTTP_X_CLIENT_SECRET',
+            'HTTP_X_SIMPLEMDM_CLIENT_REPORTER_SECRET',
+        ] as $key) {
+            if (isset($_SERVER[$key]) && trim((string) $_SERVER[$key]) !== '') {
+                $provided = trim((string) $_SERVER[$key]);
+                break;
+            }
+        }
+
+        $stored = trim($this->get_config_value('client_reporter_secret', ''));
+        return $provided !== '' && $stored !== '' && hash_equals($stored, $provided);
+    }
+
+    private function client_reporter_signature_header()
+    {
+        foreach ([
+            'HTTP_X_SIMPLEMDM_CLIENT_SIGNATURE',
+            'HTTP_X_CLIENT_SIGNATURE',
+        ] as $key) {
+            if (isset($_SERVER[$key]) && trim((string) $_SERVER[$key]) !== '') {
+                $value = trim((string) $_SERVER[$key]);
+                if (stripos($value, 'sha256=') === 0) {
+                    $value = substr($value, 7);
+                }
+                return strtolower($value);
+            }
+        }
+
+        return '';
+    }
+
+    private function client_reporter_timestamp_header()
+    {
+        foreach ([
+            'HTTP_X_SIMPLEMDM_CLIENT_TIMESTAMP',
+            'HTTP_X_CLIENT_TIMESTAMP',
+        ] as $key) {
+            if (isset($_SERVER[$key]) && trim((string) $_SERVER[$key]) !== '') {
+                return trim((string) $_SERVER[$key]);
+            }
+        }
+
+        return '';
+    }
+
+    private function client_reporter_nonce_header()
+    {
+        foreach ([
+            'HTTP_X_SIMPLEMDM_CLIENT_NONCE',
+            'HTTP_X_CLIENT_NONCE',
+        ] as $key) {
+            if (isset($_SERVER[$key]) && trim((string) $_SERVER[$key]) !== '') {
+                return trim((string) $_SERVER[$key]);
+            }
+        }
+
+        return '';
+    }
+
+    private function client_reporter_token_header()
+    {
+        foreach ([
+            'HTTP_X_SIMPLEMDM_CLIENT_TOKEN',
+            'HTTP_X_CLIENT_TOKEN',
+        ] as $key) {
+            if (isset($_SERVER[$key]) && trim((string) $_SERVER[$key]) !== '') {
+                return trim((string) $_SERVER[$key]);
+            }
+        }
+
+        return '';
+    }
+
+    private function ip_matches_rule($ip, $rule)
+    {
+        $ip = trim((string) $ip);
+        $rule = trim((string) $rule);
+        if ($ip === '' || $rule === '') {
+            return false;
+        }
+
+        if (strpos($rule, '/') === false) {
+            return $ip === $rule;
+        }
+
+        [$subnet, $maskBits] = explode('/', $rule, 2);
+        if (! is_numeric($maskBits)) {
+            return false;
+        }
+
+        $ipLong = @inet_pton($ip);
+        $subnetLong = @inet_pton($subnet);
+        if ($ipLong === false || $subnetLong === false || strlen($ipLong) !== strlen($subnetLong)) {
+            return false;
+        }
+
+        $maskBits = (int) $maskBits;
+        $bytes = strlen($ipLong);
+        $maxBits = $bytes * 8;
+        if ($maskBits < 0 || $maskBits > $maxBits) {
+            return false;
+        }
+
+        $fullBytes = intdiv($maskBits, 8);
+        $remainingBits = $maskBits % 8;
+
+        if ($fullBytes > 0 && substr($ipLong, 0, $fullBytes) !== substr($subnetLong, 0, $fullBytes)) {
+            return false;
+        }
+
+        if ($remainingBits === 0) {
+            return true;
+        }
+
+        $mask = (0xFF << (8 - $remainingBits)) & 0xFF;
+        return (ord($ipLong[$fullBytes]) & $mask) === (ord($subnetLong[$fullBytes]) & $mask);
+    }
+
+    private function ip_matches_any_rule($ip, $rules)
+    {
+        foreach ((array) $rules as $rule) {
+            if ($this->ip_matches_rule($ip, $rule)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function resolve_client_reporter_ip()
+    {
+        $remote_ip = trim((string) ($_SERVER['REMOTE_ADDR'] ?? ''));
+        $trusted_proxy_rules = $this->client_reporter_ip_rules('client_reporter_trusted_proxy_ips');
+        $proxy_only = $this->client_reporter_proxy_only_enabled();
+        $via_trusted_proxy = $remote_ip !== '' && $trusted_proxy_rules && $this->ip_matches_any_rule($remote_ip, $trusted_proxy_rules);
+
+        $forwarded_ip = '';
+        if ($via_trusted_proxy) {
+            $forwarded_for = trim((string) ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? ''));
+            if ($forwarded_for !== '') {
+                $parts = array_map('trim', explode(',', $forwarded_for));
+                $forwarded_ip = trim((string) ($parts[0] ?? ''));
+            }
+            if ($forwarded_ip === '' && isset($_SERVER['HTTP_X_REAL_IP'])) {
+                $forwarded_ip = trim((string) $_SERVER['HTTP_X_REAL_IP']);
+            }
+        }
+
+        if ($proxy_only) {
+            if (! $via_trusted_proxy || $forwarded_ip === '') {
+                return [
+                    'ok' => false,
+                    'message' => 'Client reporter ingest requires a trusted proxy with forwarded client IP headers.',
+                    'client_ip' => '',
+                    'remote_ip' => $remote_ip,
+                    'via_proxy' => false,
+                ];
+            }
+        }
+
+        $client_ip = $forwarded_ip !== '' ? $forwarded_ip : $remote_ip;
+        $allowlist = $this->client_reporter_ip_rules('client_reporter_ip_allowlist');
+        if ($client_ip === '') {
+            return [
+                'ok' => false,
+                'message' => 'Unable to determine client IP for client reporter ingest.',
+                'client_ip' => '',
+                'remote_ip' => $remote_ip,
+                'via_proxy' => $forwarded_ip !== '',
+            ];
+        }
+
+        if ($allowlist && ! $this->ip_matches_any_rule($client_ip, $allowlist)) {
+            return [
+                'ok' => false,
+                'message' => 'Client reporter ingest is not allowed from this IP.',
+                'client_ip' => $client_ip,
+                'remote_ip' => $remote_ip,
+                'via_proxy' => $forwarded_ip !== '',
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'message' => '',
+            'client_ip' => $client_ip,
+            'remote_ip' => $remote_ip,
+            'via_proxy' => $forwarded_ip !== '',
+        ];
+    }
+
+    private function validate_client_reporter_timestamp_and_hmac($payload)
+    {
+        $timestamp = $this->client_reporter_timestamp_header();
+        $hmac_enabled = $this->client_reporter_hmac_enabled();
+        $replay_enabled = $this->client_reporter_replay_protection_enabled();
+        if (! $hmac_enabled && ! $replay_enabled) {
+            return ['ok' => true, 'timestamp' => '', 'nonce' => ''];
+        }
+
+        if ($timestamp === '') {
+            return ['ok' => false, 'status' => 401, 'message' => 'Missing client reporter timestamp header.'];
+        }
+
+        $timestamp_value = ctype_digit($timestamp) ? (int) $timestamp : strtotime($timestamp);
+        if (! $timestamp_value) {
+            return ['ok' => false, 'status' => 401, 'message' => 'Invalid client reporter timestamp header.'];
+        }
+
+        if (abs(time() - $timestamp_value) > $this->client_reporter_max_time_skew_seconds()) {
+            return ['ok' => false, 'status' => 401, 'message' => 'Client reporter timestamp is outside the allowed time skew.'];
+        }
+
+        $nonce = $this->client_reporter_nonce_header();
+        if ($replay_enabled) {
+            if (strlen($nonce) < 8 || strlen($nonce) > 255) {
+                return ['ok' => false, 'status' => 401, 'message' => 'Missing or invalid client reporter nonce header.'];
+            }
+        }
+
+        if ($hmac_enabled) {
+            $signature = $this->client_reporter_signature_header();
+            if ($signature === '' || ! preg_match('/^[a-f0-9]{64}$/', $signature)) {
+                return ['ok' => false, 'status' => 401, 'message' => 'Missing or invalid client reporter HMAC signature.'];
+            }
+
+            $secret = trim($this->get_config_value('client_reporter_secret', ''));
+            if ($secret === '') {
+                return ['ok' => false, 'status' => 409, 'message' => 'Client reporter secret is not configured.'];
+            }
+
+            $expected = hash_hmac('sha256', $timestamp . "\n" . $nonce . "\n" . (string) $payload, $secret);
+            if (! hash_equals($expected, $signature)) {
+                return ['ok' => false, 'status' => 401, 'message' => 'Invalid client reporter HMAC signature.'];
+            }
+        }
+
+        return [
+            'ok' => true,
+            'timestamp' => date('Y-m-d H:i:s', $timestamp_value),
+            'timestamp_unix' => $timestamp_value,
+            'nonce' => $nonce,
+        ];
+    }
+
+    private function cleanup_client_reporter_nonces()
+    {
+        if (! $this->has_client_reporter_nonce_table()) {
+            return;
+        }
+
+        $seconds = max($this->client_reporter_max_time_skew_seconds() * 2, 3600);
+        $cutoff = date('Y-m-d H:i:s', time() - $seconds);
+        Simplemdm_client_reporter_nonce_model::where('observed_at', '<', $cutoff)->delete();
+    }
+
+    private function claim_client_reporter_nonce($nonce, $serial_number, $request_ip, $observed_at)
+    {
+        if (! $this->client_reporter_replay_protection_enabled()) {
+            return ['ok' => true];
+        }
+
+        if (! $this->has_client_reporter_nonce_table()) {
+            return ['ok' => false, 'status' => 409, 'message' => 'Client reporter nonce table is unavailable. Run migrations first.'];
+        }
+
+        $this->cleanup_client_reporter_nonces();
+
+        $nonce_hash = hash('sha256', (string) $nonce);
+        if (Simplemdm_client_reporter_nonce_model::where('nonce_hash', $nonce_hash)->exists()) {
+            return ['ok' => false, 'status' => 409, 'message' => 'Client reporter nonce has already been used.'];
+        }
+
+        $now = date('Y-m-d H:i:s');
+        Simplemdm_client_reporter_nonce_model::create([
+            'nonce_hash' => $nonce_hash,
+            'serial_number' => $serial_number,
+            'request_ip' => $request_ip,
+            'observed_at' => $observed_at,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        return ['ok' => true];
+    }
+
+    private function validate_client_reporter_device_token($serial_number)
+    {
+        if (! $this->client_reporter_per_device_tokens_enabled()) {
+            return ['ok' => true];
+        }
+
+        if (! $this->has_client_reporter_token_table()) {
+            return ['ok' => false, 'status' => 409, 'message' => 'Client reporter token table is unavailable. Run migrations first.'];
+        }
+
+        $token = $this->client_reporter_token_header();
+        if ($token === '') {
+            return ['ok' => false, 'status' => 401, 'message' => 'Missing client reporter device token header.'];
+        }
+
+        $token_hash = hash('sha256', $token);
+        $record = Simplemdm_client_reporter_token_model::where('serial_number', strtoupper(trim((string) $serial_number)))
+            ->where('token_hash', $token_hash)
+            ->where('enabled', 1)
+            ->first();
+        if (! $record) {
+            return ['ok' => false, 'status' => 401, 'message' => 'Invalid client reporter device token.'];
+        }
+
+        $record->last_used_at = date('Y-m-d H:i:s');
+        $record->updated_at = date('Y-m-d H:i:s');
+        $record->save();
+
+        return ['ok' => true];
     }
 
     /**
@@ -995,6 +2494,10 @@ class Simplemdm_controller extends Module_controller
                 $this->ingest_commands();
                 return;
             }
+            if ($op === 'ingest_client_facts') {
+                $this->ingest_client_facts();
+                return;
+            }
             if ($op === 'webhook') {
                 $this->webhook();
                 return;
@@ -1081,6 +2584,222 @@ class Simplemdm_controller extends Module_controller
         );
     }
 
+    public function get_supplemental_data($serial_number = '')
+    {
+        $this->connectDB();
+
+        $serial_number = trim((string) $serial_number);
+        if ($serial_number === '') {
+            jsonView(['status' => 'error', 'message' => 'Missing serial number'], 400);
+            return;
+        }
+
+        $device = Simplemdm_model::where('serial_number', $serial_number)->first();
+        if (! $device) {
+            jsonView(['status' => 'error', 'message' => 'Device not found'], 404);
+            return;
+        }
+
+        if (! $this->supplemental_enabled()) {
+            jsonView([
+                'status' => 'success',
+                'serial_number' => $serial_number,
+                'enabled' => false,
+                'detected_sources' => array_values($this->get_detected_supplemental_sources()),
+                'summary' => null,
+                'sources' => [],
+            ]);
+            return;
+        }
+
+        $summary_row = $this->maybe_refresh_supplemental_summary_for_serial($serial_number);
+        $summary = $this->serialize_supplemental_summary_row($summary_row);
+        $summary_refresh = $summary['last_refresh'] ?? null;
+        $refresh_status = $summary['last_refresh_status'] ?? 'success';
+        $sources = [];
+
+        foreach (array_keys($this->supplemental_registry()) as $source_id) {
+            $sources[] = $this->build_supplemental_source_payload($source_id, $serial_number, $summary_refresh, $refresh_status);
+        }
+        $sources[] = $this->build_client_reporter_payload($serial_number);
+
+        jsonView([
+            'status' => 'success',
+            'serial_number' => $serial_number,
+            'enabled' => true,
+            'stale_after_minutes' => $this->supplemental_stale_after_minutes(),
+            'detected_sources' => array_values($this->get_detected_supplemental_sources()),
+            'summary' => $summary,
+            'sources' => $sources,
+        ]);
+    }
+
+    public function get_supplemental_status()
+    {
+        $this->connectDB();
+        if (! $this->require_global_authorized()) {
+            return;
+        }
+
+        $detected_sources = array_values($this->get_detected_supplemental_sources());
+        $detected_sources[] = [
+            'source_id' => 'client_reporter',
+            'label' => 'Client Reporter',
+            'table' => 'simplemdm_client_fact',
+            'detected' => $this->has_client_fact_table(),
+            'enabled' => $this->client_reporter_enabled(),
+            'reason' => $this->client_reporter_enabled() ? ($this->has_client_fact_table() ? 'ok' : 'table_missing') : 'client_reporter_disabled',
+            'has_data' => $this->has_client_fact_table() ? (Simplemdm_client_fact_model::limit(1)->count() > 0) : false,
+        ];
+        $summary_count = $this->has_supplemental_summary_table()
+            ? (int) Simplemdm_supplemental_summary_model::count()
+            : 0;
+        $last_row = $this->has_supplemental_summary_table()
+            ? Simplemdm_supplemental_summary_model::orderBy('last_refresh', 'desc')->first()
+            : null;
+        $freshness_counts = [
+            'fresh' => 0,
+            'stale' => 0,
+            'missing' => 0,
+            'module_not_detected' => 0,
+            'refresh_failed' => 0,
+        ];
+        $source_health = [];
+
+        if ($this->has_supplemental_summary_table()) {
+            foreach (Simplemdm_supplemental_summary_model::select('source_freshness_json', 'last_refresh_status')->get() as $row) {
+                $source_freshness = json_decode((string) $row->source_freshness_json, true);
+                if (! is_array($source_freshness)) {
+                    continue;
+                }
+                foreach ($source_freshness as $source_id => $meta) {
+                    $state = isset($meta['state']) ? (string) $meta['state'] : 'missing';
+                    if (! isset($freshness_counts[$state])) {
+                        $freshness_counts[$state] = 0;
+                    }
+                    $freshness_counts[$state]++;
+
+                    if (! isset($source_health[$source_id])) {
+                        $source_health[$source_id] = [
+                            'fresh' => 0,
+                            'stale' => 0,
+                            'missing' => 0,
+                            'module_not_detected' => 0,
+                            'refresh_failed' => 0,
+                        ];
+                    }
+                    if (! isset($source_health[$source_id][$state])) {
+                        $source_health[$source_id][$state] = 0;
+                    }
+                    $source_health[$source_id][$state]++;
+                }
+            }
+        }
+
+        jsonView([
+            'status' => 'success',
+            'enabled' => $this->supplemental_enabled(),
+            'client_reporter_enabled' => $this->client_reporter_enabled(),
+            'disabled_source_ids' => $this->supplemental_disabled_source_ids(),
+            'stale_after_minutes' => $this->supplemental_stale_after_minutes(),
+            'detected_sources' => $detected_sources,
+            'summary_row_count' => $summary_count,
+            'last_summary_refresh' => $last_row ? $this->format_sync_datetime($last_row->last_refresh) : '',
+            'last_summary_status' => $last_row ? (string) $last_row->last_refresh_status : '',
+            'freshness_counts' => $freshness_counts,
+            'source_health' => $source_health,
+            'client_fact_count' => $this->has_client_fact_table() ? (int) Simplemdm_client_fact_model::count() : 0,
+            'client_fact_history_count' => $this->has_client_fact_history_table() ? (int) Simplemdm_client_fact_history_model::count() : 0,
+        ]);
+    }
+
+    public function get_client_facts($serial_number = '')
+    {
+        $this->connectDB();
+        if (! $this->require_global_authorized()) {
+            return;
+        }
+
+        if (! $this->has_client_fact_table()) {
+            jsonView([
+                'status' => 'success',
+                'serial_number' => trim((string) $serial_number),
+                'facts' => [],
+                'history_count' => 0,
+            ]);
+            return;
+        }
+
+        $serial_number = trim((string) $serial_number);
+        $query = Simplemdm_client_fact_model::query()->orderBy('serial_number', 'asc')->orderBy('fact_key', 'asc');
+        if ($serial_number !== '') {
+            $query->where('serial_number', $serial_number);
+        }
+
+        $facts = [];
+        foreach ($query->get() as $row) {
+            $facts[] = [
+                'serial_number' => (string) $row->serial_number,
+                'fact_type' => (string) $row->fact_type,
+                'fact_key' => (string) $row->fact_key,
+                'fact_value' => $this->format_client_fact_value_for_output($row),
+                'reported_at' => $this->format_sync_datetime($row->reported_at),
+                'source' => (string) $row->source,
+                'client_version' => (string) $row->client_version,
+            ];
+        }
+
+        $history_count = 0;
+        if ($this->has_client_fact_history_table()) {
+            $history_query = Simplemdm_client_fact_history_model::query();
+            if ($serial_number !== '') {
+                $history_query->where('serial_number', $serial_number);
+            }
+            $history_count = (int) $history_query->count();
+        }
+
+        jsonView([
+            'status' => 'success',
+            'serial_number' => $serial_number,
+            'facts' => $facts,
+            'history_count' => $history_count,
+        ]);
+    }
+
+    public function refresh_supplemental_summary($serial_number = '')
+    {
+        $this->connectDB();
+        if (! $this->require_global_authorized()) {
+            return;
+        }
+
+        if (! $this->has_supplemental_summary_table()) {
+            jsonView(['status' => 'error', 'message' => 'Supplemental summary table is not available. Run migrations first.'], 409);
+            return;
+        }
+
+        $serial_number = trim((string) $serial_number);
+        $query = Simplemdm_model::query();
+        if ($serial_number !== '') {
+            $query->where('serial_number', $serial_number);
+        }
+
+        $serials = $query->pluck('serial_number')->toArray();
+        $count = 0;
+        foreach ($serials as $serial) {
+            if ($this->refresh_supplemental_summary_for_serial($serial)) {
+                $count++;
+            }
+        }
+
+        jsonView([
+            'status' => 'success',
+            'refreshed' => $count,
+            'serial_number' => $serial_number,
+            'detected_sources' => array_values($this->get_detected_supplemental_sources()),
+        ]);
+    }
+
 
     /**
      * Show the admin page.
@@ -1135,8 +2854,44 @@ class Simplemdm_controller extends Module_controller
                 $config['action_api_secret_set'] = trim((string)$setting->value) !== '' ? '1' : '0';
                 continue;
             }
+            if ($setting->name === 'client_reporter_secret' && ! $is_global) {
+                $config['client_reporter_secret_set'] = trim((string)$setting->value) !== '' ? '1' : '0';
+                continue;
+            }
             $config[$setting->name] = $setting->value;
         }
+
+        if (! isset($config['supplemental_enabled'])) {
+            $config['supplemental_enabled'] = '1';
+        }
+        if (! isset($config['supplemental_disabled_sources_json'])) {
+            $config['supplemental_disabled_sources_json'] = '[]';
+        }
+        if (! isset($config['supplemental_default_stale_after_minutes'])) {
+            $config['supplemental_default_stale_after_minutes'] = '1440';
+        }
+        foreach ([
+            'client_reporter_enabled' => '0',
+            'client_reporter_secret' => '',
+            'client_reporter_history_enabled' => '1',
+            'client_reporter_max_payload_bytes' => '16384',
+            'client_reporter_allowed_fact_keys_json' => json_encode($this->client_reporter_allowed_fact_keys()),
+            'client_reporter_hmac_enabled' => '0',
+            'client_reporter_replay_protection_enabled' => '0',
+            'client_reporter_per_device_tokens_enabled' => '0',
+            'client_reporter_ip_allowlist' => '',
+            'client_reporter_proxy_only_enabled' => '0',
+            'client_reporter_trusted_proxy_ips' => '',
+            'client_reporter_max_time_skew_seconds' => '300',
+        ] as $key => $value) {
+            if (! isset($config[$key])) {
+                $config[$key] = $value;
+            }
+        }
+        $config['client_reporter_device_tokens_json'] = '';
+        $config['client_reporter_device_token_metadata_json'] = $is_global
+            ? json_encode($this->client_reporter_token_metadata())
+            : '[]';
 
         // Normalize runner settings so blank stored values still use derived defaults.
         $runner_config = $this->get_script_runner_config();
@@ -1228,6 +2983,22 @@ class Simplemdm_controller extends Module_controller
             'script_runner_schedule',
             'script_runner_log_path',
             'script_runner_max_parent_resources',
+            'supplemental_enabled',
+            'supplemental_disabled_sources_json',
+            'supplemental_default_stale_after_minutes',
+            'supplemental_registry_json',
+            'client_reporter_enabled',
+            'client_reporter_secret',
+            'client_reporter_history_enabled',
+            'client_reporter_max_payload_bytes',
+            'client_reporter_allowed_fact_keys_json',
+            'client_reporter_hmac_enabled',
+            'client_reporter_replay_protection_enabled',
+            'client_reporter_per_device_tokens_enabled',
+            'client_reporter_ip_allowlist',
+            'client_reporter_proxy_only_enabled',
+            'client_reporter_trusted_proxy_ips',
+            'client_reporter_max_time_skew_seconds',
         ];
         foreach ($config_keys as $key) {
             if (array_key_exists($key, $post)) {
@@ -1239,6 +3010,13 @@ class Simplemdm_controller extends Module_controller
                     || $key === 'enable_scheduled_sync'
                     || $key === 'sync_device_subresources_enabled'
                     || $key === 'allow_module_script_execution'
+                    || $key === 'supplemental_enabled'
+                    || $key === 'client_reporter_enabled'
+                    || $key === 'client_reporter_history_enabled'
+                    || $key === 'client_reporter_hmac_enabled'
+                    || $key === 'client_reporter_replay_protection_enabled'
+                    || $key === 'client_reporter_per_device_tokens_enabled'
+                    || $key === 'client_reporter_proxy_only_enabled'
                 ) {
                     $value = $value === '1' ? '1' : '0';
                 } elseif ($key === 'device_subresource_limit') {
@@ -1259,12 +3037,87 @@ class Simplemdm_controller extends Module_controller
                         $v = 0;
                     }
                     $value = (string)$v;
+                } elseif ($key === 'supplemental_default_stale_after_minutes') {
+                    $v = (int)$value;
+                    if ($v < 1) {
+                        $v = 1;
+                    }
+                    $value = (string)$v;
+                } elseif ($key === 'supplemental_registry_json') {
+                    $value = trim($value);
+                    if ($value !== '') {
+                        $decoded = json_decode($value, true);
+                        if (! is_array($decoded)) {
+                            jsonView(['status' => 'error', 'message' => 'Supplemental registry overrides must be valid JSON object syntax.'], 400);
+                            return;
+                        }
+                    }
+                } elseif ($key === 'supplemental_disabled_sources_json') {
+                    $value = trim($value);
+                    if ($value === '') {
+                        $value = '[]';
+                    }
+                    $decoded = json_decode($value, true);
+                    if (! is_array($decoded)) {
+                        jsonView(['status' => 'error', 'message' => 'Supplemental disabled sources must be a JSON array of source ids.'], 400);
+                        return;
+                    }
+                    $normalized = [];
+                    foreach ($decoded as $source_id) {
+                        $source_id = trim((string) $source_id);
+                        if ($source_id !== '') {
+                            $normalized[$source_id] = $source_id;
+                        }
+                    }
+                    $value = json_encode(array_values($normalized));
+                } elseif ($key === 'client_reporter_max_payload_bytes') {
+                    $v = (int) $value;
+                    if ($v < 1024) {
+                        $v = 1024;
+                    }
+                    $value = (string) $v;
+                } elseif ($key === 'client_reporter_max_time_skew_seconds') {
+                    $v = (int) $value;
+                    if ($v < 30) {
+                        $v = 30;
+                    }
+                    $value = (string) $v;
+                } elseif ($key === 'client_reporter_allowed_fact_keys_json') {
+                    $value = trim($value);
+                    if ($value === '') {
+                        $value = json_encode($this->client_reporter_allowed_fact_keys());
+                    } else {
+                        $decoded = json_decode($value, true);
+                        if (! is_array($decoded)) {
+                            jsonView(['status' => 'error', 'message' => 'Client reporter allowlist must be a JSON array of fact keys.'], 400);
+                            return;
+                        }
+                    }
+                } elseif ($key === 'client_reporter_ip_allowlist' || $key === 'client_reporter_trusted_proxy_ips') {
+                    $value = trim($value);
                 }
                 Simplemdm_config_model::updateOrCreate(
                     ['name' => $key],
                     ['value' => $value]
                 );
                 $updated = true;
+            }
+        }
+
+        $token_count = null;
+        if (array_key_exists('client_reporter_device_tokens_json', $post)) {
+            if (! $this->authorized('global')) {
+                jsonView(['status' => 'error', 'message' => 'Only global admins can manage client reporter device tokens.'], 403);
+                return;
+            }
+            try {
+                $token_count = $this->sync_client_reporter_tokens((string) $post['client_reporter_device_tokens_json']);
+                if ($token_count !== null) {
+                    $updated = true;
+                }
+            } catch (\RuntimeException $e) {
+                jsonView(['status' => 'error', 'message' => $e->getMessage()], 400);
+                return;
             }
         }
 
@@ -1793,6 +3646,159 @@ class Simplemdm_controller extends Module_controller
         jsonView(['status' => 'success', 'count' => $count]);
     }
 
+    public function ingest_client_facts()
+    {
+        $this->connectDB();
+        $payload = file_get_contents('php://input');
+        if (strlen((string) $payload) > $this->client_reporter_max_payload_bytes()) {
+            jsonView(['status' => 'error', 'message' => 'Payload exceeds configured client reporter size limit'], 413);
+            return;
+        }
+
+        if (! $this->is_valid_client_reporter_secret()) {
+            jsonView(['status' => 'error', 'message' => 'Unauthorized'], 401);
+            return;
+        }
+        if (! $this->client_reporter_enabled()) {
+            jsonView(['status' => 'error', 'message' => 'Client reporter ingestion is disabled'], 403);
+            return;
+        }
+        if (! $this->has_client_fact_table()) {
+            jsonView(['status' => 'error', 'message' => 'Client fact table is unavailable. Run migrations first.'], 409);
+            return;
+        }
+
+        $ip_resolution = $this->resolve_client_reporter_ip();
+        if (! $ip_resolution['ok']) {
+            jsonView(['status' => 'error', 'message' => $ip_resolution['message']], 403);
+            return;
+        }
+
+        $hmac = $this->validate_client_reporter_timestamp_and_hmac($payload);
+        if (! $hmac['ok']) {
+            jsonView(['status' => 'error', 'message' => $hmac['message']], (int) ($hmac['status'] ?? 401));
+            return;
+        }
+
+        $data = json_decode($payload, true);
+        if (! is_array($data)) {
+            jsonView(['status' => 'error', 'message' => 'Invalid JSON data'], 400);
+            return;
+        }
+
+        $serial_number = trim((string) ($data['serial_number'] ?? ''));
+        if ($serial_number === '') {
+            jsonView(['status' => 'error', 'message' => 'Missing serial_number'], 400);
+            return;
+        }
+        $serial_number = strtoupper($serial_number);
+
+        $facts = isset($data['facts']) && is_array($data['facts']) ? $data['facts'] : null;
+        if (! $facts) {
+            jsonView(['status' => 'error', 'message' => 'Missing facts object'], 400);
+            return;
+        }
+
+        $token = $this->validate_client_reporter_device_token($serial_number);
+        if (! $token['ok']) {
+            jsonView(['status' => 'error', 'message' => $token['message']], (int) ($token['status'] ?? 401));
+            return;
+        }
+
+        $nonce = $this->claim_client_reporter_nonce(
+            (string) ($hmac['nonce'] ?? ''),
+            $serial_number,
+            (string) ($ip_resolution['client_ip'] ?? ''),
+            (string) ($hmac['timestamp'] ?? date('Y-m-d H:i:s'))
+        );
+        if (! $nonce['ok']) {
+            jsonView(['status' => 'error', 'message' => $nonce['message']], (int) ($nonce['status'] ?? 409));
+            return;
+        }
+
+        $reported_at = $this->normalize_sync_datetime($data['reported_at'] ?? '') ?: date('Y-m-d H:i:s');
+        $client_version = trim((string) ($data['client_version'] ?? ''));
+        $source = trim((string) ($data['source'] ?? 'client_reporter'));
+        $registry = $this->client_fact_registry();
+        $allowed = array_flip($this->client_reporter_allowed_fact_keys());
+        $accepted = 0;
+        $rejected = [];
+
+        foreach ($facts as $fact_key => $fact_value) {
+            $fact_key = trim((string) $fact_key);
+            if ($fact_key === '' || ! isset($allowed[$fact_key]) || ! isset($registry[$fact_key])) {
+                $rejected[] = $fact_key;
+                continue;
+            }
+
+            $definition = $registry[$fact_key];
+            $record = [
+                'serial_number' => $serial_number,
+                'fact_type' => (string) $definition['fact_type'],
+                'fact_key' => $fact_key,
+                'fact_value_string' => null,
+                'fact_value_int' => null,
+                'fact_value_bool' => null,
+                'fact_value_json' => null,
+                'reported_at' => $reported_at,
+                'source' => $source ?: 'client_reporter',
+                'client_version' => $client_version,
+                'raw_json' => json_encode([$fact_key => $fact_value]),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ];
+
+            switch ((string) $definition['type']) {
+                case 'bool':
+                    if (! is_bool($fact_value) && ! in_array($fact_value, [0, 1, '0', '1'], true)) {
+                        $rejected[] = $fact_key;
+                        continue 2;
+                    }
+                    $record['fact_value_bool'] = (int) ((bool) $fact_value);
+                    break;
+                case 'int':
+                    if (! is_int($fact_value) && ! ctype_digit((string) $fact_value)) {
+                        $rejected[] = $fact_key;
+                        continue 2;
+                    }
+                    $record['fact_value_int'] = (int) $fact_value;
+                    break;
+                case 'json':
+                    $record['fact_value_json'] = json_encode($fact_value);
+                    break;
+                case 'string':
+                default:
+                    if (is_array($fact_value) || is_object($fact_value)) {
+                        $record['fact_value_json'] = json_encode($fact_value);
+                    } else {
+                        $record['fact_value_string'] = trim((string) $fact_value);
+                    }
+                    break;
+            }
+
+            Simplemdm_client_fact_model::updateOrCreate(
+                ['serial_number' => $serial_number, 'fact_key' => $fact_key],
+                $record
+            );
+
+            if ($this->client_reporter_history_enabled() && $this->has_client_fact_history_table()) {
+                $history = $record;
+                unset($history['updated_at']);
+                Simplemdm_client_fact_history_model::create($history);
+            }
+            $accepted++;
+        }
+
+        jsonView([
+            'status' => 'success',
+            'serial_number' => $serial_number,
+            'accepted' => $accepted,
+            'request_ip' => (string) ($ip_resolution['client_ip'] ?? ''),
+            'rejected' => array_values(array_filter($rejected, function ($item) {
+                return trim((string) $item) !== '';
+            })),
+        ]);
+    }
+
     /**
      * Ingest webhook payloads from SimpleMDM and optionally upsert records.
      *
@@ -1871,7 +3877,11 @@ class Simplemdm_controller extends Module_controller
             $this->upsert_webhook_command($event_data);
         }
 
-        jsonView(['status' => 'success']);
+        $response = ['status' => 'success'];
+        if ($token_count !== null) {
+            $response['client_reporter_device_token_count'] = $token_count;
+        }
+        jsonView($response);
     }
 
     /**
@@ -2063,24 +4073,39 @@ class Simplemdm_controller extends Module_controller
      **/
     public function get_data()
     {
-        jsonView(
-            Simplemdm_model::select(
-                'simplemdm.serial_number',
-                'simplemdm.device_name',
-                'simplemdm.status',
-                'simplemdm.os_version',
-                'simplemdm.model_name',
-                'simplemdm.is_supervised',
-                'simplemdm.is_dep_enrollment',
-                'simplemdm.filevault_enabled',
-                'simplemdm.last_seen_at',
-                'simplemdm.assignment_group'
-            )
-                ->selectRaw("CASE WHEN reportdata.serial_number IS NULL THEN 0 ELSE 1 END AS has_reportdata")
-                ->leftJoin('reportdata', 'reportdata.serial_number', '=', 'simplemdm.serial_number')
-                ->get()
-                ->toArray()
-        );
+        $query = Simplemdm_model::select(
+            'simplemdm.serial_number',
+            'simplemdm.simplemdm_id',
+            'simplemdm.device_name',
+            'simplemdm.status',
+            'simplemdm.os_version',
+            'simplemdm.model_name',
+            'simplemdm.is_supervised',
+            'simplemdm.is_dep_enrollment',
+            'simplemdm.filevault_enabled',
+            'simplemdm.last_seen_at',
+            'simplemdm.assignment_group'
+        )
+            ->selectRaw("CASE WHEN reportdata.serial_number IS NULL THEN 0 ELSE 1 END AS has_reportdata")
+            ->leftJoin('reportdata', 'reportdata.serial_number', '=', 'simplemdm.serial_number');
+
+        if ($this->has_supplemental_summary_table()) {
+            $query
+                ->leftJoin('simplemdm_supplemental_summary as supp', 'supp.serial_number', '=', 'simplemdm.serial_number')
+                ->addSelect(
+                    'supp.last_refresh as supplemental_last_refresh',
+                    'supp.last_refresh_status as supplemental_last_refresh_status',
+                    'supp.source_modules_json as supplemental_source_modules_json',
+                    'supp.filevault_enabled as supplemental_filevault_enabled',
+                    'supp.applecare_coverage_end as supplemental_applecare_coverage_end',
+                    'supp.applecare_coverage_status as supplemental_applecare_coverage_status',
+                    'supp.profile_count as supplemental_profile_count',
+                    'supp.managedinstalls_warning_count as supplemental_managedinstalls_warning_count',
+                    'supp.managedinstalls_error_count as supplemental_managedinstalls_error_count'
+                );
+        }
+
+        jsonView($query->get()->toArray());
     }
 
     /**
@@ -2100,6 +4125,114 @@ class Simplemdm_controller extends Module_controller
         ";
 
         jsonView(getdbh()->query($sql)->fetchAll(\PDO::FETCH_ASSOC));
+    }
+
+    public function get_supplemental_overview_stats()
+    {
+        $this->connectDB();
+        if (! $this->has_supplemental_summary_table()) {
+            jsonView([
+                'total' => 0,
+                'with_summary' => 0,
+                'filevault_off' => 0,
+                'applecare_expiring_30' => 0,
+                'profiles_present' => 0,
+                'managedinstalls_errors' => 0,
+            ]);
+            return;
+        }
+
+        $rows = Simplemdm_supplemental_summary_model::all();
+        $stats = [
+            'total' => (int) Simplemdm_model::count(),
+            'with_summary' => $rows->count(),
+            'filevault_off' => 0,
+            'applecare_expiring_30' => 0,
+            'profiles_present' => 0,
+            'managedinstalls_errors' => 0,
+        ];
+
+        $today = strtotime(date('Y-m-d'));
+        $threshold = strtotime('+30 days', $today);
+        foreach ($rows as $row) {
+            if ($row->filevault_enabled !== null && (int) $row->filevault_enabled === 0) {
+                $stats['filevault_off']++;
+            }
+            if ($row->profile_count !== null && (int) $row->profile_count > 0) {
+                $stats['profiles_present']++;
+            }
+            if ($row->managedinstalls_error_count !== null && (int) $row->managedinstalls_error_count > 0) {
+                $stats['managedinstalls_errors']++;
+            }
+            $coverage_end = trim((string) $row->applecare_coverage_end);
+            if ($coverage_end !== '') {
+                $end_ts = strtotime($coverage_end);
+                if ($end_ts !== false && $end_ts >= $today && $end_ts <= $threshold) {
+                    $stats['applecare_expiring_30']++;
+                }
+            }
+        }
+
+        jsonView($stats);
+    }
+
+    public function get_supplemental_applecare_stats()
+    {
+        $this->connectDB();
+        if (! $this->has_supplemental_summary_table()) {
+            jsonView([]);
+            return;
+        }
+
+        $rows = Simplemdm_supplemental_summary_model::select(
+            'serial_number',
+            'applecare_present',
+            'applecare_coverage_end',
+            'applecare_coverage_status'
+        )->get();
+
+        $bands = [
+            'expired' => 0,
+            'expiring_30' => 0,
+            'expiring_90' => 0,
+            'covered' => 0,
+            'missing' => 0,
+        ];
+
+        $today = strtotime(date('Y-m-d'));
+        $days30 = strtotime('+30 days', $today);
+        $days90 = strtotime('+90 days', $today);
+
+        foreach ($rows as $row) {
+            if ((int) $row->applecare_present !== 1 || trim((string) $row->applecare_coverage_end) === '') {
+                $bands['missing']++;
+                continue;
+            }
+            $end_ts = strtotime((string) $row->applecare_coverage_end);
+            if ($end_ts === false) {
+                $bands['missing']++;
+                continue;
+            }
+            if ($end_ts < $today) {
+                $bands['expired']++;
+            } elseif ($end_ts <= $days30) {
+                $bands['expiring_30']++;
+            } elseif ($end_ts <= $days90) {
+                $bands['expiring_90']++;
+            } else {
+                $bands['covered']++;
+            }
+        }
+
+        $result = [];
+        foreach ($bands as $label => $count) {
+            $result[] = [
+                'label' => $label,
+                'count' => $count,
+            ];
+        }
+
+        jsonView($result);
     }
 
     /**

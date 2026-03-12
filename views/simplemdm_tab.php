@@ -219,6 +219,23 @@
             </tbody>
         </table>
         </div>
+
+        <h4>Supplemental Data</h4>
+        <div id="simplemdm-tab-supplemental-summary" class="simplemdm-tab-panel" style="margin-bottom:8px;"></div>
+        <div class="simplemdm-tab-panel">
+        <table class="table table-striped table-condensed table-bordered">
+            <thead>
+                <tr>
+                    <th style="width: 180px;">Source</th>
+                    <th style="width: 120px;">State</th>
+                    <th>Highlights</th>
+                </tr>
+            </thead>
+            <tbody id="simplemdm-tab-supplemental">
+                <tr><td colspan="3" class="text-muted">Loading...</td></tr>
+            </tbody>
+        </table>
+        </div>
     </div>
 </div>
 
@@ -274,6 +291,51 @@ $(document).on('appReady', function(e, lang) {
                     '<td><a href="' + itemUrl + '">' + esc(item.name || '-') + '</a></td>' +
                     '<td><a href="' + itemUrl + '">' + esc(item.id || '-') + '</a></td>' +
                     '<td>' + esc(toTitle(item.reason || '-')) + '</td>' +
+                '</tr>'
+            );
+        });
+    }
+
+    function renderTabSupplemental(payload) {
+        var $summary = $('#simplemdm-tab-supplemental-summary').empty();
+        var $tbody = $('#simplemdm-tab-supplemental').empty();
+        var sources = (payload && payload.sources) ? payload.sources : [];
+        var detected = (payload && payload.detected_sources) ? payload.detected_sources : [];
+        var summary = payload && payload.summary ? payload.summary : null;
+
+        if (!payload || payload.enabled === false) {
+            $summary.html('<span class="text-muted">Supplemental data is disabled in SimpleMDM settings.</span>');
+            $tbody.append('<tr><td colspan="3" class="text-muted">Supplemental data is disabled.</td></tr>');
+            return;
+        }
+
+        $summary
+            .append('<span class="simplemdm-tab-chip"><strong>Detected:</strong>&nbsp;' + esc(detected.filter(function(item) { return item.detected; }).length) + '</span>')
+            .append(summary && summary.last_refresh ? '<span class="simplemdm-tab-chip"><strong>Last Refresh:</strong>&nbsp;' + esc(summary.last_refresh) + '</span>' : '')
+            .append(summary && summary.last_refresh_status ? '<span class="simplemdm-tab-chip"><strong>Status:</strong>&nbsp;' + esc(summary.last_refresh_status) + '</span>' : '');
+
+        if (!sources.length) {
+            $tbody.append('<tr><td colspan="3" class="text-muted">No supplemental sources available.</td></tr>');
+            return;
+        }
+
+        sources.forEach(function(source) {
+            var highlights = [];
+            var detail = source && source.detail ? source.detail : {};
+            Object.keys(detail).slice(0, 3).forEach(function(key) {
+                if (detail[key] !== null && detail[key] !== '') {
+                    highlights.push('<strong>' + esc(key) + ':</strong> ' + esc(typeof detail[key] === 'object' ? JSON.stringify(detail[key]) : detail[key]));
+                }
+            });
+            if (!highlights.length) {
+                highlights.push('<span class="text-muted">No summary available</span>');
+            }
+
+            $tbody.append(
+                '<tr>' +
+                    '<td><span class="simplemdm-tab-chip">' + esc(source.label || source.source_id || '-') + '</span></td>' +
+                    '<td>' + esc((source.freshness && source.freshness.state) ? source.freshness.state : 'missing') + '</td>' +
+                    '<td>' + highlights.join('<br>') + '</td>' +
                 '</tr>'
             );
         });
@@ -390,6 +452,12 @@ $(document).on('appReady', function(e, lang) {
             }).fail(function() {
                 $('#simplemdm-tab-resources-summary').html('<span class="text-danger">Failed to load connected resources.</span>');
                 $('#simplemdm-tab-resources').html('<tr><td colspan="4" class="text-danger">Lookup failed.</td></tr>');
+            });
+            $.getJSON(appUrl + '/module/simplemdm/get_supplemental_data/' + serialNumber, function(supplementalData) {
+                renderTabSupplemental(supplementalData || {});
+            }).fail(function() {
+                $('#simplemdm-tab-supplemental-summary').html('<span class="text-danger">Failed to load supplemental data.</span>');
+                $('#simplemdm-tab-supplemental').html('<tr><td colspan="3" class="text-danger">Lookup failed.</td></tr>');
             });
         } else {
             $('#simplemdm-tab-msg').show();

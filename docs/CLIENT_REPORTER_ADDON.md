@@ -1,22 +1,168 @@
 # SimpleMDM Supplemental Data Options
 
-This document describes two possible ways to add supplemental device information to the `simplemdm` module.
+This document is now a historical design note for the Option A / Option B supplemental strategy.
 
-This is a proposal and design note only.
+It is no longer accurate to treat this as a pure proposal. Core parts of both paths are implemented in the current module.
 
-It is not implemented in the current module.
+Use this document for background and design intent.
 
-For the detailed future architecture, proposed schemas, rollout phases, and
-source matrix, see:
+For current module behavior, use:
+
+- `README.md`
+- `docs/API_REFERENCE.md`
+- `docs/TESTING.md`
+- `docs/DEVELOPER_GUIDE.md`
+- `docs/CLIENT_REPORTER_DEPLOYMENT.md`
+
+For the broader historical plan and rationale, see:
 
 - `docs/SUPPLEMENTAL_DATA_IMPLEMENTATION_PLAN.md`
 
-Current module behavior remains:
+Current module behavior now includes:
 
-- `simplemdm_sync.py` performs the actual SimpleMDM API sync
-- the module stores authoritative SimpleMDM API data in its own tables
-- no client-side `simplemdm` reporter is currently implemented
-- no cross-module supplemental device view is currently implemented
+- `simplemdm_sync.py` for core SimpleMDM API sync
+- Option A cross-module supplemental enrichment
+- Option B client-reporter ingestion into this MunkiReport module
+
+## Current Option B Summary
+
+Option B is now implemented as a narrow allowlisted ingest path for client-reported facts.
+
+Option A and Option B can be used together.
+
+Combined operating model:
+
+- core sync remains the source of truth for native SimpleMDM API data
+- Option A enriches this module with data from other loaded MunkiReport modules
+- Option B enriches this module with local endpoint facts posted into this module
+
+Recommended trust boundaries:
+
+- do not let Option B replace authoritative core-sync fields
+- do not use Option B to duplicate facts already owned by another module unless the goal is explicit drift detection
+- when overlapping facts exist, document which source is authoritative for operations
+
+Use Option B when:
+
+- the fact comes from the endpoint itself
+- the fact is not already owned by another loaded MunkiReport module
+- the fact does not belong in core SimpleMDM API sync
+
+Prefer Option A instead when:
+
+- another loaded MunkiReport module already collects the data
+- you want cross-module enrichment from an existing source table
+
+Current implementation:
+
+- endpoint:
+  - `POST /module/simplemdm/index?op=ingest_client_facts`
+- auth:
+  - `X-SIMPLEMDM-CLIENT-SECRET`
+- storage:
+  - `simplemdm_client_fact`
+  - `simplemdm_client_fact_history`
+- rendering:
+  - `Client Reporter` supplemental source on the standalone device page and client tab
+- admin controls:
+  - enable/disable
+  - history toggle
+  - payload size limit
+  - allowlisted fact keys
+
+Typical Mac-side use cases:
+
+- current console user for shared-device troubleshooting
+- local uptime for endpoint-health checks
+- local FileVault reality checks when you want a device-side comparison
+- small custom checks collected by a shell script, LaunchDaemon, or Munki workflow
+
+Typical Mac-side flow:
+
+1. a local reporter script runs on the Mac
+2. it collects the serial number and a narrow set of allowlisted facts
+3. it posts JSON to `POST /module/simplemdm/index?op=ingest_client_facts`
+4. it authenticates with `X-SIMPLEMDM-CLIENT-SECRET`
+5. the module validates and stores current values
+6. the device page and client tab show those facts as `Client Reporter`
+
+Example files included in this module:
+
+- basic shared-secret reporter:
+  - `scripts/simplemdm_client_reporter_example.sh`
+- hardened reporter:
+  - `scripts/simplemdm_client_reporter_hardened.py`
+- installer helper:
+  - `scripts/install_client_reporter.sh`
+- `launchd` example:
+  - `scripts/com.googlecode.munkireport-simplemdm-client-reporter.plist.example`
+- Munki postflight wrapper:
+  - `scripts/postflight_simplemdm_client_reporter_example.sh`
+
+Minimal Mac-side example:
+
+```bash
+SERIAL="$(system_profiler SPHardwareDataType | awk -F': ' '/Serial Number/ {print $2; exit}')"
+CONSOLE_USER="$(stat -f %Su /dev/console)"
+UPTIME_SECONDS="$(python3 -c 'import subprocess,time; out=subprocess.check_output([\"sysctl\",\"-n\",\"kern.boottime\"], text=True); sec=int(out.split(\"sec = \")[1].split(\",\")[0]); print(int(time.time())-sec)')"
+
+curl -X POST "https://YOUR_MUNKIREPORT/index.php?/module/simplemdm/index?op=ingest_client_facts" \
+  -H "Content-Type: application/json" \
+  -H "X-SIMPLEMDM-CLIENT-SECRET: YOUR_CLIENT_SECRET" \
+  -d "{
+    \"serial_number\": \"${SERIAL}\",
+    \"client_version\": \"1.0.0\",
+    \"source\": \"client_reporter\",
+    \"facts\": {
+      \"console_user\": \"${CONSOLE_USER}\",
+      \"uptime_seconds\": ${UPTIME_SECONDS}
+    }
+  }"
+```
+
+Suggested deployment patterns:
+
+- LaunchDaemon for periodic local reporting
+- Munki postflight if the fact should report after managed software activity
+- another local management framework if it already deploys scripts reliably
+
+If you want a runnable starting point instead of adapting the inline curl example:
+
+- use `simplemdm_client_reporter_example.sh` for the original shared-secret flow
+- use `simplemdm_client_reporter_hardened.py` when HMAC, nonce replay protection, and device tokens are enabled
+- use the included plist example as a template for `launchd`
+- use `postflight_simplemdm_client_reporter_example.sh` when you want Munki to trigger reporting after managed software activity
+
+What to avoid sending:
+
+- large app inventories
+- facts another loaded MunkiReport module already stores cleanly
+- fields that should remain authoritative from the external SimpleMDM API
+- secrets or raw sensitive local data not needed for operations
+
+## Optional Security Hardening
+
+The current Option B implementation still supports the original shared-secret model in `X-SIMPLEMDM-CLIENT-SECRET`.
+
+It now also supports optional hardening layers:
+
+1. HMAC-signed requests
+2. timestamp and nonce replay protection
+3. per-device or scoped reporter tokens
+4. trusted-proxy enforcement
+5. IP allowlist filtering
+6. mTLS remains a future enhancement if the environment requires a stronger client-identity model
+
+Recommended product position:
+
+- current Option B is secure enough for controlled HTTPS-based internal reporting with a narrow allowlist
+- the original shared-secret flow remains available for backward compatibility
+- the implemented hardening layers can be enabled incrementally without changing the Option B data model or UI behavior
+
+Important boundary:
+
+- Option B stores data in this MunkiReport module
+- it does not write back into the external SimpleMDM service
 
 ## Recommended Direction
 
@@ -237,6 +383,18 @@ Examples:
 - current uptime
 - a very small allowlisted set of app versions
 - local health signals not available from SimpleMDM or other modules
+
+## Implementation Status
+
+This client-reporter path is now implemented in the module as Option B.
+
+Implemented server-side pieces:
+
+- `POST /module/simplemdm/index?op=ingest_client_facts`
+- `simplemdm_client_fact`
+- `simplemdm_client_fact_history`
+- admin settings for enable/secret/allowlist/payload size/history
+- device-page and client-tab rendering as `Client Reporter`
 
 ### Suggested Design Rules
 

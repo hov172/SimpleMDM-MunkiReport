@@ -44,6 +44,10 @@ widgets:
         view: simplemdm_compliance_widget
     simplemdm_sync_health:
         view: simplemdm_sync_health_widget
+    simplemdm_supplemental_overview:
+        view: simplemdm_supplemental_overview_widget
+    simplemdm_supplemental_applecare:
+        view: simplemdm_supplemental_applecare_widget
     simplemdm_device_listing:
         view: simplemdm_device_listing_widget
     simplemdm_devices_table:

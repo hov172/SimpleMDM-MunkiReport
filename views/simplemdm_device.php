@@ -339,6 +339,18 @@
         </div>
 
         <div class="simplemdm-modern-widget" style="margin-bottom:12px;">
+            <div class="panel-heading"><h3 class="panel-title"><i class="fa fa-plus-square"></i> Supplemental Data</h3></div>
+            <div class="panel-body">
+                <div id="simplemdm-supplemental-summary" class="simplemdm-list-pills">
+                    <span class="text-muted">Loading...</span>
+                </div>
+                <div id="simplemdm-supplemental-sections">
+                    <div class="text-muted">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="simplemdm-modern-widget" style="margin-bottom:12px;">
             <div class="panel-heading"><h3 class="panel-title"><i class="fa fa-terminal"></i> Device Actions</h3></div>
             <div class="panel-body">
                 <div class="row">
@@ -747,6 +759,63 @@ $(document).on('appReady', function() {
         });
     }
 
+    function renderSupplementalData(data) {
+        var $summary = $('#simplemdm-supplemental-summary').empty();
+        var $sections = $('#simplemdm-supplemental-sections').empty();
+        var detected = (data && data.detected_sources) ? data.detected_sources : [];
+        var sources = (data && data.sources) ? data.sources : [];
+        var summary = data && data.summary ? data.summary : null;
+
+        if (!data || data.enabled === false) {
+            $summary.html('<span class="text-muted">Supplemental data is disabled in SimpleMDM settings.</span>');
+            $sections.html('<div class="text-muted">Enable supplemental data in the admin page to enrich this view.</div>');
+            return;
+        }
+
+        $summary.append('<span class="simplemdm-device-chip"><strong>Detected Sources:</strong>&nbsp;' + esc(detected.filter(function(item) { return item.detected; }).length) + '</span>');
+        if (summary && summary.last_refresh) {
+            $summary.append('<span class="simplemdm-device-chip"><strong>Last Refresh:</strong>&nbsp;' + esc(summary.last_refresh) + '</span>');
+        }
+        if (summary && summary.last_refresh_status) {
+            $summary.append('<span class="simplemdm-device-chip"><strong>Refresh Status:</strong>&nbsp;' + esc(summary.last_refresh_status) + '</span>');
+        }
+
+        if (!sources.length) {
+            $sections.html('<div class="text-muted">No supplemental sources are configured for this device.</div>');
+            return;
+        }
+
+        sources.forEach(function(source) {
+            var title = source.label || source.source_id || 'Supplemental Source';
+            var state = source.freshness && source.freshness.state ? source.freshness.state : 'missing';
+            var detail = source.detail || {};
+            var rows = '';
+
+            rows += '<tr><th style="width:220px;">Source</th><td><span class="simplemdm-source-badge simplemdm-source-derived">' + esc(source.source_id || '-') + '</span></td></tr>';
+            rows += '<tr><th>Detection</th><td>' + esc(source.detected ? 'Detected' : 'Not detected') + '</td></tr>';
+            rows += '<tr><th>State</th><td>' + esc(state) + '</td></tr>';
+            if (source.freshness && source.freshness.source_timestamp) {
+                rows += '<tr><th>Source Timestamp</th><td>' + esc(source.freshness.source_timestamp) + '</td></tr>';
+            }
+            if (source.freshness && source.freshness.summary_refresh) {
+                rows += '<tr><th>Summary Refresh</th><td>' + esc(source.freshness.summary_refresh) + '</td></tr>';
+            }
+
+            Object.keys(detail).forEach(function(key) {
+                rows += '<tr><th>' + esc(key) + '</th><td>' + renderValue(detail[key]) + '</td></tr>';
+            });
+
+            $sections.append(
+                createSectionHtml(
+                    'supp_' + String(source.source_id || title).replace(/[^a-z0-9_]/gi, '_'),
+                    title,
+                    '<div class="simplemdm-table-wrap"><table class="simplemdm-table-modern"><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>' + rows + '</tbody></table></div>',
+                    false
+                )
+            );
+        });
+    }
+
     $(document).on('click', '[data-section-toggle]', function() {
         var sectionId = String($(this).attr('data-section-toggle') || '');
         if (!sectionId) {
@@ -830,6 +899,12 @@ $(document).on('appReady', function() {
         }).fail(function() {
             $('#simplemdm-subresource-summary').html('<span class="text-danger">Failed to load subresources.</span>');
             $('#simplemdm-subresource-sections').html('<div class="text-danger">Subresource lookup failed.</div>');
+        });
+        $.getJSON(appUrl + '/module/simplemdm/get_supplemental_data/' + encodeURIComponent(serial), function(supplementalData) {
+            renderSupplementalData(supplementalData || {});
+        }).fail(function() {
+            $('#simplemdm-supplemental-summary').html('<span class="text-danger">Failed to load supplemental data.</span>');
+            $('#simplemdm-supplemental-sections').html('<div class="text-danger">Supplemental lookup failed.</div>');
         });
 
         $('#simplemdm-layout').show();

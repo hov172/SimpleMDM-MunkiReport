@@ -17,20 +17,201 @@ This module syncs devices and API resources from SimpleMDM server-side, stores t
 - Widgets auto-adapt to layout density and active theme (including Bootswatch theme accent matching).
 - Modern widget UI assets are loaded inline from `views/simplemdm_widget_modern_assets.php` (no separate module CSS/JS build step required).
 - Optional delta-sync, command-status sync, and sync telemetry reporting are built into the sync script + module.
+- Supplemental cross-module enrichment is available for supported local data sources, with per-device detail, client-tab summaries, listing filters, and summary-backed widgets.
+- Option B client-reporter ingestion is available for a narrow allowlisted fact set, stored separately from authoritative SimpleMDM fields.
 
 Developer docs:
 - See `docs/DEVELOPER_GUIDE.md` for architecture, code map, flow charts, and extension workflows.
-- Optional future proposal only: `docs/CLIENT_REPORTER_ADDON.md`
+- Client reporter contract and Option B details: `docs/CLIENT_REPORTER_ADDON.md`
+- Client reporter deployment guide: `docs/CLIENT_REPORTER_DEPLOYMENT.md`
 - Security: `docs/SECURITY.md`
 - Upgrade runbook: `docs/UPGRADE.md`
 - API routes/auth reference: `docs/API_REFERENCE.md`
 - Testing and QA: `docs/TESTING.md`
+
+## Supplemental Data
+
+This module now has three distinct data paths:
+
+- Core SimpleMDM sync
+  - server-side sync from the external SimpleMDM service into this MunkiReport module
+- Option A supplemental module enrichment
+  - read-only enrichment from other loaded MunkiReport modules
+- Option B client reporter ingestion
+  - client-reported facts posted directly into this module
+
+Use this distinction when documenting or debugging the module:
+
+- core sync is the authoritative source for native SimpleMDM inventory and resource data
+- Option A is for filling gaps with other MunkiReport module data
+- Option B is for narrow local-device facts that are not already available through core sync or Option A
+
+Option A and Option B can be enabled at the same time.
+
+Normal combined model:
+
+- core sync provides the primary SimpleMDM inventory and resource state
+- Option A adds cross-module context from other loaded MunkiReport modules
+- Option B adds narrow endpoint-reported facts that no existing module already owns
+
+Recommended trust order:
+
+- core sync remains authoritative for native SimpleMDM fields
+- Option A remains authoritative for facts already owned by another module
+- Option B should be limited to local-device facts that are not already collected elsewhere
+
+Avoid posting the same operational fact through both Option A and Option B unless you are explicitly using that difference for drift detection.
+
+Option A supplemental enrichment is implemented for supported local sources detected by database schema.
+
+Current built-in sources:
+
+- `filevault_status`
+- `findmymac`
+- `profile`
+- `warranty` as the AppleCare/lifecycle source
+- `managedinstalls`
+
+Generic auto-discovery:
+
+- the module also scans other loaded MunkiReport modules
+- it inspects module PHP files for candidate table names
+- it verifies table existence and a supported join key such as `serial_number`
+- usable modules are exposed as generic supplemental sources unless a richer built-in mapping already exists
+
+Current coverage:
+
+- standalone device page supplemental sections
+- client tab supplemental summary
+- supplemental summary cache table
+- admin detection and manual summary refresh
+- listing badges and supplemental filters
+- summary-backed widgets for supplemental overview and AppleCare lifecycle
+
+The source registry is allowlisted by default and can be extended with `supplemental_registry_json` in the SimpleMDM admin page.
+
+Best use cases for Option A:
+
+- warranty, lifecycle, security, and software state already collected by other modules
+- fleet filters and summary widgets based on non-SimpleMDM data
+- richer device investigations without creating a new client-side collector
+
+Examples:
+
+- use `warranty` to show AppleCare lifecycle details
+- use `filevault_status` to compare local FileVault state against MDM expectations
+- use `profile` to show installed profile context beside native SimpleMDM data
+- use `managedinstalls` to add software/deployment context to the device page
+
+Option B client-reporter facts are stored separately from SimpleMDM API data.
+
+Current allowlisted facts:
+
+- `mdm_profile_present`
+- `console_user`
+- `uptime_seconds`
+- `munki_last_run_result`
+- `local_filevault_enabled`
+
+Current-value and history tables:
+
+- `simplemdm_client_fact`
+- `simplemdm_client_fact_history`
+
+Ingest route:
+
+- `POST /module/simplemdm/index?op=ingest_client_facts`
+- auth header: `X-SIMPLEMDM-CLIENT-SECRET`
+- posts client-reported facts into this MunkiReport SimpleMDM module, not into the external SimpleMDM service
+- optional hardening can also require:
+  - `X-SIMPLEMDM-CLIENT-TIMESTAMP`
+  - `X-SIMPLEMDM-CLIENT-NONCE`
+  - `X-SIMPLEMDM-CLIENT-SIGNATURE`
+  - `X-SIMPLEMDM-CLIENT-TOKEN`
+
+Best use cases for Option B:
+
+- facts that come from the endpoint itself rather than from the SimpleMDM API
+- facts that no other loaded MunkiReport module already owns
+- lightweight local checks where building a separate full module would be excessive
+
+Examples:
+
+- current console user
+- local uptime
+- local FileVault state
+- local health/drift facts from a custom script or extension
+
+How Option B is typically used from a Mac:
+
+1. enable `Client Reporter Ingestion` in `Admin -> SimpleMDM Settings`
+2. set `Client Reporter Secret`
+3. keep the allowlist narrow
+4. deploy a local script, LaunchDaemon, Munki postflight, or other management job on the Mac
+5. collect local facts
+6. `POST` them to `/module/simplemdm/index?op=ingest_client_facts`
+7. review them in the `Client Reporter` supplemental section on the device page or client tab
+8. use the admin `Client Reporter Requirements` panel to confirm the current required headers and network expectations before rollout
+
+Included examples:
+
+- basic shared-secret shell reporter:
+  - [scripts/simplemdm_client_reporter_example.sh](/Users/helpdesk/websites/munkireport-php/local/modules/simplemdm/scripts/simplemdm_client_reporter_example.sh)
+- hardened Python reporter with HMAC, nonce, and device token headers:
+  - [scripts/simplemdm_client_reporter_hardened.py](/Users/helpdesk/websites/munkireport-php/local/modules/simplemdm/scripts/simplemdm_client_reporter_hardened.py)
+- installer helper for client deployment:
+  - [scripts/install_client_reporter.sh](/Users/helpdesk/websites/munkireport-php/local/modules/simplemdm/scripts/install_client_reporter.sh)
+- example `launchd` agent plist:
+  - [scripts/com.googlecode.munkireport-simplemdm-client-reporter.plist.example](/Users/helpdesk/websites/munkireport-php/local/modules/simplemdm/scripts/com.googlecode.munkireport-simplemdm-client-reporter.plist.example)
+- example Munki postflight wrapper:
+  - [scripts/postflight_simplemdm_client_reporter_example.sh](/Users/helpdesk/websites/munkireport-php/local/modules/simplemdm/scripts/postflight_simplemdm_client_reporter_example.sh)
+- backend Option A validation helper:
+  - [scripts/option_a_backend_check.php](/Users/helpdesk/websites/munkireport-php/local/modules/simplemdm/scripts/option_a_backend_check.php)
+
+Minimal example:
+
+```bash
+SERIAL="$(system_profiler SPHardwareDataType | awk -F': ' '/Serial Number/ {print $2; exit}')"
+CONSOLE_USER="$(stat -f %Su /dev/console)"
+UPTIME_SECONDS="$(python3 - <<'PY'
+import subprocess
+import time
+
+out = subprocess.check_output(["sysctl", "-n", "kern.boottime"], text=True)
+sec = int(out.split("sec = ")[1].split(",")[0])
+print(int(time.time()) - sec)
+PY
+)"
+
+curl -X POST "https://YOUR_MUNKIREPORT/index.php?/module/simplemdm/index?op=ingest_client_facts" \
+  -H "Content-Type: application/json" \
+  -H "X-SIMPLEMDM-CLIENT-SECRET: YOUR_CLIENT_SECRET" \
+  -d "{
+    \"serial_number\": \"${SERIAL}\",
+    \"source\": \"client_reporter\",
+    \"facts\": {
+      \"console_user\": \"${CONSOLE_USER}\",
+      \"uptime_seconds\": ${UPTIME_SECONDS}
+    }
+  }"
+```
+
+Operational guidance:
+
+- use Option B for small, explicit facts rather than large inventories
+- prefer one authoritative source for each fact
+- if another MunkiReport module already provides the same fact, use Option A instead of duplicating it through Option B
+- if you intentionally collect overlapping facts for drift detection, label that operationally so admins know why values may differ
+- the original shared-secret flow still works by default
+- optional hardening can now add HMAC signing, replay protection, per-device tokens, and trusted-proxy/IP restrictions without changing the supplemental data model
+- if you want a ready-to-run starting point, use the included example scripts instead of copying the inline curl example directly
 
 ## Table of Contents
 
 - [Key Points](#key-points)
 - [Developer Guide](docs/DEVELOPER_GUIDE.md)
 - [Client Reporter Add-On](docs/CLIENT_REPORTER_ADDON.md)
+- [Client Reporter Deployment Guide](docs/CLIENT_REPORTER_DEPLOYMENT.md)
 - [Security Guide](docs/SECURITY.md)
 - [Upgrade Guide](docs/UPGRADE.md)
 - [API Reference](docs/API_REFERENCE.md)
@@ -70,7 +251,7 @@ Developer docs:
    - Enable `sync_device_subresources_enabled`
    - Set `device_subresource_limit` to `100` (test) or `0` (all devices)
 4. Configure the admin workflow in `Admin -> SimpleMDM Settings`:
-   - Use `Sync Status -> Queue Sync Request` to queue the next worker pickup
+   - Use `Sync Status -> Queue Next Worker Run` to queue the next worker pickup
    - Use `In-Module Sync And Schedule -> Run Sync Now` for an immediate one-time sync when module-side execution is available
    - Use `Schedule` with preset `Every 15 Minutes` (recommended) or choose `Custom`
    - Use `Enable Scheduled Sync` to turn on scheduled reconciliation
@@ -105,7 +286,7 @@ This module README covers only:
 There are two supported ways to operate the sync workflow:
 
 1. In-module workflow
-   - Use `Sync Status -> Queue Sync Request` to queue the next worker pickup.
+   - Use `Sync Status -> Queue Next Worker Run` to queue the next worker pickup.
    - Use `In-Module Sync And Schedule -> Run Sync Now` for an immediate one-off run when module-side execution is available.
    - Use `Schedule` plus `Enable Scheduled Sync` / `Disable Scheduled Sync` for recurring runs.
    - If `Allow in-module script execution for global admins` is enabled, the module can install/remove the cron job for you.
@@ -118,7 +299,7 @@ There are two supported ways to operate the sync workflow:
 Important:
 - `simplemdm_sync.py` is the worker that performs the sync.
 - cron is the scheduler that launches `simplemdm_sync.py` repeatedly.
-- `Sync Status -> Queue Sync Request` is queue-based and still depends on a worker pickup.
+- `Sync Status -> Queue Next Worker Run` is queue-based and still depends on a worker pickup.
 - `In-Module Sync And Schedule -> Run Sync Now` is immediate and does not require cron, but it does require module-side Python.
 - recurring scheduled sync still requires cron somewhere on the host.
 - the admin page updates itself without a full browser refresh; active sync states poll faster than idle states
@@ -326,7 +507,7 @@ If you do not want the module to execute sync inside MunkiReport, you can still 
 
 - run `simplemdm_sync.py` directly with `python3`
 - install cron outside the module with `install_cron.sh --munkireport-url 'https://your-munkireport' --api-key 'YOUR_SIMPLEMDM_API_KEY' --install`
-- use `Sync Status -> Queue Sync Request` only as a queue/request signal for the next host-side worker pickup
+- use `Sync Status -> Queue Next Worker Run` only as a queue/request signal for the next host-side worker pickup
 
 ### Hosted / VM Module Install
 
@@ -398,7 +579,7 @@ local/modules/simplemdm/scripts/install_cron.sh --remove
 ```
 
 Cron is not installed automatically when you clone the module. You must either add the crontab entry yourself or run the helper with `--install`.
-The `Sync Status` panel `Queue Sync Request` button queues work for the next worker pickup.
+The `Sync Status` panel `Queue Next Worker Run` button queues work for the next worker pickup.
 The `In-Module Sync And Schedule` panel `Run Sync Now` button performs an immediate run when in-module execution is available.
 
 ### Docker Module Install
@@ -474,7 +655,7 @@ local/modules/simplemdm/scripts/install_cron.sh --remove
 ```
 
 Cron is not installed automatically when you clone the module. The helper updates the current user's crontab only when you run it with `--install`.
-The `Sync Status` panel `Queue Sync Request` button queues work for the next worker pickup.
+The `Sync Status` panel `Queue Next Worker Run` button queues work for the next worker pickup.
 The `In-Module Sync And Schedule` panel `Run Sync Now` button performs an immediate run when in-module execution is available.
 
 ### Common Validation Checklist
@@ -510,7 +691,7 @@ python3 --version
      - Docker example in this doc: use `http://localhost:8888`.
      - Confirm app is reachable in browser before rerunning sync.
 
-4. `Sync Status -> Queue Sync Request` stays queued:
+4. `Sync Status -> Queue Next Worker Run` stays queued:
    - Cause: no cron entry exists, cron is not running, or the queued request has not reached the next cron pickup yet.
    - Fix:
 
@@ -700,7 +881,7 @@ Use this section as the plain-language guide to every setting shown in `Admin ->
 
 #### Sync Status
 
-- `Sync Status -> Queue Sync Request`
+- `Sync Status -> Queue Next Worker Run`
   - Meaning: queues a sync request for the next worker pickup.
   - Use case: use this when you want the normal worker path to process the next run, for example when cron or a host-side runner is already in place.
   - Important: this does not execute Python from the web request.
@@ -710,7 +891,7 @@ Use this section as the plain-language guide to every setting shown in `Admin ->
   - Use case: tells you whether work is waiting or already executing.
 
 - `Last Queue Request`
-  - Meaning: when the queue-based `Sync Status -> Queue Sync Request` path most recently created a request.
+  - Meaning: when the queue-based `Sync Status -> Queue Next Worker Run` path most recently created a request.
   - Use case: helps determine whether a queued run is waiting too long for cron/manual pickup.
 
 - `Queue Pickup Time`
@@ -896,7 +1077,7 @@ Use this section as the plain-language guide to every setting shown in `Admin ->
 Current admin scope:
 - Admin currently manages API/auth, widget visibility, advanced sync/compliance settings, in-module runner settings, and manual download/access workflows.
 - Admin exposes two sync paths:
-  - `Sync Status -> Queue Sync Request` queues a run for the next worker pickup.
+  - `Sync Status -> Queue Next Worker Run` queues a run for the next worker pickup.
   - `In-Module Sync And Schedule -> Run Sync Now` performs an immediate run when in-module execution is enabled and Python is available in the MunkiReport runtime.
 - Layout ordering, full-width spans, and expand/collapse behavior are module-driven defaults (not separate admin toggles).
 - If the Admin menu item does not appear after module updates, refresh/restart MunkiReport so module `provides.yml` metadata is reloaded.
@@ -952,7 +1133,7 @@ python3 /path/to/munkireport/local/modules/simplemdm/scripts/simplemdm_sync.py \
 4. Verify status in admin page:
    - `last_sync_status` should become `success`.
    - `last_sync_time` should update.
-   - `Sync Status -> Queue Sync Request` changes queue state to `queued`/`running`; cron or a manual script invocation still executes the import.
+   - `Sync Status -> Queue Next Worker Run` changes queue state to `queued`/`running`; cron or a manual script invocation still executes the import.
    - `In-Module Sync And Schedule -> Run Sync Now` runs immediately when module execution prerequisites are met.
 5. Verify data exists:
    - Device listing: `show/listing/simplemdm/simplemdm`

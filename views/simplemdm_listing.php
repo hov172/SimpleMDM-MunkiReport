@@ -68,6 +68,10 @@ $(document).on('appReady', function(e, lang) {
     var wantedFilevault = params.get('filevault');
     var wantedGroup = (params.get('group') || '').toLowerCase();
     var wantedOs = (params.get('os') || '').toLowerCase();
+    var wantedSuppFilevault = params.get('supp_filevault');
+    var wantedSuppApplecare = (params.get('supp_applecare') || '').toLowerCase();
+    var wantedSuppProfiles = params.get('supp_profiles');
+    var wantedSuppManagedInstalls = (params.get('supp_managedinstalls') || '').toLowerCase();
 
     function normalizeBool(v) {
         if (v === 1 || v === '1' || v === true || v === 'true') {
@@ -86,6 +90,10 @@ $(document).on('appReady', function(e, lang) {
         wantedFilevault = String($('#simplemdm-filter-filevault').val() || '');
         wantedGroup = String($('#simplemdm-filter-group').val() || '').trim().toLowerCase();
         wantedOs = String($('#simplemdm-filter-os').val() || '').trim().toLowerCase();
+        wantedSuppFilevault = String($('#simplemdm-filter-supp-filevault').val() || '');
+        wantedSuppApplecare = String($('#simplemdm-filter-supp-applecare').val() || '').trim().toLowerCase();
+        wantedSuppProfiles = String($('#simplemdm-filter-supp-profiles').val() || '');
+        wantedSuppManagedInstalls = String($('#simplemdm-filter-supp-managedinstalls').val() || '').trim().toLowerCase();
     }
 
     function syncUiFromFilters() {
@@ -95,6 +103,10 @@ $(document).on('appReady', function(e, lang) {
         $('#simplemdm-filter-filevault').val(wantedFilevault !== null ? String(wantedFilevault) : '');
         $('#simplemdm-filter-group').val(params.get('group') || '');
         $('#simplemdm-filter-os').val(params.get('os') || '');
+        $('#simplemdm-filter-supp-filevault').val(wantedSuppFilevault !== null ? String(wantedSuppFilevault) : '');
+        $('#simplemdm-filter-supp-applecare').val(params.get('supp_applecare') || '');
+        $('#simplemdm-filter-supp-profiles').val(wantedSuppProfiles !== null ? String(wantedSuppProfiles) : '');
+        $('#simplemdm-filter-supp-managedinstalls').val(params.get('supp_managedinstalls') || '');
     }
 
     function syncUrlFromFilters() {
@@ -112,7 +124,20 @@ $(document).on('appReady', function(e, lang) {
         setOrDelete('filevault', wantedFilevault);
         setOrDelete('group', wantedGroup);
         setOrDelete('os', wantedOs);
+        setOrDelete('supp_filevault', wantedSuppFilevault);
+        setOrDelete('supp_applecare', wantedSuppApplecare);
+        setOrDelete('supp_profiles', wantedSuppProfiles);
+        setOrDelete('supp_managedinstalls', wantedSuppManagedInstalls);
         window.history.replaceState({}, '', url.toString());
+    }
+
+    function parseDateOnly(value) {
+        var raw = String(value || '').trim();
+        if (!raw) {
+            return null;
+        }
+        var parsed = Date.parse(raw);
+        return isNaN(parsed) ? null : parsed;
     }
 
     $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
@@ -169,6 +194,57 @@ $(document).on('appReady', function(e, lang) {
                     return false;
                 }
             } else if (rowOs !== wantedOs) {
+                return false;
+            }
+        }
+
+        var suppFvFilter = normalizeBool(wantedSuppFilevault);
+        if (suppFvFilter !== null && normalizeBool(row.supplemental_filevault_enabled) !== suppFvFilter) {
+            return false;
+        }
+
+        var suppProfilesFilter = normalizeBool(wantedSuppProfiles);
+        if (suppProfilesFilter !== null) {
+            var profileCount = parseInt(String(row.supplemental_profile_count || '0'), 10);
+            if (suppProfilesFilter === 1 && !(profileCount > 0)) {
+                return false;
+            }
+            if (suppProfilesFilter === 0 && profileCount > 0) {
+                return false;
+            }
+        }
+
+        if (wantedSuppManagedInstalls) {
+            var miWarnings = parseInt(String(row.supplemental_managedinstalls_warning_count || '0'), 10);
+            var miErrors = parseInt(String(row.supplemental_managedinstalls_error_count || '0'), 10);
+            if (wantedSuppManagedInstalls === 'error' && !(miErrors > 0)) {
+                return false;
+            }
+            if (wantedSuppManagedInstalls === 'warning' && !(miWarnings > 0 && miErrors === 0)) {
+                return false;
+            }
+        }
+
+        if (wantedSuppApplecare) {
+            var endTs = parseDateOnly(row.supplemental_applecare_coverage_end);
+            var now = new Date();
+            now.setHours(0, 0, 0, 0);
+            var today = now.getTime();
+            var days30 = today + (30 * 24 * 60 * 60 * 1000);
+            var days90 = today + (90 * 24 * 60 * 60 * 1000);
+            if (!endTs) {
+                return false;
+            }
+            if (wantedSuppApplecare === 'expired' && !(endTs < today)) {
+                return false;
+            }
+            if (wantedSuppApplecare === 'expiring_30' && !(endTs >= today && endTs <= days30)) {
+                return false;
+            }
+            if (wantedSuppApplecare === 'expiring_90' && !(endTs > days30 && endTs <= days90)) {
+                return false;
+            }
+            if (wantedSuppApplecare === 'covered' && !(endTs > days90)) {
                 return false;
             }
         }
@@ -257,7 +333,41 @@ $(document).on('appReady', function(e, lang) {
                 }
             },
             {data: 'last_seen_at'},
-            {data: 'assignment_group'}
+            {data: 'assignment_group'},
+            {data: 'supplemental_source_modules_json',
+                render: function(data, type, full) {
+                    if (type !== 'display') {
+                        return data || '';
+                    }
+                    var chips = [];
+                    var modules = [];
+                    try {
+                        modules = data ? JSON.parse(data) : [];
+                    } catch (e) {
+                        modules = [];
+                    }
+                    if (full.supplemental_profile_count) {
+                        chips.push('<span class="label label-info">Profiles: ' + String(full.supplemental_profile_count) + '</span>');
+                    }
+                    if (full.supplemental_applecare_coverage_status) {
+                        chips.push('<span class="label label-default">' + String(full.supplemental_applecare_coverage_status) + '</span>');
+                    }
+                    if (full.supplemental_filevault_enabled === 0 || full.supplemental_filevault_enabled === '0') {
+                        chips.push('<span class="label label-danger">Supp FV Off</span>');
+                    } else if (full.supplemental_filevault_enabled === 1 || full.supplemental_filevault_enabled === '1') {
+                        chips.push('<span class="label label-success">Supp FV On</span>');
+                    }
+                    if (full.supplemental_managedinstalls_error_count) {
+                        chips.push('<span class="label label-danger">MI Errors: ' + String(full.supplemental_managedinstalls_error_count) + '</span>');
+                    } else if (full.supplemental_managedinstalls_warning_count) {
+                        chips.push('<span class="label label-warning">MI Warnings: ' + String(full.supplemental_managedinstalls_warning_count) + '</span>');
+                    }
+                    if (modules.length && !chips.length) {
+                        chips.push('<span class="label label-default">' + modules.join(', ') + '</span>');
+                    }
+                    return chips.length ? chips.join(' ') : '<span class="text-muted">-</span>';
+                }
+            }
         ],
         createdRow: function(nRow, aData, iDataIndex) {
             if (aData.status !== 'enrolled') {
@@ -279,6 +389,10 @@ $(document).on('appReady', function(e, lang) {
         $('#simplemdm-filter-filevault').val('');
         $('#simplemdm-filter-group').val('');
         $('#simplemdm-filter-os').val('');
+        $('#simplemdm-filter-supp-filevault').val('');
+        $('#simplemdm-filter-supp-applecare').val('');
+        $('#simplemdm-filter-supp-profiles').val('');
+        $('#simplemdm-filter-supp-managedinstalls').val('');
         updateFiltersFromUi();
         syncUrlFromFilters();
         oTable.draw();
@@ -335,6 +449,42 @@ $(document).on('appReady', function(e, lang) {
                 </div>
             </div>
             <div class="row simplemdm-listing-controls">
+                <div class="col-sm-3">
+                    <label for="simplemdm-filter-supp-filevault">Supplemental FileVault</label>
+                    <select id="simplemdm-filter-supp-filevault" class="form-control input-sm">
+                        <option value="">All</option>
+                        <option value="1">On</option>
+                        <option value="0">Off</option>
+                    </select>
+                </div>
+                <div class="col-sm-3">
+                    <label for="simplemdm-filter-supp-applecare">Supplemental AppleCare</label>
+                    <select id="simplemdm-filter-supp-applecare" class="form-control input-sm">
+                        <option value="">All</option>
+                        <option value="expired">Expired</option>
+                        <option value="expiring_30">Expiring 30 Days</option>
+                        <option value="expiring_90">Expiring 31-90 Days</option>
+                        <option value="covered">Covered 90+ Days</option>
+                    </select>
+                </div>
+                <div class="col-sm-3">
+                    <label for="simplemdm-filter-supp-profiles">Supplemental Profiles</label>
+                    <select id="simplemdm-filter-supp-profiles" class="form-control input-sm">
+                        <option value="">All</option>
+                        <option value="1">Present</option>
+                        <option value="0">Absent</option>
+                    </select>
+                </div>
+                <div class="col-sm-3">
+                    <label for="simplemdm-filter-supp-managedinstalls">ManagedInstalls</label>
+                    <select id="simplemdm-filter-supp-managedinstalls" class="form-control input-sm">
+                        <option value="">All</option>
+                        <option value="error">Errors</option>
+                        <option value="warning">Warnings</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row simplemdm-listing-controls">
                 <div class="col-sm-12">
                     <button id="simplemdm-filters-apply" class="btn btn-primary btn-sm">Apply Filters</button>
                     <button id="simplemdm-filters-reset" class="btn btn-default btn-sm">Reset Filters</button>
@@ -353,6 +503,7 @@ $(document).on('appReady', function(e, lang) {
                         <th data-i18n="simplemdm.filevault_enabled" data-colname="filevault_enabled">FileVault</th>
                         <th data-i18n="simplemdm.last_seen_at" data-colname="last_seen_at">Last Seen</th>
                         <th data-i18n="simplemdm.assignment_group" data-colname="assignment_group">Assignment Group</th>
+                        <th>Supplemental</th>
                     </tr>
                 </thead>
                 <tbody></tbody>

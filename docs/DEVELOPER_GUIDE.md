@@ -2,9 +2,9 @@
 
 This guide is for contributors who need to understand and modify the module safely.
 
-Optional future-extension note:
+Related background docs:
 
-- `CLIENT_REPORTER_ADDON.md` describes a proposal for a possible future client-side supplemental reporter for device-reality facts. It is not implemented and is not part of the current module behavior.
+- `CLIENT_REPORTER_ADDON.md` summarizes the implemented client-reporter contract and the original Option A / Option B design rationale.
 
 ## Table of Contents
 
@@ -22,11 +22,37 @@ Optional future-extension note:
 
 ## 1) Purpose and Use Cases
 
+### Three Data Paths
+
+When reasoning about this module, keep these three data paths separate:
+
+- Core SimpleMDM sync
+  - the external SimpleMDM service syncs into this MunkiReport module through `simplemdm_sync.py`
+- Option A supplemental enrichment
+  - this module reads data from other loaded MunkiReport modules and exposes it as supplemental context
+- Option B client reporter ingestion
+  - local client-side reporters post allowlisted facts directly into this module
+
+These paths complement each other but do not replace each other:
+
+- core sync remains authoritative for native SimpleMDM inventory and resource state
+- Option A is the preferred enrichment path when another module already owns the data
+- Option B is the fallback for narrow local-device facts that are not already available through core sync or Option A
+
+Option A and Option B can operate simultaneously. The controller merges them as separate supplemental sources rather than forcing one path to replace the other.
+
+Conflict guidance:
+
+- if another loaded module already owns a fact, keep that module as the preferred source and use Option A
+- use Option B only for endpoint-local facts or explicit drift-detection comparisons
+- when both paths expose similar facts, preserve source labels so operators can see why values differ
+
 ### What this module does
 
 - Syncs SimpleMDM device inventory into MunkiReport for centralized visibility.
 - Syncs documented SimpleMDM resources (apps, profiles, scripts, enrollments, assignment groups, device groups, and related supported child objects) for reporting and drill-down.
 - Exposes operational dashboards/widgets for compliance, security posture, command status, and sync health.
+- Enriches SimpleMDM views with Option A supplemental local module data using explicit source labeling and summary-backed reporting.
 - Provides per-device deep views (attributes, relationships, linked resources, synced subresources).
 - Supports controlled mutating actions (restart/lock/wipe class actions) through authenticated passthrough routes.
 
@@ -92,8 +118,36 @@ Optional future-extension note:
   - Primary page for device-level troubleshooting and targeted operations.
 - How:
   - Main view: `views/simplemdm_device.php`.
-  - Reads from `simplemdm`, `simplemdm_resource`, `simplemdm_relationship_edge`, and subresource-derived records.
+  - Reads from `simplemdm`, `simplemdm_resource`, `simplemdm_relationship_edge`, subresource-derived records, and supplemental local source tables.
   - Mutating actions flow through `api_devices` passthrough with global auth + action secret requirements.
+
+### Supplemental Data Layer
+
+- What:
+  - Option A enrichment that reads local MunkiReport source tables without copying them into the main `simplemdm` device table.
+- Why:
+  - Add device-health, lifecycle, and software context where the SimpleMDM API alone is incomplete.
+- How:
+  - Built-in source definitions are allowlisted in `simplemdm_controller.php`.
+  - Generic source discovery also scans other loaded module folders, inspects module PHP files for candidate table names, and verifies a usable join key before exposing them as generic supplemental sources.
+  - Source definitions can still be extended or overridden with `supplemental_registry_json`.
+  - Device pages use live source lookups through `get_supplemental_data/{serial}`.
+  - Fleet-level filters and widgets use `simplemdm_supplemental_summary`.
+  - Admin visibility comes from `get_supplemental_status` and `refresh_supplemental_summary`.
+  - Admin opt-outs use `supplemental_disabled_sources_json`, which disables selected detected sources without uninstalling those modules.
+
+### Client Reporter Layer
+
+- What:
+  - Option B ingestion path for allowlisted client-reported facts stored in module-owned tables.
+- Why:
+  - Capture local facts that the SimpleMDM API and other loaded modules do not already provide.
+- How:
+  - Facts are posted to `index?op=ingest_client_facts`.
+  - Current values upsert into `simplemdm_client_fact`.
+  - Optional history rows append into `simplemdm_client_fact_history`.
+  - The resulting values render as the `Client Reporter` supplemental source on device views.
+  - This path writes into the MunkiReport SimpleMDM module, not into the external SimpleMDM service.
 
 ### Admin Settings Page
 
@@ -106,7 +160,7 @@ Optional future-extension note:
   - View: `views/simplemdm_admin.php`.
   - Persists settings to `simplemdm_config`.
   - Persists execution history to `simplemdm_sync_run`.
-  - `Sync Status -> Queue Sync Request` queues a one-off run for the next worker pickup.
+  - `Sync Status -> Queue Next Worker Run` queues a one-off run for the next worker pickup.
   - `In-Module Sync And Schedule -> Run Sync Now` executes an immediate one-off run when in-module execution is available.
   - `Enable Scheduled Sync` / `Disable Scheduled Sync` change module schedule state.
   - `Queue State`, `Last Queue Request`, and `Queue Pickup Time` are queue-only telemetry for the worker pickup path.
@@ -133,7 +187,7 @@ Optional future-extension note:
   - The admin UI stores schedule settings in `simplemdm_config`.
   - The worker lifecycle stores run history in `simplemdm_sync_run`.
   - Presets map to cron expressions.
-  - `Sync Status -> Queue Sync Request` is queue-based and still depends on a worker pickup.
+  - `Sync Status -> Queue Next Worker Run` is queue-based and still depends on a worker pickup.
   - `In-Module Sync And Schedule -> Run Sync Now` is immediate and does not need cron, but it does require module-side Python execution.
   - The admin page uses background polling to refresh queue/run cards without a full page reload, with a faster cadence while runs are active.
   - Recurring scheduled sync still depends on cron.
@@ -180,6 +234,14 @@ When documenting or extending the admin page, keep these meanings stable:
   - Cap for deep parent-child resource traversal such as `apps/{id}/installs`; `0` means unlimited.
 - `Allow In-Module Script Execution For Global Admins`
   - Enables approved runner actions from the UI, subject to runtime checks.
+- `Enable Supplemental Module Data Enrichment`
+  - Enables or disables Option A supplemental rendering and summary refresh.
+- `Supplemental Stale Threshold`
+  - Fallback freshness threshold in minutes for supplemental rows when source-specific timestamps are missing.
+- `Supplemental Source Registry Overrides (JSON)`
+  - Optional JSON override/extension map for allowlisted supplemental source definitions.
+- `Disabled Supplemental Sources`
+  - Stored as `supplemental_disabled_sources_json`; excludes selected detected sources from enrichment and summary generation without uninstalling the underlying module.
 - `Schedule Config`
   - Reflects whether scheduled sync is enabled in settings.
 - `Recurring Sync Ready`
@@ -199,6 +261,7 @@ local/modules/simplemdm/
 |- simplemdm_processor.php            # legacy processor-style upsert path for device rows
 |- simplemdm_factory.php              # module metadata/helper bootstrap
 |- simplemdm_*_model.php              # Eloquent models for each table
+|- simplemdm_supplemental_summary_model.php  # summary cache/index for Option A supplemental data
 |- provides.yml                       # MunkiReport registrations (report, listings, widgets, admin)
 |- migrations/                        # schema creation and incremental updates
 |- views/                             # report pages, listing pages, widgets, device page UI
@@ -229,6 +292,11 @@ Derived/related writes:
   simplemdm -> simplemdm_device_history
   simplemdm -> simplemdm_dashboard_snapshot
   simplemdm_resource -> simplemdm_relationship_edge
+
+Supplemental reads/index:
+  local source tables -> get_supplemental_data/{serial}
+  local source tables -> refresh_supplemental_summary -> simplemdm_supplemental_summary
+  simplemdm_supplemental_summary -> listing filters/widgets/admin health
 ```
 
 ### Webhook Flow
@@ -263,6 +331,8 @@ Primary file: `simplemdm_controller.php`
 - Read endpoints for report/listings/widgets:
   - stats endpoints (enrollment, DEP, compliance, trend, sync telemetry, etc.)
   - device/resource listing data endpoints
+  - supplemental device/detail endpoints
+  - summary-backed supplemental widget endpoints
   - widget/report routes must respect the active MunkiReport `index_page` setting (`/index.php?/module/...` vs `/module/...`)
 - Device API passthrough:
   - `api_devices/...` routes with method allowlists and secret enforcement for mutating requests
@@ -306,6 +376,9 @@ Primary file: `simplemdm_processor.php`
 | `simplemdm_relationship_edge` | `simplemdm_relationship_edge_model.php` | Normalized resource relationships for linked-resource views |
 | `simplemdm_dashboard_snapshot` | `simplemdm_dashboard_snapshot_model.php` | Time-series dashboard metrics |
 | `simplemdm_device_history` | `simplemdm_device_history_model.php` | Daily per-device state snapshots |
+| `simplemdm_supplemental_summary` | `simplemdm_supplemental_summary_model.php` | Summary/index layer for Option A filters, widgets, and freshness |
+| `simplemdm_client_fact` | `simplemdm_client_fact_model.php` | Current-value table for Option B client-reported facts |
+| `simplemdm_client_fact_history` | `simplemdm_client_fact_history_model.php` | Optional history trail for Option B facts |
 
 Migration files are in `migrations/` and should normally be appended.
 Treat already-deployed migrations as immutable; only correct a migration in-place before rollout if the shipped revision is not yet safe to deploy.

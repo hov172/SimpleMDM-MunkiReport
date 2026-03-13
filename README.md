@@ -11,9 +11,9 @@ This module syncs devices and API resources from SimpleMDM server-side, stores t
 
 The SimpleMDM module provides a high-fidelity dashboard and granular inventory views.
 
-### Dashboard KPIs
+### SimpleMDM Report
 Top-level resource cards showing totals for Apps, Profiles, Device Users, and more.
-![Dashboard KPIs](docs/images/dashboard_kpis.png)
+![SimpleMDM Report](docs/images/dashboard_kpis.png)
 
 ### Enrollment & Security
 Real-time visualization of enrollment status and security compliance posture.

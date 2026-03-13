@@ -95,7 +95,7 @@ Client-side requirements:
 - `system_profiler`
 - `fdesetup`
 
-Environment variables used by [simplemdm_client_reporter_example.sh](/Users/helpdesk/websites/munkireport-php/local/modules/simplemdm/scripts/simplemdm_client_reporter_example.sh):
+Environment variables used by [simplemdm_client_reporter_example.sh](../scripts/simplemdm_client_reporter_example.sh):
 
 - required:
   - `MUNKIREPORT_URL`
@@ -150,7 +150,7 @@ Server-side requirements:
   - device tokens provisioned for the correct serial
   - proxy/IP rules configured correctly
 
-Environment variables used by [simplemdm_client_reporter_hardened.py](/Users/helpdesk/websites/munkireport-php/local/modules/simplemdm/scripts/simplemdm_client_reporter_hardened.py):
+Environment variables used by [simplemdm_client_reporter_hardened.py](../scripts/simplemdm_client_reporter_hardened.py):
 
 - required:
   - `MUNKIREPORT_URL`
@@ -182,7 +182,7 @@ What it adds automatically:
 
 ## 6) Launchd Deployment
 
-Use [com.googlecode.munkireport-simplemdm-client-reporter.plist.example](/Users/helpdesk/websites/munkireport-php/local/modules/simplemdm/scripts/com.googlecode.munkireport-simplemdm-client-reporter.plist.example) as a template.
+Use [com.googlecode.munkireport-simplemdm-client-reporter.plist.example](../scripts/com.googlecode.munkireport-simplemdm-client-reporter.plist.example) as a template.
 
 Recommended pattern:
 
@@ -213,7 +213,7 @@ Or use the installer helper to generate and place the plist for you.
 
 ## 7) Munki Postflight Deployment
 
-Use [postflight_simplemdm_client_reporter_example.sh](/Users/helpdesk/websites/munkireport-php/local/modules/simplemdm/scripts/postflight_simplemdm_client_reporter_example.sh) when you want reporting to happen after Munki-managed software activity.
+Use [postflight_simplemdm_client_reporter_example.sh](../scripts/postflight_simplemdm_client_reporter_example.sh) when you want reporting to happen after Munki-managed software activity.
 
 Recommended pattern:
 

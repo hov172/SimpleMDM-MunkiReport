@@ -142,7 +142,7 @@ Option A and Option B can run at the same time. They are additive:
 
 Ingestion behavior is configured in the Admin UI:
 
-![Client Reporter Settings](images/admin-client-reporter-settings.png)
+![Client Reporter Settings](images/admin_supplemental_data_options.png)
 
 Recommended conflict rule:
 

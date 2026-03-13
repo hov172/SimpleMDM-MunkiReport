@@ -6,11 +6,23 @@ This module syncs devices and API resources from SimpleMDM server-side, stores t
 
 ## Preview
 
-### Dashboard Overview
-![SimpleMDM Dashboard](docs/images/dashboard-full.png)
+The SimpleMDM module provides a high-fidelity dashboard and granular inventory views.
 
-### Device Inventory
-![SimpleMDM Inventory](docs/images/inventory-list.png)
+### Dashboard KPIs
+Top-level resource cards showing totals for Apps, Profiles, Device Users, and more.
+![Dashboard KPIs](docs/images/dashboard_kpis.png)
+
+### Enrollment & Security
+Real-time visualization of enrollment status and security compliance posture.
+![Enrollment & Security](docs/images/dashboard_security_enrollment.png)
+
+### Group Distribution
+Visual breakdown of device allocation across SimpleMDM assignment groups.
+![Group Distribution](docs/images/dashboard_groups.png)
+
+### Resource & Device Inventory
+Comprehensive grids for device listing and API resource distribution.
+![Resource Inventory](docs/images/dashboard_resources.png)
 
 ## Key Points
 

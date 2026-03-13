@@ -132,7 +132,7 @@ It should be implemented as a hybrid model:
 
 The Admin page provides a specific panel for monitoring the health of Option A detection.
 
-![Supplemental Data Config](images/admin-supplemental-config.png)
+![Supplemental Data Config](images/admin_supplemental_data_options.png)
 
 **Key Metrics:**
 - **Detected Sources**: List of tables found in the database that match SimpleMDM serialization.
@@ -559,7 +559,7 @@ This should be treated as a narrow fallback path, not the default.
 
 The Client Reporter behavior is configured through a specific hardened settings panel in the Admin UI.
 
-![Client Reporter Settings](images/admin-client-reporter-settings.png)
+![Client Reporter Settings](images/admin_supplemental_data_options.png)
 
 This panel allows for HMAC secret rotation, allowlist management, and payload limit configuration.
 

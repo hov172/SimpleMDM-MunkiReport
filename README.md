@@ -1710,7 +1710,7 @@ Main panels:
   - device name, model, OS/build
   - enrolled at, last seen at, last seen IP
   - SimpleMDM device ID
-![Device Detail Overview](docs/images/device-detail-overview.png)
+![Device Detail Overview](docs/images/simplemdm_device_detail.png)
 
 `Security & Compliance`
 - Fast-check booleans:
@@ -1735,15 +1735,12 @@ Main panels:
   - Other (auto-catchall for unmapped keys)
 - Includes nested object rendering (for fields like `firewall` / `os_update`).
 - Technical field toggle available for expanded operator diagnostics.
-![Device Attributes and Enrollment](docs/images/device-attributes-enrollment.png)
-![Device OS and Updates](docs/images/device-os-updates.png)
-![Device Security Details](docs/images/device-security-details.png)
-![Device Hardware and Network](docs/images/device-hardware-network.png)
+![Device Attributes and Health](docs/images/device-detail-full.png)
 
 `Relationships`
 - Direct render of `relationships_json` payload by key.
 - Designed for API-level inspection/troubleshooting, not only human-friendly labels.
-![Device Custom Attributes](docs/images/device-custom-attributes.png)
+![Device Custom Attributes](docs/images/device-detail-full.png)
 
 `Connected Resources`
 - Normalized relationship graph view from `simplemdm_relationship_edge`.
@@ -1789,7 +1786,7 @@ Main panels:
   - clear_passcode
   - clear_firmware_password
   - rotate_firmware_password
-![Device Actions Runner](docs/images/device-actions-runner.png)
+![Device Actions Runner](docs/images/device_action_runner.png)
   - clear_recovery_lock_password
   - clear_restrictions_password
   - rotate_recovery_lock_password

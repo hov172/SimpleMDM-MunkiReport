@@ -32,17 +32,17 @@ Do not use Option B for:
 ## 2) Included Example Files
 
 - shared-secret shell reporter:
-  - [simplemdm_client_reporter_example.sh](/Users/helpdesk/websites/munkireport-php/local/modules/simplemdm/scripts/simplemdm_client_reporter_example.sh)
+  - [simplemdm_client_reporter_example.sh](../scripts/simplemdm_client_reporter_example.sh)
 - hardened Python reporter:
-  - [simplemdm_client_reporter_hardened.py](/Users/helpdesk/websites/munkireport-php/local/modules/simplemdm/scripts/simplemdm_client_reporter_hardened.py)
+  - [simplemdm_client_reporter_hardened.py](../scripts/simplemdm_client_reporter_hardened.py)
 - installer helper:
-  - [install_client_reporter.sh](/Users/helpdesk/websites/munkireport-php/local/modules/simplemdm/scripts/install_client_reporter.sh)
+  - [install_client_reporter.sh](../scripts/install_client_reporter.sh)
 - backend Option A validation helper:
-  - [option_a_backend_check.php](/Users/helpdesk/websites/munkireport-php/local/modules/simplemdm/scripts/option_a_backend_check.php)
+  - [option_a_backend_check.php](../scripts/option_a_backend_check.php)
 - `launchd` example:
-  - [com.googlecode.munkireport-simplemdm-client-reporter.plist.example](/Users/helpdesk/websites/munkireport-php/local/modules/simplemdm/scripts/com.googlecode.munkireport-simplemdm-client-reporter.plist.example)
+  - [com.googlecode.munkireport-simplemdm-client-reporter.plist.example](../scripts/com.googlecode.munkireport-simplemdm-client-reporter.plist.example)
 - Munki postflight wrapper:
-  - [postflight_simplemdm_client_reporter_example.sh](/Users/helpdesk/websites/munkireport-php/local/modules/simplemdm/scripts/postflight_simplemdm_client_reporter_example.sh)
+  - [postflight_simplemdm_client_reporter_example.sh](../scripts/postflight_simplemdm_client_reporter_example.sh)
 
 ## 3) Before You Deploy
 

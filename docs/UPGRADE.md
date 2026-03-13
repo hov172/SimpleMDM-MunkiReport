@@ -7,6 +7,7 @@ This guide covers safe upgrade procedures for this module in Hosted/VM and Docke
 1. Always back up before upgrade.
 2. Pull/update code first, then run migrations.
 3. Treat shipped migrations as immutable once they have been applied in an environment.
+   Do not delete or rename files under `local/modules/simplemdm/migrations/` in an active release.
    If a migration bug is found before rollout, fix it in Git and then deploy the corrected module revision.
 4. Validate sync + UI after every upgrade.
 

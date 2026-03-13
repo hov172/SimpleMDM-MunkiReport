@@ -542,6 +542,7 @@ Primary file: `simplemdm_processor.php`
 
 Migration files are in `migrations/` and should normally be appended.
 Treat already-deployed migrations as immutable; only correct a migration in-place before rollout if the shipped revision is not yet safe to deploy.
+Do not delete or rename shipped migration files in an active release; use a planned baseline/squash only as a controlled future cleanup.
 
 ## 7) UI and View Map
 

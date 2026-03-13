@@ -579,6 +579,9 @@ grep -q '^MODULES=' .env || echo 'MODULES="munkireport,managedinstalls,disk_repo
 php please migrate
 ```
 
+Do not delete or rename files in `local/modules/simplemdm/migrations/`.
+They are required for fresh installs and upgrades, and shipped migrations should be treated as immutable once deployed.
+
 5. Configure the module in the UI:
    - Open `Admin -> SimpleMDM Settings`
    - Save `api_key`

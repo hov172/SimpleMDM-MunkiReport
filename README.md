@@ -1,7 +1,7 @@
 # SimpleMDM Module for MunkiReport
 
 > [!IMPORTANT]
-> **BETA STATUS**: This module is currently in beta. Features. docs and database schemas may undergo significant changes before the final 2.0 release.
+> **BETA STATUS**: This module is currently in beta. Features. Docs and database schemas may undergo significant changes before the final 2.0 release.
 
 Module-only SimpleMDM integration for MunkiReport.
 

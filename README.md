@@ -179,17 +179,17 @@ How Option B is typically used from a Mac:
 Included examples:
 
 - basic shared-secret shell reporter:
-  - [scripts/simplemdm_client_reporter_example.sh](/Users/helpdesk/websites/munkireport-php/local/modules/simplemdm/scripts/simplemdm_client_reporter_example.sh)
+  - [scripts/simplemdm_client_reporter_example.sh](scripts/simplemdm_client_reporter_example.sh)
 - hardened Python reporter with HMAC, nonce, and device token headers:
-  - [scripts/simplemdm_client_reporter_hardened.py](/Users/helpdesk/websites/munkireport-php/local/modules/simplemdm/scripts/simplemdm_client_reporter_hardened.py)
+  - [scripts/simplemdm_client_reporter_hardened.py](scripts/simplemdm_client_reporter_hardened.py)
 - installer helper for client deployment:
-  - [scripts/install_client_reporter.sh](/Users/helpdesk/websites/munkireport-php/local/modules/simplemdm/scripts/install_client_reporter.sh)
+  - [scripts/install_client_reporter.sh](scripts/install_client_reporter.sh)
 - example `launchd` agent plist:
-  - [scripts/com.googlecode.munkireport-simplemdm-client-reporter.plist.example](/Users/helpdesk/websites/munkireport-php/local/modules/simplemdm/scripts/com.googlecode.munkireport-simplemdm-client-reporter.plist.example)
+  - [scripts/com.googlecode.munkireport-simplemdm-client-reporter.plist.example](scripts/com.googlecode.munkireport-simplemdm-client-reporter.plist.example)
 - example Munki postflight wrapper:
-  - [scripts/postflight_simplemdm_client_reporter_example.sh](/Users/helpdesk/websites/munkireport-php/local/modules/simplemdm/scripts/postflight_simplemdm_client_reporter_example.sh)
+  - [scripts/postflight_simplemdm_client_reporter_example.sh](scripts/postflight_simplemdm_client_reporter_example.sh)
 - backend Option A validation helper:
-  - [scripts/option_a_backend_check.php](/Users/helpdesk/websites/munkireport-php/local/modules/simplemdm/scripts/option_a_backend_check.php)
+  - [scripts/option_a_backend_check.php](scripts/option_a_backend_check.php)
 
 Minimal example:
 

@@ -4253,9 +4253,21 @@ class Simplemdm_controller extends Module_controller
      **/
     public function get_resources_data()
     {
+        $draw = isset($_GET['draw']) ? (int) $_GET['draw'] : 0;
+        $start = isset($_GET['start']) ? max(0, (int) $_GET['start']) : 0;
+        $length = isset($_GET['length']) ? (int) $_GET['length'] : 10;
+        if ($length < 1) {
+            $length = 10;
+        }
+        if ($length > 250) {
+            $length = 250;
+        }
+
         $type = '';
         $resource_id = '';
         $endpoint = '';
+        $endpoint_like = '';
+        $search = '';
         if (isset($_GET['type'])) {
             $type = trim((string)$_GET['type']);
         }
@@ -4265,43 +4277,152 @@ class Simplemdm_controller extends Module_controller
         if (isset($_GET['endpoint'])) {
             $endpoint = trim((string)$_GET['endpoint']);
         }
-
-        $query = Simplemdm_resource_model::select(
-            'resource_type',
-            'resource_id',
-            'name',
-            'source_endpoint',
-            'synced_at',
-            'attributes_json',
-            'data_json'
-        );
-
-        if ($type !== '') {
-            $query->where('resource_type', $type);
+        if (isset($_GET['endpoint_like'])) {
+            $endpoint_like = trim((string)$_GET['endpoint_like']);
         }
-        if ($resource_id !== '') {
-            $query->where('resource_id', $resource_id);
-        }
-        if ($endpoint !== '') {
-            $query->where('source_endpoint', $endpoint);
+        if (isset($_GET['search']) && is_array($_GET['search']) && isset($_GET['search']['value'])) {
+            $search = trim((string) $_GET['search']['value']);
         }
 
-        $rows = $query->orderBy('resource_type')
-            ->orderBy('name')
+        if (! $this->schema_has_columns('simplemdm_resource', ['resource_type', 'resource_id'])) {
+            jsonView([
+                'draw' => $draw,
+                'recordsTotal' => 0,
+                'recordsFiltered' => 0,
+                'data' => [],
+            ]);
+            return;
+        }
+
+        $select = ['resource_type', 'resource_id'];
+        foreach (['name', 'source_endpoint', 'synced_at', 'attributes_json', 'data_json'] as $column) {
+            if ($this->schema_has_columns('simplemdm_resource', [$column])) {
+                $select[] = $column;
+            }
+        }
+
+        $base_query = Simplemdm_resource_model::query();
+
+        $apply_filters = function ($query) use ($type, $resource_id, $endpoint, $endpoint_like, $search, $select) {
+            if ($type !== '') {
+                $query->where('resource_type', $type);
+            }
+            if ($resource_id !== '') {
+                $query->where('resource_id', $resource_id);
+            }
+            if ($endpoint !== '' && in_array('source_endpoint', $select, true)) {
+                $query->where('source_endpoint', $endpoint);
+            }
+            if ($endpoint_like !== '' && in_array('source_endpoint', $select, true)) {
+                $query->where('source_endpoint', 'like', '%' . $endpoint_like . '%');
+            }
+            if ($search !== '') {
+                $query->where(function ($inner) use ($search, $select) {
+                    $like = '%' . $search . '%';
+                    $inner->where('resource_type', 'like', $like)
+                        ->orWhere('resource_id', 'like', $like);
+                    if (in_array('name', $select, true)) {
+                        $inner->orWhere('name', 'like', $like);
+                    }
+                    if (in_array('source_endpoint', $select, true)) {
+                        $inner->orWhere('source_endpoint', 'like', $like);
+                    }
+                    if (in_array('synced_at', $select, true)) {
+                        $inner->orWhere('synced_at', 'like', $like);
+                    }
+                });
+            }
+        };
+
+        $records_total = (int) $base_query->count();
+
+        $filtered_query = Simplemdm_resource_model::query();
+        $apply_filters($filtered_query);
+        $records_filtered = (int) $filtered_query->count();
+
+        $query = Simplemdm_resource_model::select($select);
+        $apply_filters($query);
+
+        $orderable_columns = [
+            0 => 'resource_type',
+            1 => 'resource_id',
+            2 => in_array('name', $select, true) ? 'name' : 'resource_id',
+            3 => in_array('source_endpoint', $select, true) ? 'source_endpoint' : 'resource_type',
+            4 => in_array('synced_at', $select, true) ? 'synced_at' : 'resource_id',
+        ];
+        $order_column = 0;
+        $order_dir = 'asc';
+        if (isset($_GET['order'][0]['column'])) {
+            $candidate = (int) $_GET['order'][0]['column'];
+            if (isset($orderable_columns[$candidate])) {
+                $order_column = $candidate;
+            }
+        }
+        if (isset($_GET['order'][0]['dir']) && strtolower((string) $_GET['order'][0]['dir']) === 'desc') {
+            $order_dir = 'desc';
+        }
+
+        $rows = $query->orderBy($orderable_columns[$order_column], $order_dir)
+            ->orderBy('resource_type')
+            ->orderBy('resource_id')
+            ->skip($start)
+            ->take($length)
             ->get();
 
-        $out = [];
+        $data = [];
         foreach ($rows as $row) {
-            $out[] = [
+            $data[] = [
                 'resource_type' => (string)$row->resource_type,
                 'resource_id' => (string)$row->resource_id,
                 'name' => $this->derive_resource_name_from_row($row),
-                'source_endpoint' => (string)$row->source_endpoint,
-                'synced_at' => (string)$row->synced_at,
+                'source_endpoint' => isset($row->source_endpoint) ? (string)$row->source_endpoint : '',
+                'synced_at' => isset($row->synced_at) ? (string)$row->synced_at : '',
             ];
         }
 
-        jsonView($out);
+        jsonView([
+            'draw' => $draw,
+            'recordsTotal' => $records_total,
+            'recordsFiltered' => $records_filtered,
+            'data' => $data,
+        ]);
+    }
+
+    /**
+     * Retrieve distinct filter values for the resource listing.
+     *
+     * @return void
+     **/
+    public function get_resource_filter_options()
+    {
+        if (! $this->schema_has_columns('simplemdm_resource', ['resource_type', 'resource_id'])) {
+            jsonView(['types' => [], 'endpoints' => []]);
+            return;
+        }
+
+        $types = Simplemdm_resource_model::query()
+            ->select('resource_type')
+            ->distinct()
+            ->orderBy('resource_type')
+            ->pluck('resource_type')
+            ->toArray();
+
+        $endpoints = [];
+        if ($this->schema_has_columns('simplemdm_resource', ['source_endpoint'])) {
+            $endpoints = Simplemdm_resource_model::query()
+                ->whereNotNull('source_endpoint')
+                ->where('source_endpoint', '!=', '')
+                ->select('source_endpoint')
+                ->distinct()
+                ->orderBy('source_endpoint')
+                ->pluck('source_endpoint')
+                ->toArray();
+        }
+
+        jsonView([
+            'types' => array_values($types),
+            'endpoints' => array_values($endpoints),
+        ]);
     }
 
     /**

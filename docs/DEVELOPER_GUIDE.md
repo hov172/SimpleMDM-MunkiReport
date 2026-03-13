@@ -402,6 +402,7 @@ Primary file: `provides.yml`
 - `views/simplemdm_report.php`: report page widget container
 - `views/simplemdm_listing.php`: device listing page
 - `views/simplemdm_resources_listing.php`: resource listing page
+  - uses server-side DataTables pagination/filtering so large `simplemdm_resource` datasets do not load entirely into the browser or PHP response
 - `views/simplemdm_admin.php`: admin settings page
   - includes schedule UX, queue-based and immediate `Run Sync Now`, schedule config/readiness, last run/source, next expected run, and manual access/downloads
 - `views/simplemdm_device.php`: standalone device details and action runner

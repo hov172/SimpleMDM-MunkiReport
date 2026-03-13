@@ -244,7 +244,8 @@ It now enforces the saved runner prerequisites server-side as well, so `sync_now
 |---|---|---|
 | `/module/simplemdm/get_data` | GET | Device listing data feed |
 | `/module/simplemdm/resources` | GET | Resource listing page entry point |
-| `/module/simplemdm/get_resources_data` | GET | Resource listing data feed |
+| `/module/simplemdm/get_resources_data` | GET | Resource listing data feed (DataTables server-side JSON) |
+| `/module/simplemdm/get_resource_filter_options` | GET | Distinct resource-type and endpoint filter options for the resource listing |
 | `/module/simplemdm/get_simplemdm_data/{serial}` | GET | Device row detail data |
 | `/module/simplemdm/get_supplemental_data/{serial}` | GET | Per-device supplemental source detail and freshness |
 | `/module/simplemdm/get_device_resources/{serial}` | GET | Connected/derived resource mapping for device |
@@ -478,11 +479,13 @@ Upstream dependency:
 | client tab `simplemdm-tab` | `GET /module/simplemdm/get_simplemdm_data/{serial}`, `GET /module/simplemdm/get_device_resources/{serial}` | `simplemdm`, `simplemdm_resource`, `simplemdm_relationship_edge` | `GET /devices` plus resource sync |
 | standalone device page `/module/simplemdm/device/{serial}` | `GET /module/simplemdm/get_simplemdm_data/{serial}`, `GET /module/simplemdm/get_device_resources/{serial}`, `GET /module/simplemdm/get_device_subresources/{serial}` | `simplemdm`, `simplemdm_resource`, `simplemdm_relationship_edge` | `GET /devices`, resource sync, and optional `GET /devices/{id}/profiles`, `GET /devices/{id}/installed_apps`, `GET /devices/{id}/users` |
 | device listing page `/show/listing/simplemdm/simplemdm` | `GET /module/simplemdm/get_data` | `simplemdm` | `GET /devices` |
-| resource listing page `/show/listing/simplemdm/simplemdm_resources` | `GET /module/simplemdm/get_resources_data` | `simplemdm_resource` | resource endpoint sync |
+| resource listing page `/show/listing/simplemdm/simplemdm_resources` | `GET /module/simplemdm/get_resources_data`, `GET /module/simplemdm/get_resource_filter_options` | `simplemdm_resource` | resource endpoint sync |
 
 Notes:
 - `get_data` is the main API command for device-table style views and dashboard mini-tables.
 - `get_resources_data` is the main API command for resource listing pages.
+- `get_resources_data` now returns DataTables server-side payloads: `draw`, `recordsTotal`, `recordsFiltered`, and `data`.
+- `get_resource_filter_options` returns distinct `types` and `endpoints` arrays used to populate listing filters without scanning the full resource table in the browser.
 - `get_device_resources/{serial}` relies on normalized relationships built during ingest into `simplemdm_relationship_edge`.
 - `get_device_subresources/{serial}` only returns meaningful data when per-device deep sync is enabled.
 

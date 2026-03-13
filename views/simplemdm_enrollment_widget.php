@@ -1,7 +1,7 @@
 <?php include_once __DIR__ . '/simplemdm_widget_modern_assets.php'; ?>
 
 <div class="col-lg-4 col-md-6">
-    <div class="panel panel-default simplemdm-modern-widget" id="simplemdm-enrollment-widget">
+    <div class="panel panel-default simplemdm-modern-widget simplemdm-status-widget" id="simplemdm-enrollment-widget">
         <div class="panel-heading" data-widget="simplemdm_enrollment">
             <h3 class="panel-title">
                 <i class="fa fa-check-circle"></i>
@@ -20,6 +20,11 @@
 <script>
 $(document).on('appReady', function(e, lang) {
     var widgetId = '#simplemdm-enrollment-widget';
+    var enrollmentLabels = {
+        enrolled: 'Enrolled',
+        unenrolled: 'Unenrolled'
+    };
+
     function simplemdmListingUrl(query) {
         var path = '/show/listing/simplemdm/simplemdm';
         if (appUrl.indexOf('index.php?') !== -1) {
@@ -46,7 +51,7 @@ $(document).on('appReady', function(e, lang) {
         // Format for NVD3 and List Group
         var chartData = [];
         data.forEach(function(item) {
-            var label = i18n.t(item.label);
+            var label = enrollmentLabels[item.label] || i18n.t(item.label) || item.label;
             var color = item.label === 'enrolled'
                 ? (palette.positive || '#2f9e44')
                 : (palette.danger || '#c23b3b');
@@ -60,8 +65,10 @@ $(document).on('appReady', function(e, lang) {
             var filterUrl = simplemdmListingUrl('status=' + encodeURIComponent(item.label));
             listGroup.append(
                 '<a href="' + filterUrl + '" class="list-group-item">' +
-                label +
-                '<span class="badge pull-right">' + item.count + '</span>' +
+                '<span class="simplemdm-status-row">' +
+                '<span class="simplemdm-status-label">' + label + '</span>' +
+                '<span class="badge simplemdm-status-count">' + item.count + '</span>' +
+                '</span>' +
                 '</a>'
             );
         });

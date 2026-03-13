@@ -1,5 +1,8 @@
 # SimpleMDM Module for MunkiReport
 
+> [!IMPORTANT]
+> **BETA STATUS**: This module is currently in beta. Features and database schemas may undergo significant changes before the final 2.0 release.
+
 Module-only SimpleMDM integration for MunkiReport.
 
 This module syncs devices and API resources from SimpleMDM server-side, stores them locally, and exposes listings, widgets, and per-device connected resource views.
@@ -2144,6 +2147,15 @@ Check browser console/network and confirm module route resolves:
   - `/module/simplemdm/get_os_security_stats`
 - If either returns a generic API error, confirm the module is updated and migrations completed cleanly.
 - If JSON is valid but the browser still shows stale content, hard-refresh the page to reload widget JavaScript.
+
+### Resource listing shows a DataTables Ajax error
+
+- Probe the JSON endpoints directly while logged in:
+  - `/module/simplemdm/get_resources_data?draw=1&start=0&length=10`
+  - `/module/simplemdm/get_resource_filter_options`
+- Expected response from `get_resources_data`: JSON object with `draw`, `recordsTotal`, `recordsFiltered`, and `data`.
+- If `get_resources_data` returns a generic server error, confirm the module code is updated; the resource listing now relies on server-side pagination for large `simplemdm_resource` tables.
+- If the endpoints return valid JSON but the page still shows stale errors, hard-refresh the browser so the updated listing JavaScript is loaded.
 
 ### Widget is enabled but not visible
 

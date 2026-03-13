@@ -420,6 +420,8 @@ body.simplemdm-report-interactive #simplemdm-report-grid > #simplemdm-dashboard-
 #simplemdm-dashboard-grid {
     position: relative;
     min-height: 1px;
+    margin-left: 0;
+    margin-right: 0;
 }
 
 #simplemdm-dashboard-grid > .simplemdm-dashboard-item {
@@ -625,6 +627,32 @@ body.simplemdm-theme-dark #simplemdm-dashboard-grid > .simplemdm-dashboard-item 
     overflow-y: auto;
     overflow-x: hidden;
     padding-right: 2px;
+}
+
+.simplemdm-status-widget .list-group {
+    padding-left: 4px;
+    padding-right: 4px;
+}
+
+.simplemdm-status-widget .list-group-item {
+    padding: 14px 18px;
+}
+
+.simplemdm-status-widget .simplemdm-status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.simplemdm-status-widget .simplemdm-status-label {
+    display: block;
+    min-width: 0;
+    padding-left: 2px;
+}
+
+.simplemdm-status-widget .simplemdm-status-count {
+    flex: 0 0 auto;
 }
 
 .simplemdm-section-body.simplemdm-collapsed {

@@ -78,6 +78,12 @@ $(document).on('appReady', function() {
     var wantedResourceId = (params.get('resource_id') || '').toLowerCase();
     var wantedEndpoint = (params.get('endpoint') || '').toLowerCase();
     var wantedEndpointLike = (params.get('endpoint_like') || '').toLowerCase();
+    var $typeFilter = $('#resource-type-filter');
+    var $endpointFilter = $('#endpoint-filter');
+
+    function escapeHtml(value) {
+        return $('<div>').text(String(value || '')).html();
+    }
 
     function applyUrlFilters() {
         var url = new URL(window.location.href);
@@ -104,35 +110,46 @@ $(document).on('appReady', function() {
         window.history.replaceState({}, '', url.toString());
     }
 
-    $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
-        if (settings.nTable !== $('#simplemdm-resources-table').get(0)) {
-            return true;
-        }
-        var row = settings.aoData[dataIndex] && settings.aoData[dataIndex]._aData ? settings.aoData[dataIndex]._aData : null;
-        if (!row) {
-            return true;
-        }
-        if (wantedType && String(row.resource_type || '').toLowerCase() !== wantedType) {
-            return false;
-        }
-        if (wantedResourceId && String(row.resource_id || '').toLowerCase() !== wantedResourceId) {
-            return false;
-        }
-        if (wantedEndpoint && String(row.source_endpoint || '').toLowerCase() !== wantedEndpoint) {
-            return false;
-        }
-        if (wantedEndpointLike && String(row.source_endpoint || '').toLowerCase().indexOf(wantedEndpointLike) === -1) {
-            return false;
-        }
-        return true;
-    });
+    function loadFilterOptions() {
+        $.getJSON(appUrl + '/module/simplemdm/get_resource_filter_options', function(data) {
+            var types = Array.isArray(data.types) ? data.types : [];
+            var endpoints = Array.isArray(data.endpoints) ? data.endpoints : [];
+
+            $typeFilter.empty().append('<option value="">All Resource Types</option>');
+            types.forEach(function(type) {
+                var selected = wantedType === String(type).toLowerCase() ? ' selected' : '';
+                $typeFilter.append('<option value="' + escapeHtml(type) + '"' + selected + '>' + escapeHtml(type) + '</option>');
+            });
+
+            $endpointFilter.empty().append('<option value="">All Endpoints</option>');
+            endpoints.forEach(function(endpoint) {
+                var selected = wantedEndpoint === String(endpoint).toLowerCase() ? ' selected' : '';
+                $endpointFilter.append('<option value="' + escapeHtml(endpoint) + '"' + selected + '>' + escapeHtml(endpoint) + '</option>');
+            });
+
+            $('#resource-id-filter').val(params.get('resource_id') || '');
+            $('#endpoint-like-filter').val(params.get('endpoint_like') || '');
+        }).fail(function() {
+            $typeFilter.html('<option value="">All Resource Types</option>');
+            $endpointFilter.html('<option value="">All Endpoints</option>');
+        });
+    }
 
     var table = $('#simplemdm-resources-table').DataTable({
-        serverSide: false,
+        serverSide: true,
+        processing: true,
         ajax: {
             url: appUrl + '/module/simplemdm/get_resources_data',
             type: 'GET',
-            dataSrc: ''
+            data: function(d) {
+                d.type = wantedType;
+                d.resource_id = wantedResourceId;
+                d.endpoint = wantedEndpoint;
+                d.endpoint_like = wantedEndpointLike;
+            },
+            dataSrc: function(json) {
+                return json && Array.isArray(json.data) ? json.data : [];
+            }
         },
         columns: [
             {data: 'resource_type'},
@@ -152,52 +169,21 @@ $(document).on('appReady', function() {
                     return data || '-';
                 }
             }
-        ],
-        initComplete: function() {
-            var dt = this.api();
-            var typeValues = {};
-            var endpointValues = {};
-            dt.rows().every(function() {
-                var row = this.data();
-                var t = String((row && row.resource_type) || '').trim();
-                var ep = String((row && row.source_endpoint) || '').trim();
-                if (t) {
-                    typeValues[t] = true;
-                }
-                if (ep) {
-                    endpointValues[ep] = true;
-                }
-            });
-
-            var $typeFilter = $('#resource-type-filter').empty();
-            $typeFilter.append('<option value="">All Resource Types</option>');
-            Object.keys(typeValues).sort().forEach(function(type) {
-                var selected = wantedType === String(type).toLowerCase() ? ' selected' : '';
-                $typeFilter.append('<option value="' + type + '"' + selected + '>' + type + '</option>');
-            });
-
-            var $endpointFilter = $('#endpoint-filter').empty();
-            $endpointFilter.append('<option value="">All Endpoints</option>');
-            Object.keys(endpointValues).sort().forEach(function(endpoint) {
-                var selected = wantedEndpoint === String(endpoint).toLowerCase() ? ' selected' : '';
-                $endpointFilter.append('<option value="' + endpoint + '"' + selected + '>' + endpoint + '</option>');
-            });
-
-            $('#resource-id-filter').val(params.get('resource_id') || '');
-            $('#endpoint-like-filter').val(params.get('endpoint_like') || '');
-        }
+        ]
     });
+
+    loadFilterOptions();
 
     $('#resource-type-filter').on('change', function() {
         wantedType = String($(this).val() || '').toLowerCase();
         applyUrlFilters();
-        table.draw();
+        table.ajax.reload();
     });
 
     $('#endpoint-filter').on('change', function() {
         wantedEndpoint = String($(this).val() || '').toLowerCase();
         applyUrlFilters();
-        table.draw();
+        table.ajax.reload();
     });
 
     $('#resource-id-filter, #endpoint-like-filter').on('input', function() {
@@ -206,7 +192,7 @@ $(document).on('appReady', function() {
         wantedResourceId = idVal.toLowerCase();
         wantedEndpointLike = epLikeVal.toLowerCase();
         applyUrlFilters();
-        table.draw();
+        table.ajax.reload();
     });
 
     $('#simplemdm-resources-reset').on('click', function() {
@@ -219,7 +205,7 @@ $(document).on('appReady', function() {
         $('#endpoint-filter').val('');
         $('#endpoint-like-filter').val('');
         applyUrlFilters();
-        table.draw();
+        table.ajax.reload();
     });
 });
 </script>

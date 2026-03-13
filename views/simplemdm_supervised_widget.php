@@ -1,7 +1,7 @@
 <?php include_once __DIR__ . '/simplemdm_widget_modern_assets.php'; ?>
 
 <div class="col-lg-4 col-md-6">
-    <div class="panel panel-default simplemdm-modern-widget" id="simplemdm-supervised-widget">
+    <div class="panel panel-default simplemdm-modern-widget simplemdm-status-widget" id="simplemdm-supervised-widget">
         <div class="panel-heading" data-widget="simplemdm_supervised">
             <h3 class="panel-title">
                 <i class="fa fa-eye"></i>
@@ -20,6 +20,11 @@
 <script>
 $(document).on('appReady', function(e, lang) {
     var widgetId = '#simplemdm-supervised-widget';
+    var supervisedLabels = {
+        supervised: 'Supervised',
+        unsupervised: 'Unsupervised'
+    };
+
     function simplemdmListingUrl(query) {
         var path = '/show/listing/simplemdm/simplemdm';
         if (appUrl.indexOf('index.php?') !== -1) {
@@ -45,7 +50,7 @@ $(document).on('appReady', function(e, lang) {
 
         var chartData = [];
         data.forEach(function(item) {
-            var label = i18n.t(item.label);
+            var label = supervisedLabels[item.label] || i18n.t(item.label) || item.label;
             var color = item.label === 'supervised'
                 ? (palette.positive || '#2f9e44')
                 : (palette.warning || '#f08c00');
@@ -60,8 +65,10 @@ $(document).on('appReady', function(e, lang) {
             var filterUrl = simplemdmListingUrl('supervised=' + supervisedValue);
             listGroup.append(
                 '<a href="' + filterUrl + '" class="list-group-item">' +
-                label +
-                '<span class="badge pull-right">' + item.count + '</span>' +
+                '<span class="simplemdm-status-row">' +
+                '<span class="simplemdm-status-label">' + label + '</span>' +
+                '<span class="badge simplemdm-status-count">' + item.count + '</span>' +
+                '</span>' +
                 '</a>'
             );
         });

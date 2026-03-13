@@ -831,11 +831,11 @@ Typical use cases:
   - Shows linked apps/groups/profiles/resources.
   - Links into filtered API resources listing.
 
-![SimpleMDM Report Widgets](docs/images/dashboard-widgets.png)
-![Dashboard Overview - Part 1](docs/images/dashboard-overview-part1.png)
-![Dashboard Overview - Part 2](docs/images/dashboard-overview-part2.png)
-![SimpleMDM Device Listing](docs/images/device-listing.png)
-![SimpleMDM API Resources Listing](docs/images/api-resources-listing.png)
+![SimpleMDM Report Widgets](docs/images/dashboard_resources.png)
+![Dashboard KPIs](docs/images/dashboard_kpis.png)
+![Enrollment & Security](docs/images/dashboard_security_enrollment.png)
+![SimpleMDM Device Listing](docs/images/device_listing.png)
+![SimpleMDM API Resources Listing](docs/images/api_resources_listing.png)
 
 UI modernization scope:
 - Module pages now use the same modern theme tokens/components as SimpleMDM widgets:
@@ -885,8 +885,8 @@ php /path/to/munkireport/please migrate
    - `sync_device_subresources_enabled`
    - `device_subresource_limit`
 
-![SimpleMDM Settings](docs/images/admin-settings.png)
-![Advanced Sync & Compliance Settings](docs/images/advanced-sync-settings.png)
+![SimpleMDM Settings](docs/images/admin_api_sync_status.png)
+![Sync Status and Scheduling](docs/images/admin_sync_status.png)
 
 ### Settings Reference
 
@@ -1554,7 +1554,7 @@ Core widget reference:
   - `Assignment Group List` (expand/collapse with hidden-row count label).
 - Behavior: collapsed list is intentionally scrollable; expanded mode reflows grid.
 - Drill-down: each bar/list row links to filtered device listing by group.
-![SimpleMDM Groups Widget](docs/images/groups-dashboard.png)
+![SimpleMDM Groups Widget](docs/images/dashboard_groups.png)
 
 `simplemdm_group_top`
 - Purpose: compact top-groups chart variant.
@@ -1570,7 +1570,7 @@ Core widget reference:
   - `Resource Cards` (expand/collapse, row-aligned collapsed height, scroll hint/fade).
 - Behavior: color scale is count-aware (log-style interpolation for skewed distributions).
 - Drill-down: chart bars and card CTAs route to filtered resource listing.
-![Resource Type Breakdown](docs/images/resource-types-breakdown.png)
+![Resource Type Breakdown](docs/images/dashboard_resources.png)
 
 `simplemdm_resource_mix`
 - Purpose: compact resource mix overview.

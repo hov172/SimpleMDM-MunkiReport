@@ -411,11 +411,11 @@ Primary file: `provides.yml`
 
 Use existing screenshots while changing UI:
 
-![SimpleMDM Report](images/dashboard-overview-part1.png)
-![SimpleMDM Report (continued)](images/dashboard-overview-part2.png)
-![Device Detail Overview](images/device-detail-overview.png)
-![Device Actions Runner](images/device-actions-runner.png)
-![Admin Settings](images/admin-settings.png)
+![SimpleMDM Report](images/dashboard_kpis.png)
+![SimpleMDM Report (continued)](images/dashboard_security_enrollment.png)
+![Device Detail Overview](images/simplemdm_device_detail.png)
+![Device Actions Runner](images/device_action_runner.png)
+![Admin Settings](images/admin_api_sync_status.png)
 
 ## 8) Common Change Workflows
 

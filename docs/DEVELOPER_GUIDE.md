@@ -308,6 +308,7 @@ SimpleMDM Webhook
     -> simplemdm
     -> simplemdm_command
     -> simplemdm_relationship_edge
+    -> Event_model (current per-device operational alerts)
 ```
 
 ## 5) Entry Points and Responsibilities
@@ -336,6 +337,20 @@ Primary file: `simplemdm_controller.php`
   - widget/report routes must respect the active MunkiReport `index_page` setting (`/index.php?/module/...` vs `/module/...`)
 - Device API passthrough:
   - `api_devices/...` routes with method allowlists and secret enforcement for mutating requests
+  - emits narrow current-device MunkiReport events for:
+    - accepted admin actions
+    - failed admin actions
+    - command failures
+    - recovery lock failures
+    - enrollment regressions
+    - ADE/DEP regressions
+    - FileVault regressions
+    - supervision regressions
+    - firewall regressions
+    - SIP regressions
+    - passcode regressions
+    - activation lock regressions
+    - stale-device transitions based on `last_seen_at`
 
 ### Sync Script
 

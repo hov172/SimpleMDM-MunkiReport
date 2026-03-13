@@ -104,6 +104,441 @@ class Simplemdm_controller extends Module_controller
         return '';
     }
 
+    private function simplemdm_event_module($suffix)
+    {
+        $suffix = trim((string) $suffix);
+        if ($suffix === '') {
+            return 'simplemdm';
+        }
+        return 'simplemdm_' . preg_replace('/[^a-z0-9_]+/i', '_', strtolower($suffix));
+    }
+
+    private function store_simplemdm_event($serial_number, $suffix, $type, $message, $data = [])
+    {
+        $serial_number = trim((string) $serial_number);
+        if ($serial_number === '') {
+            return;
+        }
+
+        $payload = '';
+        if ($data !== '' && $data !== null) {
+            if (is_array($data) || is_object($data)) {
+                $payload = json_encode($data);
+                if ($payload === false) {
+                    $payload = '';
+                }
+            } else {
+                $payload = (string) $data;
+            }
+        }
+
+        store_event(
+            $serial_number,
+            $this->simplemdm_event_module($suffix),
+            (string) $type,
+            (string) $message,
+            $payload
+        );
+    }
+
+    private function delete_simplemdm_event($serial_number, $suffix)
+    {
+        $serial_number = trim((string) $serial_number);
+        if ($serial_number === '') {
+            return;
+        }
+
+        Event_model::where('serial_number', $serial_number)
+            ->where('module', $this->simplemdm_event_module($suffix))
+            ->delete();
+    }
+
+    private function find_device_by_serial_or_id($serial_number = '', $simplemdm_id = '')
+    {
+        $serial_number = trim((string) $serial_number);
+        $simplemdm_id = trim((string) $simplemdm_id);
+
+        if ($serial_number !== '') {
+            $row = Simplemdm_model::where('serial_number', $serial_number)->first();
+            if ($row) {
+                return $row;
+            }
+        }
+
+        if ($simplemdm_id !== '') {
+            return Simplemdm_model::where('simplemdm_id', $simplemdm_id)->first();
+        }
+
+        return null;
+    }
+
+    private function get_device_snapshot($serial_number = '', $simplemdm_id = '')
+    {
+        $row = $this->find_device_by_serial_or_id($serial_number, $simplemdm_id);
+        if (! $row) {
+            return null;
+        }
+
+        return [
+            'serial_number' => (string) ($row->serial_number ?? ''),
+            'simplemdm_id' => (string) ($row->simplemdm_id ?? ''),
+            'status' => isset($row->status) ? (string) $row->status : null,
+            'last_seen_at' => isset($row->last_seen_at) ? (string) $row->last_seen_at : null,
+            'is_supervised' => isset($row->is_supervised) ? (int) $row->is_supervised : null,
+            'is_dep_enrollment' => isset($row->is_dep_enrollment) ? (int) $row->is_dep_enrollment : null,
+            'filevault_enabled' => isset($row->filevault_enabled) ? (int) $row->filevault_enabled : null,
+            'firewall_enabled' => isset($row->firewall_enabled) ? (int) $row->firewall_enabled : null,
+            'sip_enabled' => isset($row->sip_enabled) ? (int) $row->sip_enabled : null,
+            'activation_lock_enabled' => isset($row->activation_lock_enabled) ? (int) $row->activation_lock_enabled : null,
+            'passcode_compliant' => isset($row->passcode_compliant) ? (int) $row->passcode_compliant : null,
+        ];
+    }
+
+    private function normalize_device_status($value)
+    {
+        return strtolower(trim((string) $value));
+    }
+
+    private function normalize_device_bool($value)
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if ($value === true || $value === 1 || $value === '1' || $value === 'true') {
+            return 1;
+        }
+        if ($value === false || $value === 0 || $value === '0' || $value === 'false') {
+            return 0;
+        }
+        return null;
+    }
+
+    private function parse_simplemdm_timestamp($value)
+    {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return null;
+        }
+
+        $ts = strtotime($value);
+        if ($ts === false || $ts <= 0) {
+            return null;
+        }
+
+        return (int) $ts;
+    }
+
+    private function get_stale_event_threshold_seconds()
+    {
+        $hours = (int) $this->get_config_value('event_stale_threshold_hours', '168');
+        if ($hours < 1) {
+            $hours = 168;
+        }
+
+        return $hours * 3600;
+    }
+
+    private function is_device_stale($last_seen_at)
+    {
+        $ts = $this->parse_simplemdm_timestamp($last_seen_at);
+        if ($ts === null) {
+            return false;
+        }
+
+        return $ts <= (time() - $this->get_stale_event_threshold_seconds());
+    }
+
+    private function evaluate_device_regression_events($before, $after, $record = [])
+    {
+        if (! is_array($after) || empty($after['serial_number'])) {
+            return;
+        }
+
+        $serial = (string) $after['serial_number'];
+        $data = [
+            'source' => 'simplemdm',
+            'serial_number' => $serial,
+            'simplemdm_id' => (string) ($after['simplemdm_id'] ?? ''),
+        ];
+
+        if (is_array($record) && array_key_exists('status', $record)) {
+            $old_status = $this->normalize_device_status(is_array($before) ? ($before['status'] ?? '') : '');
+            $new_status = $this->normalize_device_status($after['status'] ?? '');
+            if ($old_status === 'enrolled' && $new_status !== 'enrolled') {
+                $this->store_simplemdm_event(
+                    $serial,
+                    'enrollment',
+                    'warning',
+                    'SimpleMDM: device is no longer enrolled',
+                    array_merge($data, ['reason' => 'unenrolled', 'status' => $new_status])
+                );
+            } elseif ($new_status === 'enrolled') {
+                $this->delete_simplemdm_event($serial, 'enrollment');
+            }
+        }
+
+        if (is_array($record) && array_key_exists('filevault_enabled', $record)) {
+            $old_filevault = $this->normalize_device_bool(is_array($before) ? ($before['filevault_enabled'] ?? null) : null);
+            $new_filevault = $this->normalize_device_bool($after['filevault_enabled'] ?? null);
+            if ($old_filevault === 1 && $new_filevault !== 1) {
+                $this->store_simplemdm_event(
+                    $serial,
+                    'filevault',
+                    'warning',
+                    'SimpleMDM: FileVault became disabled',
+                    array_merge($data, ['reason' => 'filevault_disabled', 'filevault_enabled' => $new_filevault])
+                );
+            } elseif ($new_filevault === 1) {
+                $this->delete_simplemdm_event($serial, 'filevault');
+            }
+        }
+
+        if (is_array($record) && array_key_exists('is_supervised', $record)) {
+            $old_supervised = $this->normalize_device_bool(is_array($before) ? ($before['is_supervised'] ?? null) : null);
+            $new_supervised = $this->normalize_device_bool($after['is_supervised'] ?? null);
+            if ($old_supervised === 1 && $new_supervised !== 1) {
+                $this->store_simplemdm_event(
+                    $serial,
+                    'supervision',
+                    'warning',
+                    'SimpleMDM: supervision became disabled',
+                    array_merge($data, ['reason' => 'supervision_disabled', 'is_supervised' => $new_supervised])
+                );
+            } elseif ($new_supervised === 1) {
+                $this->delete_simplemdm_event($serial, 'supervision');
+            }
+        }
+
+        if (is_array($record) && array_key_exists('is_dep_enrollment', $record)) {
+            $old_dep = $this->normalize_device_bool(is_array($before) ? ($before['is_dep_enrollment'] ?? null) : null);
+            $new_dep = $this->normalize_device_bool($after['is_dep_enrollment'] ?? null);
+            if ($old_dep === 1 && $new_dep !== 1) {
+                $this->store_simplemdm_event(
+                    $serial,
+                    'dep',
+                    'warning',
+                    'SimpleMDM: ADE enrollment became disabled',
+                    array_merge($data, ['reason' => 'dep_disabled', 'is_dep_enrollment' => $new_dep])
+                );
+            } elseif ($new_dep === 1) {
+                $this->delete_simplemdm_event($serial, 'dep');
+            }
+        }
+
+        if (is_array($record) && array_key_exists('firewall_enabled', $record)) {
+            $old_firewall = $this->normalize_device_bool(is_array($before) ? ($before['firewall_enabled'] ?? null) : null);
+            $new_firewall = $this->normalize_device_bool($after['firewall_enabled'] ?? null);
+            if ($old_firewall === 1 && $new_firewall !== 1) {
+                $this->store_simplemdm_event(
+                    $serial,
+                    'firewall',
+                    'warning',
+                    'SimpleMDM: firewall became disabled',
+                    array_merge($data, ['reason' => 'firewall_disabled', 'firewall_enabled' => $new_firewall])
+                );
+            } elseif ($new_firewall === 1) {
+                $this->delete_simplemdm_event($serial, 'firewall');
+            }
+        }
+
+        if (is_array($record) && array_key_exists('sip_enabled', $record)) {
+            $old_sip = $this->normalize_device_bool(is_array($before) ? ($before['sip_enabled'] ?? null) : null);
+            $new_sip = $this->normalize_device_bool($after['sip_enabled'] ?? null);
+            if ($old_sip === 1 && $new_sip !== 1) {
+                $this->store_simplemdm_event(
+                    $serial,
+                    'sip',
+                    'warning',
+                    'SimpleMDM: SIP became disabled',
+                    array_merge($data, ['reason' => 'sip_disabled', 'sip_enabled' => $new_sip])
+                );
+            } elseif ($new_sip === 1) {
+                $this->delete_simplemdm_event($serial, 'sip');
+            }
+        }
+
+        if (is_array($record) && array_key_exists('activation_lock_enabled', $record)) {
+            $old_activation_lock = $this->normalize_device_bool(is_array($before) ? ($before['activation_lock_enabled'] ?? null) : null);
+            $new_activation_lock = $this->normalize_device_bool($after['activation_lock_enabled'] ?? null);
+            if ($old_activation_lock === 1 && $new_activation_lock !== 1) {
+                $this->store_simplemdm_event(
+                    $serial,
+                    'activation_lock',
+                    'warning',
+                    'SimpleMDM: activation lock became disabled',
+                    array_merge($data, ['reason' => 'activation_lock_disabled', 'activation_lock_enabled' => $new_activation_lock])
+                );
+            } elseif ($new_activation_lock === 1) {
+                $this->delete_simplemdm_event($serial, 'activation_lock');
+            }
+        }
+
+        if (is_array($record) && array_key_exists('passcode_compliant', $record)) {
+            $old_passcode = $this->normalize_device_bool(is_array($before) ? ($before['passcode_compliant'] ?? null) : null);
+            $new_passcode = $this->normalize_device_bool($after['passcode_compliant'] ?? null);
+            if ($old_passcode === 1 && $new_passcode !== 1) {
+                $this->store_simplemdm_event(
+                    $serial,
+                    'passcode',
+                    'warning',
+                    'SimpleMDM: passcode compliance failed',
+                    array_merge($data, ['reason' => 'passcode_noncompliant', 'passcode_compliant' => $new_passcode])
+                );
+            } elseif ($new_passcode === 1) {
+                $this->delete_simplemdm_event($serial, 'passcode');
+            }
+        }
+
+        if (is_array($record) && array_key_exists('last_seen_at', $record)) {
+            $old_stale = is_array($before) ? $this->is_device_stale($before['last_seen_at'] ?? null) : false;
+            $new_stale = $this->is_device_stale($after['last_seen_at'] ?? null);
+            $last_seen_at = isset($after['last_seen_at']) ? (string) $after['last_seen_at'] : '';
+
+            if (! $old_stale && $new_stale) {
+                $this->store_simplemdm_event(
+                    $serial,
+                    'stale',
+                    'warning',
+                    'SimpleMDM: device has gone stale',
+                    array_merge($data, ['reason' => 'device_stale', 'last_seen_at' => $last_seen_at])
+                );
+            } elseif (! $new_stale && $last_seen_at !== '') {
+                $this->delete_simplemdm_event($serial, 'stale');
+            }
+        }
+    }
+
+    private function emit_device_regression_events_from_records($records)
+    {
+        if (! is_array($records) || ! $records) {
+            return;
+        }
+
+        $snapshots = [];
+        foreach ($records as $record) {
+            if (! is_array($record)) {
+                continue;
+            }
+            $serial = isset($record['serial_number']) ? trim((string) $record['serial_number']) : '';
+            $simplemdm_id = isset($record['simplemdm_id']) ? trim((string) $record['simplemdm_id']) : '';
+            if ($serial === '' && $simplemdm_id === '') {
+                continue;
+            }
+            $key = ($serial !== '' ? $serial : 'id:' . $simplemdm_id);
+            if (! array_key_exists($key, $snapshots)) {
+                $snapshots[$key] = $this->get_device_snapshot($serial, $simplemdm_id);
+            }
+        }
+
+        foreach ($records as $record) {
+            if (! is_array($record)) {
+                continue;
+            }
+            $serial = isset($record['serial_number']) ? trim((string) $record['serial_number']) : '';
+            $simplemdm_id = isset($record['simplemdm_id']) ? trim((string) $record['simplemdm_id']) : '';
+            if ($serial === '' && $simplemdm_id === '') {
+                continue;
+            }
+            $key = ($serial !== '' ? $serial : 'id:' . $simplemdm_id);
+            $after = $this->get_device_snapshot($serial, $simplemdm_id);
+            if (! $after) {
+                continue;
+            }
+            $this->evaluate_device_regression_events(
+                array_key_exists($key, $snapshots) ? $snapshots[$key] : null,
+                $after,
+                $record
+            );
+        }
+    }
+
+    private function normalize_command_status($value)
+    {
+        return strtolower(trim((string) $value));
+    }
+
+    private function is_failed_command_status($value)
+    {
+        $status = $this->normalize_command_status($value);
+        if ($status === '') {
+            return false;
+        }
+
+        foreach (['error', 'fail', 'denied', 'reject', 'cancel', 'invalid', 'expired', 'timeout'] as $needle) {
+            if (strpos($status, $needle) !== false) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function emit_command_failure_event($before, $after)
+    {
+        if (! $after || ! isset($after->serial_number) || trim((string) $after->serial_number) === '') {
+            return;
+        }
+
+        $serial_number = (string) $after->serial_number;
+        $previous_status = $before ? $this->normalize_command_status($before->status ?? '') : '';
+        $current_status = $this->normalize_command_status($after->status ?? '');
+        if (! $this->is_failed_command_status($current_status)) {
+            if ($current_status !== '') {
+                $this->delete_simplemdm_event($serial_number, 'command');
+                $command_type = trim((string) ($after->command_type ?? ''));
+                if ($command_type !== '' && strpos(strtolower($command_type), 'recovery_lock') !== false) {
+                    $this->delete_simplemdm_event($serial_number, 'recovery_lock');
+                }
+            }
+            return;
+        }
+        if ($this->is_failed_command_status($previous_status) && $previous_status === $current_status) {
+            return;
+        }
+
+        $command_type = trim((string) ($after->command_type ?? 'command'));
+        $message = 'SimpleMDM: command failed';
+        if ($command_type !== '') {
+            $message .= ': ' . $command_type;
+        }
+
+        $this->store_simplemdm_event(
+            $serial_number,
+            'command',
+            'danger',
+            $message,
+            [
+                'source' => 'simplemdm',
+                'reason' => 'command_failed',
+                'serial_number' => (string) $after->serial_number,
+                'simplemdm_id' => (string) ($after->device_id ?? ''),
+                'command_uuid' => (string) ($after->command_uuid ?? ''),
+                'command_type' => $command_type,
+                'status' => $current_status,
+                'error_message' => (string) ($after->error_message ?? ''),
+            ]
+        );
+
+        if (strpos(strtolower($command_type), 'recovery_lock') !== false) {
+            $this->store_simplemdm_event(
+                $serial_number,
+                'recovery_lock',
+                'danger',
+                'SimpleMDM: recovery lock command failed',
+                [
+                    'source' => 'simplemdm',
+                    'reason' => 'recovery_lock_failed',
+                    'serial_number' => $serial_number,
+                    'simplemdm_id' => (string) ($after->device_id ?? ''),
+                    'command_uuid' => (string) ($after->command_uuid ?? ''),
+                    'command_type' => $command_type,
+                    'status' => $current_status,
+                    'error_message' => (string) ($after->error_message ?? ''),
+                ]
+            );
+        }
+    }
+
     private function has_supplemental_summary_table()
     {
         static $has_table = null;
@@ -3501,11 +3936,17 @@ class Simplemdm_controller extends Module_controller
         require_once $this->module_path . '/simplemdm_processor.php';
         $processor = new Simplemdm_processor('simplemdm', '');
         $payload = file_get_contents('php://input');
+        $data = json_decode($payload, true);
+        $records = [];
+        if (is_array($data)) {
+            $records = isset($data[0]) ? $data : [$data];
+        }
 
         try {
             $processor->run($payload);
             $this->upsert_device_edges_from_payload($payload);
             $this->record_device_daily_history();
+            $this->emit_device_regression_events_from_records($records);
             jsonView(['status' => 'success']);
         } catch (\Throwable $e) {
             jsonView(['status' => 'error', 'message' => $e->getMessage()], 400);
@@ -3625,6 +4066,8 @@ class Simplemdm_controller extends Module_controller
                     'command_uuid' => 'device:' . $device_id . ':type:' . (isset($record['command_type']) ? (string)$record['command_type'] : 'unknown'),
                 ];
 
+            $before = Simplemdm_command_model::where('command_uuid', $identity['command_uuid'])->first();
+
             Simplemdm_command_model::updateOrCreate(
                 $identity,
                 [
@@ -3640,6 +4083,8 @@ class Simplemdm_controller extends Module_controller
                     'raw_json' => json_encode($record),
                 ]
             );
+            $after = Simplemdm_command_model::where('command_uuid', $identity['command_uuid'])->first();
+            $this->emit_command_failure_event($before, $after);
             $count++;
         }
 
@@ -3856,17 +4301,37 @@ class Simplemdm_controller extends Module_controller
                 $record = [
                     'serial_number' => isset($attrs['serial_number']) ? (string)$attrs['serial_number'] : '',
                     'simplemdm_id' => isset($event_data['id']) ? (string)$event_data['id'] : (isset($attrs['id']) ? (string)$attrs['id'] : null),
-                    'device_name' => isset($attrs['device_name']) ? (string)$attrs['device_name'] : null,
-                    'status' => isset($attrs['status']) ? (string)$attrs['status'] : null,
-                    'os_version' => isset($attrs['os_version']) ? (string)$attrs['os_version'] : null,
-                    'is_supervised' => isset($attrs['is_supervised']) ? $attrs['is_supervised'] : null,
-                    'is_dep_enrollment' => isset($attrs['is_dep_enrollment']) ? $attrs['is_dep_enrollment'] : null,
-                    'filevault_enabled' => isset($attrs['filevault_enabled']) ? $attrs['filevault_enabled'] : null,
                     'attributes_json' => $attrs,
                     'relationships_json' => isset($event_data['relationships']) ? $event_data['relationships'] : [],
                 ];
+                foreach ([
+                    'device_name',
+                    'status',
+                    'last_seen_at',
+                    'os_version',
+                    'is_supervised',
+                    'is_dep_enrollment',
+                    'filevault_enabled',
+                    'firewall_enabled',
+                    'sip_enabled',
+                    'activation_lock_enabled',
+                    'passcode_compliant',
+                ] as $field) {
+                    if (array_key_exists($field, $attrs)) {
+                        $record[$field] = $attrs[$field];
+                    }
+                }
+                $before = $this->get_device_snapshot(
+                    isset($record['serial_number']) ? $record['serial_number'] : '',
+                    isset($record['simplemdm_id']) ? $record['simplemdm_id'] : ''
+                );
                 try {
                     $processor->run(json_encode($record));
+                    $after = $this->get_device_snapshot(
+                        isset($record['serial_number']) ? $record['serial_number'] : '',
+                        isset($record['simplemdm_id']) ? $record['simplemdm_id'] : ''
+                    );
+                    $this->evaluate_device_regression_events($before, $after, $record);
                 } catch (\Throwable $e) {
                     // Keep webhook ack successful even if partial parse fails.
                 }
@@ -4640,6 +5105,7 @@ class Simplemdm_controller extends Module_controller
             }
         }
 
+        $before = Simplemdm_command_model::where('command_uuid', $command_uuid)->first();
         Simplemdm_command_model::updateOrCreate(
             ['command_uuid' => $command_uuid],
             [
@@ -4655,6 +5121,8 @@ class Simplemdm_controller extends Module_controller
                 'raw_json' => json_encode($event_data),
             ]
         );
+        $after = Simplemdm_command_model::where('command_uuid', $command_uuid)->first();
+        $this->emit_command_failure_event($before, $after);
     }
 
     private function record_device_daily_history()
@@ -5599,6 +6067,56 @@ class Simplemdm_controller extends Module_controller
         list($query, $input, $content_type) = $this->sanitize_passthrough_payload($query, $input, $content_type);
 
         $res = $this->simplemdm_api_proxy_request($endpoint, $method, $query, $input, $content_type);
+        if (in_array($method, $mutating_methods, true)) {
+            $device = $this->find_device_by_serial_or_id('', $device_id);
+            if ($device && trim((string) ($device->serial_number ?? '')) !== '') {
+                $action = $subpath !== '' ? $subpath : 'device_update';
+                if ($res['ok']) {
+                    $this->delete_simplemdm_event((string) $device->serial_number, 'action_failure');
+                } else {
+                    $message = 'SimpleMDM: admin action failed: ' . str_replace('_', ' ', $action);
+                    $error_data = [
+                        'source' => 'simplemdm',
+                        'reason' => 'admin_action_failed',
+                        'serial_number' => (string) $device->serial_number,
+                        'simplemdm_id' => (string) ($device->simplemdm_id ?? $device_id),
+                        'action' => $action,
+                        'method' => $method,
+                        'endpoint' => $endpoint,
+                        'http_status' => (int) ($res['status'] ?? 0),
+                    ];
+                    $body = isset($res['body']) ? trim((string) $res['body']) : '';
+                    if ($body !== '') {
+                        $error_data['response_body'] = truncate_string($body, 500);
+                    }
+                    $this->store_simplemdm_event(
+                        (string) $device->serial_number,
+                        'action_failure',
+                        'danger',
+                        $message,
+                        $error_data
+                    );
+                }
+
+                if ($res['ok']) {
+                    $this->store_simplemdm_event(
+                        (string) $device->serial_number,
+                        'action',
+                        'info',
+                        'SimpleMDM: admin action accepted: ' . str_replace('_', ' ', $action),
+                        [
+                            'source' => 'simplemdm',
+                            'reason' => 'admin_action_accepted',
+                            'serial_number' => (string) $device->serial_number,
+                            'simplemdm_id' => (string) ($device->simplemdm_id ?? $device_id),
+                            'action' => $action,
+                            'method' => $method,
+                            'endpoint' => $endpoint,
+                        ]
+                    );
+                }
+            }
+        }
 
         http_response_code((int)$res['status']);
         header('Content-Type: application/json');

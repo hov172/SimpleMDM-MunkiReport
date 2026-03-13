@@ -280,6 +280,19 @@ Expected:
 | Client reporter | Allowed ingest | current facts upsert and render |
 | Client reporter | Unknown fact reject | rejected keys returned, no unsafe write |
 | Device actions | Safe action (`refresh`) | request accepted with valid secret |
+| MunkiReport events | Accepted admin action | `simplemdm_action` visible in Events UI |
+| MunkiReport events | Command failed | `simplemdm_command` visible in Events UI |
+| MunkiReport events | Unenrollment regression | `simplemdm_enrollment` visible in Events UI |
+| MunkiReport events | ADE/DEP regression | `simplemdm_dep` visible in Events UI |
+| MunkiReport events | FileVault regression | `simplemdm_filevault` visible in Events UI |
+| MunkiReport events | Supervision regression | `simplemdm_supervision` visible in Events UI |
+| MunkiReport events | Failed admin action | `simplemdm_action_failure` visible in Events UI |
+| MunkiReport events | Firewall regression | `simplemdm_firewall` visible in Events UI |
+| MunkiReport events | SIP regression | `simplemdm_sip` visible in Events UI |
+| MunkiReport events | Passcode regression | `simplemdm_passcode` visible in Events UI |
+| MunkiReport events | Activation lock regression | `simplemdm_activation_lock` visible in Events UI |
+| MunkiReport events | Stale-device transition | `simplemdm_stale` visible in Events UI |
+| MunkiReport events | Recovery lock failure | `simplemdm_recovery_lock` visible in Events UI |
 
 ## 9) Regression Focus for UI Changes
 
@@ -304,7 +317,68 @@ Useful visual references:
 - `docs/images/device-detail-overview.png`
 - `docs/images/device-actions-runner.png`
 
-## 10) Data/Schema Validation
+## 10) MunkiReport Event Verification
+
+Minimal event scope currently implemented by this module:
+
+- `simplemdm_action`
+- `simplemdm_action_failure`
+- `simplemdm_command`
+- `simplemdm_enrollment`
+- `simplemdm_dep`
+- `simplemdm_filevault`
+- `simplemdm_supervision`
+- `simplemdm_firewall`
+- `simplemdm_sip`
+- `simplemdm_passcode`
+- `simplemdm_activation_lock`
+- `simplemdm_stale`
+- `simplemdm_recovery_lock`
+
+Recommended verification flow:
+
+1. Confirm the target device has normal host rows:
+   - `machine.serial_number = <serial>`
+   - `reportdata.serial_number = <serial>`
+2. Trigger or simulate one event of each type:
+  - accepted mutating admin action
+   - failed mutating admin action
+   - failed command status
+   - failed recovery lock command status
+   - transition from `enrolled` to non-enrolled
+   - transition from ADE/DEP enabled to disabled
+   - transition from FileVault enabled to disabled
+   - transition from supervised to unsupervised
+   - transition from firewall enabled to disabled
+   - transition from SIP enabled to disabled
+   - transition from passcode compliant to non-compliant
+   - transition from activation lock enabled to disabled
+   - transition from fresh `last_seen_at` to stale `last_seen_at`
+3. Confirm rows exist in the host `event` table for the expected `simplemdm_*` module keys.
+4. Confirm the same rows appear in:
+   - `/show/listing/event/event`
+   - the `Events` widget
+5. Confirm recovery/clear behavior where applicable:
+   - `simplemdm_action_failure` clears on later accepted admin action
+   - `simplemdm_command` clears on later non-failed command state
+   - `simplemdm_recovery_lock` clears on later non-failed recovery lock state
+   - `simplemdm_enrollment` clears on return to `enrolled`
+   - `simplemdm_dep` clears on return to enabled
+   - `simplemdm_filevault` clears on return to enabled
+   - `simplemdm_supervision` clears on return to enabled
+   - `simplemdm_firewall` clears on return to enabled
+   - `simplemdm_sip` clears on return to enabled
+   - `simplemdm_passcode` clears on return to compliant
+   - `simplemdm_activation_lock` clears on return to enabled
+   - `simplemdm_stale` clears when `last_seen_at` returns within threshold
+
+Important UI note:
+
+- visible MunkiReport Events UI rows depend on the host listing join, not only the `event` table
+- if `event` rows exist but the UI still shows `0` or `No messages`, check that both `machine` and `reportdata` contain the same serial number
+- the global listing is effectively driven through `reportdata` and joined to `machine` and `event`
+
+## 11) Data/Schema Validation
 
 After migration/sync:
 
@@ -323,7 +397,7 @@ After migration/sync:
 2. Confirm indexes/uniqueness work as expected for resource lookup patterns.
 3. Confirm no migration errors in logs.
 
-## 11) Release Sign-Off Checklist
+## 12) Release Sign-Off Checklist
 
 1. Hosted smoke test passed.
 2. Docker smoke test passed.
@@ -331,4 +405,4 @@ After migration/sync:
 4. Option B client-reporter checks passed.
 5. Auth negative tests passed.
 6. No blocking UI regressions.
-7. README/docs updated for new options/routes/widgets.
+7. README/docs updated for new options/routes/widgets/events.

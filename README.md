@@ -1549,6 +1549,60 @@ Core widget reference:
 - Visual: donut + count + share.
 - Drill-down: listing filter by supervision state.
 
+## MunkiReport Events
+
+The module also emits current per-device MunkiReport events for a narrow set of actionable SimpleMDM conditions.
+These are current-state alerts, not a full history stream.
+
+Event module keys emitted by this module:
+- `simplemdm_action`
+- `simplemdm_action_failure`
+- `simplemdm_command`
+- `simplemdm_enrollment`
+- `simplemdm_dep`
+- `simplemdm_filevault`
+- `simplemdm_supervision`
+- `simplemdm_firewall`
+- `simplemdm_sip`
+- `simplemdm_passcode`
+- `simplemdm_activation_lock`
+- `simplemdm_stale`
+- `simplemdm_recovery_lock`
+
+Current event triggers:
+- accepted mutating device actions from `api_devices`
+- failed mutating device actions from `api_devices`
+- command status transitions into failed/error-style states
+- recovery lock command status transitions into failed/error-style states
+- device status transitions from `enrolled` to a non-enrolled state
+- `is_dep_enrollment` transitions from `1` to non-`1`
+- `filevault_enabled` transitions from `1` to non-`1`
+- `is_supervised` transitions from `1` to non-`1`
+- `firewall_enabled` transitions from `1` to non-`1`
+- `sip_enabled` transitions from `1` to non-`1`
+- `passcode_compliant` transitions from `1` to non-`1`
+- `activation_lock_enabled` transitions from `1` to non-`1`
+- `last_seen_at` transitions from fresh to stale based on `event_stale_threshold_hours` (default `168`)
+
+Current event clear behavior:
+- `simplemdm_action_failure` clears on a later accepted mutating admin action
+- `simplemdm_command` clears when a later non-failed status is ingested
+- `simplemdm_recovery_lock` clears when a later non-failed recovery lock status is ingested
+- `simplemdm_enrollment` clears when the device returns to `enrolled`
+- `simplemdm_dep` clears when ADE/DEP returns to enabled
+- `simplemdm_filevault` clears when FileVault returns to enabled
+- `simplemdm_supervision` clears when supervision returns to enabled
+- `simplemdm_firewall` clears when firewall returns to enabled
+- `simplemdm_sip` clears when SIP returns to enabled
+- `simplemdm_passcode` clears when passcode compliance returns to compliant
+- `simplemdm_activation_lock` clears when activation lock returns to enabled
+- `simplemdm_stale` clears when `last_seen_at` returns within threshold
+
+UI visibility note:
+- event rows are stored in the host `event` table
+- for those events to appear in the MunkiReport Events widget/listing, the device must also have normal host rows in `machine` and `reportdata`
+- this is a host-app listing constraint, not a SimpleMDM module-specific filter
+
 `simplemdm_group`
 - Purpose: full assignment-group insight.
 - Endpoint: `GET /module/simplemdm/get_assignment_group_stats`.
@@ -1861,7 +1915,30 @@ Use these repeatable flows for daily operations.
   - verify rows exist in `simplemdm_command`
   - confirm tenant/API supports at least one command history path
 
-6. Verify deep per-device subresource sync
+6. Verify MunkiReport Events surface correctly
+- Trigger or simulate each event type you care about:
+  - accepted admin action
+  - failed admin action
+  - command failure
+  - recovery lock command failure
+  - unenrollment regression
+  - ADE/DEP regression
+  - FileVault regression
+  - supervision regression
+  - firewall regression
+  - SIP regression
+  - passcode regression
+  - activation lock regression
+  - stale-device transition
+- Confirm rows appear in:
+  - `/show/listing/event/event`
+  - the dashboard/report `Events` widget
+- If rows exist in the `event` table but are not visible in the UI:
+  - confirm the same serial exists in `machine`
+  - confirm the same serial exists in `reportdata`
+  - confirm you are viewing the same MunkiReport instance/database the module writes to
+
+7. Verify deep per-device subresource sync
 - Enable deep sync:
   - `sync_device_subresources_enabled=1`
   - optional `device_subresource_limit` (`0` = all devices).
@@ -1872,12 +1949,12 @@ Use these repeatable flows for daily operations.
   - Profiles
 - If sparse/empty for some devices, confirm device platform support and upstream API returns data.
 
-7. Confirm schedule behavior and “no-run” expectations
+8. Confirm schedule behavior and “no-run” expectations
 - If `enable_scheduled_sync=0`, schedule-gated runs should skip work (`--respect-schedule`).
 - If schedule is enabled, `sync_interval_minutes` controls due-window cadence.
 - Confirm `simplemdm_sync_health` updates after actual runs (status/time/duration/request counts).
 
-8. Use report layout reset safely
+9. Use report layout reset safely
 - `Reset Layout` on `show/report/simplemdm/simplemdm` restores report defaults only.
 - `Reset Layout` on dashboard pages restores dashboard defaults only.
 - Use reset when localStorage layout state becomes stale after widget visibility/order changes.

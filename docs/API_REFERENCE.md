@@ -505,6 +505,57 @@ Rules:
 2. Method/path must be in controller allowlist.
 3. Mutating methods (`POST`, `PATCH`, `PUT`, `DELETE`) require valid action secret.
 4. `action_secret` is stripped before forwarding upstream.
+5. Successful mutating actions create/update a MunkiReport device event under module key `simplemdm_action` when the target serial number can be resolved locally.
+6. Failed mutating actions create/update a MunkiReport device event under module key `simplemdm_action_failure` when the target serial number can be resolved locally.
+
+## 10.1) MunkiReport Device Events Emitted
+
+The module now emits current per-device MunkiReport events for a narrow set of actionable conditions.
+These use the host app's `store_event()` model, so they represent current alert state rather than a full history log.
+
+Event module keys:
+- `simplemdm_action`
+- `simplemdm_action_failure`
+- `simplemdm_command`
+- `simplemdm_enrollment`
+- `simplemdm_dep`
+- `simplemdm_filevault`
+- `simplemdm_supervision`
+- `simplemdm_firewall`
+- `simplemdm_sip`
+- `simplemdm_passcode`
+- `simplemdm_activation_lock`
+- `simplemdm_stale`
+- `simplemdm_recovery_lock`
+
+Current event triggers:
+- successful mutating `api_devices` actions accepted upstream
+- failed mutating `api_devices` actions returned by upstream
+- command rows transitioning into a failed/error-style state
+- recovery lock command rows transitioning into a failed/error-style state
+- device status transitioning from `enrolled` to a non-enrolled state
+- `is_dep_enrollment` transitioning from `1` to non-`1`
+- `filevault_enabled` transitioning from `1` to non-`1`
+- `is_supervised` transitioning from `1` to non-`1`
+- `firewall_enabled` transitioning from `1` to non-`1`
+- `sip_enabled` transitioning from `1` to non-`1`
+- `passcode_compliant` transitioning from `1` to non-`1`
+- `activation_lock_enabled` transitioning from `1` to non-`1`
+- `last_seen_at` transitioning from fresh to stale based on `event_stale_threshold_hours` (default `168`)
+
+Current event clear behavior:
+- `simplemdm_command` clears when a later non-failed status is ingested for that command/device
+- `simplemdm_recovery_lock` clears when a later non-failed recovery lock command state is ingested
+- `simplemdm_enrollment` clears when the device returns to `enrolled`
+- `simplemdm_dep` clears when ADE/DEP returns to enabled
+- `simplemdm_filevault` clears when FileVault returns to enabled
+- `simplemdm_supervision` clears when supervision returns to enabled
+- `simplemdm_firewall` clears when firewall returns to enabled
+- `simplemdm_sip` clears when SIP returns to enabled
+- `simplemdm_passcode` clears when passcode compliance returns to enabled/compliant
+- `simplemdm_activation_lock` clears when activation lock returns to enabled
+- `simplemdm_stale` clears when `last_seen_at` returns to within threshold
+- `simplemdm_action_failure` clears on a later accepted mutating admin action for the same device
 
 Allowed subpaths (high level):
 - Read:

@@ -138,6 +138,12 @@ Option A and Option B can run at the same time. They are additive:
 - Option A supplies read-only enrichment from other loaded MunkiReport modules
 - Option B supplies narrow client-reported facts stored in this module
 
+### Admin Configuration
+
+Ingestion behavior is configured in the Admin UI:
+
+![Client Reporter Settings](images/admin-client-reporter-settings.png)
+
 Recommended conflict rule:
 
 - do not use Option B to duplicate facts already owned by another loaded module unless you are intentionally comparing device-local reality against another source for drift detection

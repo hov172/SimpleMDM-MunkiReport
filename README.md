@@ -4,6 +4,14 @@ Module-only SimpleMDM integration for MunkiReport.
 
 This module syncs devices and API resources from SimpleMDM server-side, stores them locally, and exposes listings, widgets, and per-device connected resource views.
 
+## Preview
+
+### Dashboard Overview
+![SimpleMDM Dashboard](docs/images/dashboard-full.png)
+
+### Device Inventory
+![SimpleMDM Inventory](docs/images/inventory-list.png)
+
 ## Key Points
 
 - No MunkiReport core patch required.

@@ -128,6 +128,17 @@ It should be implemented as a hybrid model:
 - live lookups for deep device detail views
 - optional cached supplemental summary/index for listings, filters, widgets, and stale-data visibility
 
+### User Interface Details
+
+The Admin page provides a specific panel for monitoring the health of Option A detection.
+
+![Supplemental Data Config](images/admin-supplemental-config.png)
+
+**Key Metrics:**
+- **Detected Sources**: List of tables found in the database that match SimpleMDM serialization.
+- **Summary Rows**: Count of devices currently enriched in the summary table.
+- **Stale Threshold**: UI control for determining cache freshness.
+
 ## 4.2 Why Option A Is Preferred
 
 Benefits:
@@ -543,6 +554,14 @@ Cons:
 Option B means adding a new client-side reporter for facts not already available in source modules.
 
 This should be treated as a narrow fallback path, not the default.
+
+### Admin Configuration (Option B)
+
+The Client Reporter behavior is configured through a specific hardened settings panel in the Admin UI.
+
+![Client Reporter Settings](images/admin-client-reporter-settings.png)
+
+This panel allows for HMAC secret rotation, allowlist management, and payload limit configuration.
 
 ## 5.2 Best Uses For Option B
 

@@ -312,10 +312,10 @@ When changing views/assets:
    - actions panel
 
 Useful visual references:
-- `docs/images/dashboard-overview-part1.png`
-- `docs/images/dashboard-overview-part2.png`
-- `docs/images/device-detail-overview.png`
-- `docs/images/device-actions-runner.png`
+- `docs/images/dashboard_kpis.png`
+- `docs/images/dashboard_security_enrollment.png`
+- `docs/images/simplemdm_device_detail.png`
+- `docs/images/device_action_runner.png`
 
 ## 10) MunkiReport Event Verification
 
@@ -340,8 +340,20 @@ Recommended verification flow:
 1. Confirm the target device has normal host rows:
    - `machine.serial_number = <serial>`
    - `reportdata.serial_number = <serial>`
-2. Trigger or simulate one event of each type:
-  - accepted mutating admin action
+2. Confirm the `Event Settings` card loads:
+   - built-in toggle list renders
+   - stale threshold input renders current value
+   - custom event rows load from `custom_event_rules_json`
+3. Save a small event settings change:
+   - toggle one built-in event off, save, reload, confirm it stays off
+   - restore the original value
+4. Add one constrained custom rule and save:
+   - example: `firewall_enabled` + `became_disabled`
+   - for `changed_to` rules, use the exact stored module value such as `unenrolled`
+   - confirm the rule persists after reload
+   - remove or disable the test rule after verification
+5. Trigger or simulate one event of each type:
+   - accepted mutating admin action
    - failed mutating admin action
    - failed command status
    - failed recovery lock command status
@@ -354,11 +366,11 @@ Recommended verification flow:
    - transition from passcode compliant to non-compliant
    - transition from activation lock enabled to disabled
    - transition from fresh `last_seen_at` to stale `last_seen_at`
-3. Confirm rows exist in the host `event` table for the expected `simplemdm_*` module keys.
-4. Confirm the same rows appear in:
+6. Confirm rows exist in the host `event` table for the expected `simplemdm_*` module keys.
+7. Confirm the same rows appear in:
    - `/show/listing/event/event`
    - the `Events` widget
-5. Confirm recovery/clear behavior where applicable:
+8. Confirm recovery/clear behavior where applicable:
    - `simplemdm_action_failure` clears on later accepted admin action
    - `simplemdm_command` clears on later non-failed command state
    - `simplemdm_recovery_lock` clears on later non-failed recovery lock state
@@ -371,6 +383,10 @@ Recommended verification flow:
    - `simplemdm_passcode` clears on return to compliant
    - `simplemdm_activation_lock` clears on return to enabled
    - `simplemdm_stale` clears when `last_seen_at` returns within threshold
+9. If custom rules were added for testing, verify:
+   - disabled custom rules stop writing new rows
+   - enabled custom rules write under their own `simplemdm_<suffix>` module keys
+   - invalid custom rule combinations are rejected by `save_config`
 
 Important UI note:
 

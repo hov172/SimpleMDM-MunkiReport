@@ -393,6 +393,86 @@ if (is_readable($provides_path)) {
 .simplemdm-admin-subsection-copy:last-child {
     margin-bottom: 0;
 }
+.simplemdm-event-toggle-grid {
+    display: grid;
+    gap: 10px;
+    margin-top: 12px;
+}
+.simplemdm-event-toggle-row,
+.simplemdm-custom-event-row {
+    border: 1px solid var(--simplemdm-border);
+    border-radius: 12px;
+    background: var(--simplemdm-surface);
+    padding: 12px 14px;
+}
+.simplemdm-event-toggle-head,
+.simplemdm-custom-event-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+}
+.simplemdm-event-toggle-title,
+.simplemdm-custom-event-title {
+    font-weight: 800;
+    color: var(--simplemdm-ink);
+}
+.simplemdm-event-toggle-meta,
+.simplemdm-custom-event-meta {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--simplemdm-muted);
+    line-height: 1.45;
+}
+.simplemdm-custom-event-grid {
+    display: grid;
+    gap: 10px;
+    margin-top: 12px;
+}
+.simplemdm-custom-event-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 12px;
+    margin-top: 12px;
+}
+.simplemdm-custom-event-field-full {
+    grid-column: 1 / -1;
+}
+.simplemdm-custom-event-row label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--simplemdm-muted);
+}
+.simplemdm-custom-event-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+}
+.simplemdm-inline-checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--simplemdm-muted);
+    margin: 0;
+}
+.simplemdm-inline-checkbox input {
+    margin: 0;
+}
+.simplemdm-custom-event-guidance {
+    margin-top: 10px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--simplemdm-muted);
+}
+.simplemdm-event-inline-status {
+    min-height: 18px;
+}
 #script-runner-output {
     width: 100%;
     min-height: 220px;
@@ -406,6 +486,9 @@ if (is_readable($provides_path)) {
         grid-template-columns: 1fr;
     }
     .simplemdm-kpi-strip {
+        grid-template-columns: 1fr;
+    }
+    .simplemdm-custom-event-fields {
         grid-template-columns: 1fr;
     }
 }
@@ -697,6 +780,58 @@ if (is_readable($provides_path)) {
                         </div>
                         <button type="submit" class="btn btn-primary">Save Enrichment Settings</button>
                         <span id="enrichment-save-status" style="margin-left: 10px;"></span>
+                    </form>
+                </div>
+            </div>
+
+            <div class="panel panel-default simplemdm-modern-widget simplemdm-admin-collapsible" data-collapsible="events" data-default-open="0">
+                <div class="panel-heading" data-collapsible-toggle="events">
+                    <div class="simplemdm-admin-heading-wrap">
+                        <div class="simplemdm-admin-heading-main">
+                            <h3 class="panel-title"><i class="fa fa-bullhorn"></i> Event Settings</h3>
+                            <div class="simplemdm-admin-heading-summary" id="summary-events">Built-in event toggles, stale threshold, and custom event rules</div>
+                        </div>
+                        <span class="simplemdm-admin-heading-toggle" id="toggle-events">Expand</span>
+                    </div>
+                </div>
+                <div class="panel-body" data-collapsible-body="events" style="display:none;">
+                    <p class="text-muted">Use this card to control which SimpleMDM events are emitted into the MunkiReport Events feed. Built-in events can be enabled or disabled individually, and custom rules can create additional current-state events from supported device fields.</p>
+                    <form id="simplemdm-event-form">
+                        <div class="simplemdm-admin-subsection">
+                            <h4 class="simplemdm-admin-subsection-title">Built-In Events</h4>
+                            <p class="simplemdm-admin-subsection-copy">These toggles affect future event writes only. Existing rows in the host <code>event</code> table are not retroactively removed when a toggle is disabled.</p>
+                            <div class="form-group">
+                                <label for="event_stale_threshold_hours">Default stale threshold (hours)</label>
+                                <input type="number" min="1" step="1" class="form-control" id="event_stale_threshold_hours" name="event_stale_threshold_hours" placeholder="168">
+                                <p class="help-block">Used by the built-in <code>simplemdm_stale</code> event. Custom stale rules can define their own threshold.</p>
+                            </div>
+                            <div id="event-builtin-toggle-list" class="simplemdm-event-toggle-grid">
+                                <div class="simplemdm-runs-empty">Loading built-in event settings...</div>
+                            </div>
+                        </div>
+                        <div class="simplemdm-admin-subsection">
+                            <h4 class="simplemdm-admin-subsection-title">Custom Events</h4>
+                            <p class="simplemdm-admin-subsection-copy">Custom events are intentionally constrained to supported fields and trigger types. Each rule creates its own <code>simplemdm_*</code> module key and can be enabled or disabled independently.</p>
+                            <div class="simplemdm-state-panel">
+                                <p class="simplemdm-state-line"><span class="simplemdm-state-label">What you are defining:</span> a rule that watches one synced SimpleMDM device field and emits a separate MunkiReport event when the selected trigger becomes true.</p>
+                                <p class="simplemdm-state-line"><span class="simplemdm-state-label">Source Field:</span> choose the SimpleMDM-backed field to watch. These values come from the module's synced device record and webhook device updates.</p>
+                                <p class="simplemdm-state-line"><span class="simplemdm-state-label">Trigger:</span> choose how that field should fire. Use <code>Changed To</code> for status values like enrollment, <code>Became Disabled</code> for protections like FileVault or Firewall, and <code>Older Than Hours</code> for <code>Last Seen</code>.</p>
+                                <p class="simplemdm-state-line"><span class="simplemdm-state-label">Target Value:</span> only used with <code>Changed To</code>. For example, use <code>unenrolled</code> with <code>Enrollment Status</code>.</p>
+                                <p class="simplemdm-state-line"><span class="simplemdm-state-label">Suffix:</span> becomes the module key <code>simplemdm_&lt;suffix&gt;</code>. Keep it unique, lowercase, and underscore-separated.</p>
+                                <p class="simplemdm-state-line"><span class="simplemdm-state-label">Examples:</span> <code>Enrollment Status</code> + <code>Changed To</code> + <code>unenrolled</code>; <code>FileVault</code> + <code>Became Disabled</code>; <code>Last Seen</code> + <code>Older Than Hours</code> + <code>48</code>.</p>
+                            </div>
+                            <div class="simplemdm-actions-row" style="margin-bottom:12px;">
+                                <button type="button" class="btn btn-default btn-sm" id="add-custom-event-rule">
+                                    <i class="fa fa-plus"></i> Add Custom Event
+                                </button>
+                                <span id="event-builder-status" class="simplemdm-event-inline-status text-muted"></span>
+                            </div>
+                            <div id="custom-event-rule-list" class="simplemdm-custom-event-grid">
+                                <div class="simplemdm-runs-empty">No custom event rules configured.</div>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Save Event Settings</button>
+                        <span id="event-save-status" style="margin-left: 10px;"></span>
                     </form>
                 </div>
             </div>
@@ -996,6 +1131,9 @@ $(document).on('appReady', function() {
     var backgroundRefreshTimer = null;
     var BACKGROUND_IDLE_REFRESH_MS = 5000;
     var BACKGROUND_ACTIVE_REFRESH_MS = 2500;
+    var builtInEventCatalog = {};
+    var customEventFieldCatalog = {};
+    var eventFormDirty = false;
 
     function parseIsoDate(value) {
         var raw = String(value || '').trim();
@@ -1073,6 +1211,360 @@ $(document).on('appReady', function() {
 
     function escapeHtml(value) {
         return $('<div>').text(String(value || '')).html();
+    }
+
+    function parseJsonValue(value, fallback) {
+        if (value === undefined || value === null || value === '') {
+            return fallback;
+        }
+        if (typeof value === 'object') {
+            return value;
+        }
+        try {
+            var parsed = JSON.parse(String(value));
+            return parsed;
+        } catch (err) {
+            return fallback;
+        }
+    }
+
+    function eventFieldLabel(fieldName) {
+        if (customEventFieldCatalog && customEventFieldCatalog[fieldName] && customEventFieldCatalog[fieldName].label) {
+            return String(customEventFieldCatalog[fieldName].label);
+        }
+        return String(fieldName || '').replace(/_/g, ' ');
+    }
+
+    function eventTriggerLabel(triggerName) {
+        var labels = {
+            became_disabled: 'Became Disabled',
+            changed_to: 'Changed To',
+            older_than_hours: 'Older Than Hours'
+        };
+        return labels[String(triggerName || '')] || String(triggerName || '').replace(/_/g, ' ');
+    }
+
+    function slugifyCustomEventPart(value) {
+        return String(value || '')
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '')
+            .replace(/_+/g, '_');
+    }
+
+    function suggestedCustomEventSuffix(fieldName, triggerName) {
+        var fieldSlugMap = {
+            status: 'enrollment_status',
+            filevault_enabled: 'filevault',
+            firewall_enabled: 'firewall',
+            is_dep_enrollment: 'ade_dep',
+            is_supervised: 'supervision',
+            last_seen_at: 'last_seen',
+            passcode_compliant: 'passcode_compliance',
+            sip_enabled: 'sip',
+            activation_lock_enabled: 'activation_lock'
+        };
+        var triggerSlugMap = {
+            changed_to: 'changed',
+            became_disabled: 'disabled',
+            older_than_hours: 'stale'
+        };
+        var fieldSlug = fieldSlugMap[String(fieldName || '')] || slugifyCustomEventPart(eventFieldLabel(fieldName || ''));
+        var triggerSlug = triggerSlugMap[String(triggerName || '')] || slugifyCustomEventPart(triggerName || '');
+        return slugifyCustomEventPart(fieldSlug + '_' + triggerSlug);
+    }
+
+    function syncCustomEventRuleSuffix($row, fieldName, triggerName) {
+        var $suffix = $row.find('.simplemdm-custom-event-suffix');
+        var autoFill = String($suffix.attr('data-autofill') || '0') === '1';
+        if (!autoFill) {
+            return;
+        }
+        $suffix.val(suggestedCustomEventSuffix(fieldName, triggerName));
+        updateCustomEventRuleHeader($row);
+    }
+
+    function syncCustomEventRuleInputs($row) {
+        var fieldName = String($row.find('.simplemdm-custom-event-source-field').val() || '');
+        var triggerName = String($row.find('.simplemdm-custom-event-trigger-type').val() || '');
+        var fieldMeta = customEventFieldCatalog[fieldName] || { triggers: [] };
+        var allowedTriggers = $.isArray(fieldMeta.triggers) ? fieldMeta.triggers : [];
+        var $trigger = $row.find('.simplemdm-custom-event-trigger-type');
+        var currentTrigger = triggerName;
+
+        $trigger.empty();
+        if (!allowedTriggers.length) {
+            $trigger.append('<option value="">No triggers available</option>');
+        } else {
+            allowedTriggers.forEach(function(trigger) {
+                var option = $('<option>').val(trigger).text(eventTriggerLabel(trigger));
+                $trigger.append(option);
+            });
+        }
+        if (allowedTriggers.indexOf(currentTrigger) === -1) {
+            currentTrigger = allowedTriggers.length ? allowedTriggers[0] : '';
+        }
+        $trigger.val(currentTrigger);
+
+        var showTarget = currentTrigger === 'changed_to';
+        var showThreshold = currentTrigger === 'older_than_hours';
+        $row.find('.simplemdm-custom-event-target-wrap').toggle(showTarget);
+        $row.find('.simplemdm-custom-event-threshold-wrap').toggle(showThreshold);
+        syncCustomEventRuleSuffix($row, fieldName, currentTrigger);
+        updateCustomEventRuleGuidance($row, fieldName, currentTrigger);
+    }
+
+    function updateCustomEventRuleGuidance($row, fieldName, triggerName) {
+        var fieldLabel = eventFieldLabel(fieldName);
+        var $target = $row.find('.simplemdm-custom-event-target-value');
+        var $threshold = $row.find('.simplemdm-custom-event-threshold-hours');
+        var $message = $row.find('.simplemdm-custom-event-message');
+        var $guidance = $row.find('.simplemdm-custom-event-guidance');
+        var exampleTarget = '';
+        var messageText = '';
+        var messagePlaceholder = 'SimpleMDM: custom event triggered';
+
+        if (fieldName === 'status') {
+            exampleTarget = 'unenrolled';
+        } else if (fieldName === 'last_seen_at') {
+            exampleTarget = '';
+        }
+
+        if (triggerName === 'changed_to') {
+            messageText = 'Use the exact stored value for ' + fieldLabel + '. Example: ' + (exampleTarget || 'enter the exact status value returned by the module') + '.';
+            $target.attr('placeholder', exampleTarget ? ('Example: ' + exampleTarget) : 'Enter exact stored value');
+            messagePlaceholder = 'SimpleMDM: ' + fieldLabel.toLowerCase() + ' changed to ' + (exampleTarget || '<value>');
+        } else if (triggerName === 'became_disabled') {
+            messageText = 'This rule fires when ' + fieldLabel + ' changes from enabled/on to disabled/off.';
+            $target.attr('placeholder', 'Not used for this trigger');
+            messagePlaceholder = 'SimpleMDM: ' + fieldLabel + ' became disabled';
+        } else if (triggerName === 'older_than_hours') {
+            messageText = 'This rule fires when ' + fieldLabel + ' is older than the selected hour threshold.';
+            $threshold.attr('placeholder', fieldName === 'last_seen_at' ? 'Example: 48' : '24');
+            messagePlaceholder = 'SimpleMDM: ' + fieldLabel + ' is older than threshold';
+        } else {
+            messageText = 'Choose a supported field and trigger to define the rule.';
+            $target.attr('placeholder', 'Enter value if required');
+        }
+
+        if (!$message.val()) {
+            $message.attr('placeholder', messagePlaceholder);
+        }
+
+        $guidance.text(messageText);
+    }
+
+    function createCustomEventRuleRow(rule) {
+        var data = $.extend({
+            enabled: '1',
+            suffix: '',
+            label: '',
+            source_field: 'status',
+            trigger_type: 'changed_to',
+            severity: 'warning',
+            message: '',
+            target_value: '',
+            threshold_hours: ''
+        }, rule || {});
+
+        var $row = $('<div class="simplemdm-custom-event-row">');
+        var $head = $('<div class="simplemdm-custom-event-head">');
+        var titleText = data.label ? data.label : (data.suffix ? data.suffix : 'New Custom Event');
+        $head.append(
+            $('<div>').append(
+                $('<div class="simplemdm-custom-event-title">').text(titleText)
+            ).append(
+                $('<div class="simplemdm-custom-event-meta">').text('Custom module key: simplemdm_' + (data.suffix || '<suffix>'))
+            )
+        );
+        $head.append(
+            $('<button type="button" class="btn btn-default btn-xs simplemdm-remove-custom-event">')
+                .html('<i class="fa fa-trash"></i> Remove')
+        );
+        $row.append($head);
+
+        var $fields = $('<div class="simplemdm-custom-event-fields">');
+        var fieldOptions = Object.keys(customEventFieldCatalog).sort();
+        var $sourceSelect = $('<select class="form-control simplemdm-custom-event-source-field"></select>');
+        fieldOptions.forEach(function(fieldName) {
+            $sourceSelect.append($('<option>').val(fieldName).text(eventFieldLabel(fieldName)));
+        });
+
+        $fields.append(
+            $('<div>').append('<label>Suffix</label>').append(
+                $('<input type="text" class="form-control simplemdm-custom-event-suffix" placeholder="custom_suffix">')
+                    .attr('data-autofill', data.suffix ? '0' : '1')
+                    .val(data.suffix || '')
+            ).append(
+                $('<div class="simplemdm-custom-event-guidance">').text('Admin-defined rule key. This does not come from the SimpleMDM API or widget data; it becomes simplemdm_<suffix> in MunkiReport.')
+            )
+        );
+        $fields.append(
+            $('<div>').append('<label>Label</label>').append(
+                $('<input type="text" class="form-control simplemdm-custom-event-label" placeholder="Optional label">').val(data.label || '')
+            )
+        );
+        $fields.append(
+            $('<div>').append('<label>Source Field</label>').append($sourceSelect.val(data.source_field || 'status'))
+        );
+        $fields.append(
+            $('<div>').append('<label>Trigger</label>').append(
+                $('<select class="form-control simplemdm-custom-event-trigger-type"></select>')
+            )
+        );
+        $fields.append(
+            $('<div class="simplemdm-custom-event-target-wrap">').append('<label>Target Value</label>').append(
+                $('<input type="text" class="form-control simplemdm-custom-event-target-value" placeholder="Example: retired">').val(data.target_value || '')
+            )
+        );
+        $fields.append(
+            $('<div class="simplemdm-custom-event-threshold-wrap">').append('<label>Threshold Hours</label>').append(
+                $('<input type="number" min="1" step="1" class="form-control simplemdm-custom-event-threshold-hours" placeholder="24">').val(data.threshold_hours || '')
+            )
+        );
+        $fields.append(
+            $('<div>').append('<label>Severity</label>').append(
+                $('<select class="form-control simplemdm-custom-event-severity">' +
+                    '<option value="info">Info</option>' +
+                    '<option value="warning">Warning</option>' +
+                    '<option value="danger">Danger</option>' +
+                    '<option value="success">Success</option>' +
+                '</select>').val(data.severity || 'warning')
+            )
+        );
+        $fields.append(
+            $('<div class="simplemdm-custom-event-field-full">').append('<label>Message</label>').append(
+                $('<input type="text" class="form-control simplemdm-custom-event-message" placeholder="SimpleMDM: custom event message">').val(data.message || '')
+            )
+        );
+        $row.append($fields);
+        $row.append($('<div class="simplemdm-custom-event-guidance">'));
+        $row.append(
+            $('<div class="simplemdm-custom-event-actions">')
+                .append(
+                    $('<label class="simplemdm-inline-checkbox">')
+                        .append($('<input type="checkbox" class="simplemdm-custom-event-enabled" value="1">').prop('checked', String(data.enabled || '1') === '1'))
+                        .append('<span>Enabled</span>')
+                )
+                .append(
+                    $('<div class="simplemdm-custom-event-meta">').text('Use a unique suffix to create a separate current event slot in MunkiReport.')
+                )
+        );
+
+        syncCustomEventRuleInputs($row);
+        return $row;
+    }
+
+    function updateCustomEventRuleHeader($row) {
+        var label = String($row.find('.simplemdm-custom-event-label').val() || '').trim();
+        var suffix = String($row.find('.simplemdm-custom-event-suffix').val() || '').trim();
+        $row.find('.simplemdm-custom-event-title').text(label || suffix || 'New Custom Event');
+        $row.find('.simplemdm-custom-event-meta').first().text('Custom module key: simplemdm_' + (suffix || '<suffix>'));
+    }
+
+    function renderBuiltInEventToggles(catalog, settings) {
+        builtInEventCatalog = parseJsonValue(catalog, {});
+        var settingMap = parseJsonValue(settings, {});
+        var $list = $('#event-builtin-toggle-list').empty();
+        var keys = Object.keys(builtInEventCatalog).sort();
+
+        if (!keys.length) {
+            $list.append('<div class="simplemdm-runs-empty">No built-in events available.</div>');
+            return;
+        }
+
+        keys.forEach(function(suffix) {
+            var meta = builtInEventCatalog[suffix] || {};
+            var checked = !Object.prototype.hasOwnProperty.call(settingMap, suffix) || String(settingMap[suffix]) !== '0';
+            var $row = $('<div class="simplemdm-event-toggle-row">');
+            var $head = $('<div class="simplemdm-event-toggle-head">');
+            $head.append(
+                $('<div>').append(
+                    $('<div class="simplemdm-event-toggle-title">').text(meta.label || suffix)
+                ).append(
+                    $('<div class="simplemdm-event-toggle-meta">').text(meta.description || '')
+                )
+            );
+            $head.append(
+                $('<label class="simplemdm-inline-checkbox">')
+                    .append($('<input type="checkbox" class="simplemdm-event-toggle-checkbox" value="1">').attr('data-event-suffix', suffix).prop('checked', checked))
+                    .append('<span>Enabled</span>')
+            );
+            $row.append($head);
+            $list.append($row);
+        });
+    }
+
+    function renderCustomEventRules(rules, fieldCatalog) {
+        customEventFieldCatalog = parseJsonValue(fieldCatalog, {});
+        var ruleList = parseJsonValue(rules, []);
+        if (!$.isArray(ruleList)) {
+            ruleList = [];
+        }
+
+        var $list = $('#custom-event-rule-list').empty();
+        if (!ruleList.length) {
+            $list.append('<div class="simplemdm-runs-empty">No custom event rules configured.</div>');
+            return;
+        }
+
+        ruleList.forEach(function(rule) {
+            $list.append(createCustomEventRuleRow(rule));
+        });
+    }
+
+    function collectBuiltInEventSettings() {
+        var settings = {};
+        $('.simplemdm-event-toggle-checkbox').each(function() {
+            var suffix = String($(this).attr('data-event-suffix') || '');
+            if (suffix) {
+                settings[suffix] = $(this).is(':checked') ? '1' : '0';
+            }
+        });
+        return settings;
+    }
+
+    function collectCustomEventRules() {
+        var rules = [];
+        $('#custom-event-rule-list .simplemdm-custom-event-row').each(function() {
+            var $row = $(this);
+            rules.push({
+                enabled: $row.find('.simplemdm-custom-event-enabled').is(':checked') ? '1' : '0',
+                suffix: $row.find('.simplemdm-custom-event-suffix').val() || '',
+                label: $row.find('.simplemdm-custom-event-label').val() || '',
+                source_field: $row.find('.simplemdm-custom-event-source-field').val() || '',
+                trigger_type: $row.find('.simplemdm-custom-event-trigger-type').val() || '',
+                severity: $row.find('.simplemdm-custom-event-severity').val() || 'warning',
+                message: $row.find('.simplemdm-custom-event-message').val() || '',
+                target_value: $row.find('.simplemdm-custom-event-target-value').val() || '',
+                threshold_hours: $row.find('.simplemdm-custom-event-threshold-hours').val() || ''
+            });
+        });
+        return rules;
+    }
+
+    function refreshEventSummary() {
+        var enabledBuiltIns = 0;
+        $('.simplemdm-event-toggle-checkbox').each(function() {
+            if ($(this).is(':checked')) {
+                enabledBuiltIns++;
+            }
+        });
+        var customCount = $('#custom-event-rule-list .simplemdm-custom-event-row').length;
+        updateCollapsibleSummary('events', enabledBuiltIns + ' built-in enabled, ' + customCount + ' custom rule(s)');
+    }
+
+    function keepEventPanelOpen() {
+        var $body = $('[data-collapsible-body="events"]');
+        if (!$body.is(':visible')) {
+            $body.stop(true, true).slideDown(0);
+            $('#toggle-events').text('Collapse');
+        }
+    }
+
+    function markEventFormDirty(isDirty) {
+        eventFormDirty = !!isDirty;
     }
 
     function formatSupplementalReason(reason) {
@@ -1293,6 +1785,11 @@ $(document).on('appReady', function() {
         $('#sync_interval_minutes').val(pickValue(data.sync_interval_minutes, '15'));
         $('#sync_device_subresources_enabled').prop('checked', String(data.sync_device_subresources_enabled || '0') === '1');
         $('#device_subresource_limit').val(pickValue(data.device_subresource_limit, '0'));
+        if (!eventFormDirty) {
+            $('#event_stale_threshold_hours').val(pickValue(data.event_stale_threshold_hours, '168'));
+            renderBuiltInEventToggles(data.event_builtin_catalog_json || '{}', data.event_builtin_settings_json || '{}');
+            renderCustomEventRules(data.custom_event_rules_json || '[]', data.custom_event_field_catalog_json || '{}');
+        }
         $('#supplemental_enabled').prop('checked', String(data.supplemental_enabled || '1') === '1');
         $('#supplemental_default_stale_after_minutes').val(pickValue(data.supplemental_default_stale_after_minutes, '1440'));
         $('#supplemental_registry_json').val(data.supplemental_registry_json || '');
@@ -1338,6 +1835,7 @@ $(document).on('appReady', function() {
             ', HMAC ' + (String(data.client_reporter_hmac_enabled || '0') === '1' ? 'on' : 'off') +
             ', Source Opt-Outs ' + String(supplementalDisabledSourceIds.length)
         );
+        refreshEventSummary();
         var enabledWidgets = 0;
         $('.simplemdm-widget-toggle').each(function() {
             if ($(this).is(':checked')) {
@@ -2392,6 +2890,102 @@ $(document).on('appReady', function() {
             }
             setFormStatus('#enrichment-save-status', 'Error: ' + msg, 'text-danger');
         });
+    });
+
+    $('#simplemdm-event-form').on('submit', function(e) {
+        e.preventDefault();
+        keepEventPanelOpen();
+        $('#event-save-status').text('Saving...').removeClass().addClass('text-info');
+
+        var payload = {
+            event_stale_threshold_hours: String($('#event_stale_threshold_hours').val() || '168'),
+            event_builtin_settings_json: JSON.stringify(collectBuiltInEventSettings()),
+            custom_event_rules_json: JSON.stringify(collectCustomEventRules())
+        };
+
+        $.post(appUrl + '/module/simplemdm/save_config', payload, function(data) {
+            if (data.status === 'success') {
+                markEventFormDirty(false);
+                setFormStatus('#event-save-status', 'Saved successfully!', 'text-success', 3000);
+                setFormStatus('#event-builder-status', 'Custom event settings saved.', 'text-success', 2500);
+                loadConfig();
+            } else {
+                setFormStatus('#event-save-status', 'Error: ' + (data.message || 'Unknown'), 'text-danger');
+            }
+        }, 'json').fail(function(xhr) {
+            var msg = 'Request failed';
+            if (xhr && xhr.responseJSON && (xhr.responseJSON.message || xhr.responseJSON.error)) {
+                msg = xhr.responseJSON.message || xhr.responseJSON.error;
+            }
+            setFormStatus('#event-save-status', 'Error: ' + msg, 'text-danger');
+        });
+    });
+
+    $(document).on('click mousedown', '[data-collapsible-body="events"] button, [data-collapsible-body="events"] a, [data-collapsible-body="events"] input, [data-collapsible-body="events"] label, [data-collapsible-body="events"] textarea, [data-collapsible-body="events"] select', function(e) {
+        e.stopPropagation();
+        keepEventPanelOpen();
+    });
+
+    $('#add-custom-event-rule').on('click', function() {
+        var $list = $('#custom-event-rule-list');
+        var $row;
+        keepEventPanelOpen();
+        markEventFormDirty(true);
+        $list.find('.simplemdm-runs-empty').remove();
+        $row = createCustomEventRuleRow({
+            source_field: 'status',
+            trigger_type: 'changed_to',
+            severity: 'warning',
+            message: 'SimpleMDM: custom event triggered'
+        });
+        $list.append($row);
+        setFormStatus('#event-builder-status', 'Custom event row added. Save Event Settings to persist it.', 'text-success', 3500);
+        $row.find('.simplemdm-custom-event-suffix').trigger('focus');
+        refreshEventSummary();
+    });
+
+    $(document).on('change', '.simplemdm-custom-event-source-field', function() {
+        var $row = $(this).closest('.simplemdm-custom-event-row');
+        keepEventPanelOpen();
+        markEventFormDirty(true);
+        syncCustomEventRuleInputs($row);
+    });
+
+    $(document).on('change', '.simplemdm-custom-event-trigger-type', function() {
+        var $row = $(this).closest('.simplemdm-custom-event-row');
+        keepEventPanelOpen();
+        markEventFormDirty(true);
+        syncCustomEventRuleInputs($row);
+    });
+
+    $(document).on('input', '.simplemdm-custom-event-suffix, .simplemdm-custom-event-label', function() {
+        keepEventPanelOpen();
+        markEventFormDirty(true);
+        var $row = $(this).closest('.simplemdm-custom-event-row');
+        if ($(this).hasClass('simplemdm-custom-event-suffix')) {
+            $(this).attr('data-autofill', String($(this).val() || '').trim() === '' ? '1' : '0');
+            if (String($(this).val() || '').trim() === '') {
+                syncCustomEventRuleInputs($row);
+                return;
+            }
+        }
+        updateCustomEventRuleHeader($row);
+    });
+
+    $(document).on('click', '.simplemdm-remove-custom-event', function() {
+        var $list = $('#custom-event-rule-list');
+        keepEventPanelOpen();
+        markEventFormDirty(true);
+        $(this).closest('.simplemdm-custom-event-row').remove();
+        if (!$list.find('.simplemdm-custom-event-row').length) {
+            $list.html('<div class="simplemdm-runs-empty">No custom event rules configured.</div>');
+        }
+        refreshEventSummary();
+    });
+
+    $(document).on('input change', '.simplemdm-event-toggle-checkbox, .simplemdm-custom-event-enabled, .simplemdm-custom-event-severity, .simplemdm-custom-event-message, .simplemdm-custom-event-target-value, .simplemdm-custom-event-threshold-hours, #event_stale_threshold_hours', function() {
+        markEventFormDirty(true);
+        refreshEventSummary();
     });
 
     $('#simplemdm-script-runner-form').on('submit', function(e) {

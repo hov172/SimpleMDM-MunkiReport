@@ -105,6 +105,9 @@ All are called via:
 - `client_reporter_history_enabled`
 - `client_reporter_max_payload_bytes`
 - `client_reporter_allowed_fact_keys_json`
+- `event_stale_threshold_hours`
+- `event_builtin_settings_json`
+- `custom_event_rules_json`
 - sync queue keys (`sync_request_state`, `sync_requested_at`, `sync_started_at`, `sync_request_source`)
 - telemetry/status keys (`last_sync_status`, `last_sync_time`, `last_sync_cursor`, etc.)
 - widget visibility config keys discovered from `provides.yml`
@@ -125,6 +128,116 @@ All are called via:
 `begin_sync_run` is a worker-only claim endpoint used by the sync script. It is not meant to be called from the browser UI.
 
 `run_script` is used by the schedule panel for immediate module-side execution and module-managed cron helper actions.
+
+Event settings notes:
+- `event_builtin_settings_json` is a JSON object keyed by built-in event suffix with `1`/`0` enabled values.
+- `custom_event_rules_json` is a JSON array of constrained rule objects.
+- supported custom rule fields are exposed through `get_config` as `custom_event_field_catalog_json`
+- built-in event metadata is exposed through `get_config` as `event_builtin_catalog_json`
+- custom rules are evaluated only against supported synced device fields that are present in the incoming update path
+- those device fields come from the local `simplemdm` row, populated by full API sync and best-effort webhook device upserts
+- `Changed To` rules require an exact stored target value such as `unenrolled`
+- `Became Disabled` rules are for boolean-style protections such as FileVault, Firewall, SIP, Activation Lock, ADE/DEP, and Supervision
+- `Older Than Hours` rules are for `Last Seen`
+
+Built-in event catalog:
+- `simplemdm_action`
+  - accepted mutating admin device action
+  - custom-event equivalent: not applicable
+- `simplemdm_action_failure`
+  - failed or rejected mutating admin device action
+  - custom-event equivalent: not applicable
+- `simplemdm_command`
+  - failed command state
+  - custom-event equivalent: not applicable
+- `simplemdm_recovery_lock`
+  - failed recovery-lock command state
+  - custom-event equivalent: not applicable
+- `simplemdm_enrollment`
+  - enrolled -> not enrolled transition
+  - if modeled as custom: `Enrollment Status` + `Changed To` + `unenrolled`
+- `simplemdm_dep`
+  - ADE / DEP enabled -> disabled transition
+  - if modeled as custom: `ADE / DEP` + `Became Disabled`
+- `simplemdm_filevault`
+  - FileVault enabled -> disabled transition
+  - if modeled as custom: `FileVault` + `Became Disabled`
+- `simplemdm_supervision`
+  - supervision enabled -> disabled transition
+  - if modeled as custom: `Supervision` + `Became Disabled`
+- `simplemdm_firewall`
+  - firewall enabled -> disabled transition
+  - if modeled as custom: `Firewall` + `Became Disabled`
+- `simplemdm_sip`
+  - SIP enabled -> disabled transition
+  - if modeled as custom: `SIP` + `Became Disabled`
+- `simplemdm_passcode`
+  - passcode compliant -> non-compliant transition
+  - if modeled as custom: `Passcode Compliance` + `Became Disabled`
+- `simplemdm_activation_lock`
+  - Activation Lock enabled -> disabled transition
+  - if modeled as custom: `Activation Lock` + `Became Disabled`
+- `simplemdm_stale`
+  - `last_seen_at` crosses the configured stale threshold
+  - if modeled as custom: `Last Seen` + `Older Than Hours` + `<same threshold>`
+
+Custom event rule object shape:
+
+```json
+{
+  "enabled": "1",
+  "suffix": "custom_unenrolled",
+  "label": "Custom Unenrolled",
+  "source_field": "status",
+  "trigger_type": "changed_to",
+  "severity": "warning",
+  "message": "SimpleMDM: device became unenrolled",
+  "target_value": "unenrolled",
+  "threshold_hours": ""
+}
+```
+
+Field semantics:
+- `suffix`
+  - required
+  - emitted as event module key `simplemdm_<suffix>`
+  - admin-defined in the UI; not sourced from the SimpleMDM API or widget configuration
+- `label`
+  - optional admin-facing label for the settings UI
+- `source_field`
+  - one of the supported fields exposed in `custom_event_field_catalog_json`
+- `trigger_type`
+  - must be one of the triggers allowed for the selected `source_field`
+- `target_value`
+  - used only with `changed_to`
+- `threshold_hours`
+  - used only with `older_than_hours`
+- `severity`
+  - MunkiReport event type (`info`, `warning`, `danger`, `success`)
+- `message`
+  - stored in the host `event.message`
+
+Duplicate rule behavior:
+- custom suffixes that conflict with built-in event suffixes are rejected
+- duplicate custom suffixes are rejected
+- semantic duplicates are allowed
+- for example, a custom rule may intentionally watch the same field/trigger combination as a built-in event or another custom rule if it uses a different suffix
+
+Recommended custom-rule layouts that do not simply duplicate built-ins:
+- `Enrollment Status` + `Changed To` + `awaiting_enrollment`
+  - useful for staging/pre-enrollment visibility
+- `Enrollment Status` + `Changed To` + `retired`
+  - useful for lifecycle/retirement workflow visibility
+- `Last Seen` + `Older Than Hours` + `48`
+  - useful for a stricter stale threshold than the built-in module default
+- `Last Seen` + `Older Than Hours` + `12`
+  - useful for high-priority systems that need a more aggressive stale alert
+- `ADE / DEP` + `Became Disabled`
+  - useful when you want a separate event module key, severity, or message for operations escalation rather than reusing the built-in event text, even though the underlying condition overlaps the built-in ADE/DEP event
+
+UI behavior note:
+- new custom rows auto-suggest a suffix from the selected `source_field` and `trigger_type`
+- admins can overwrite that suggestion with any unique valid suffix
 
 `ingest_client_facts` accepts a narrow allowlisted payload shape:
 

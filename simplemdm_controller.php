@@ -113,10 +113,185 @@ class Simplemdm_controller extends Module_controller
         return 'simplemdm_' . preg_replace('/[^a-z0-9_]+/i', '_', strtolower($suffix));
     }
 
+    private function built_in_event_catalog()
+    {
+        return [
+            'action' => ['label' => 'Admin Action Accepted', 'description' => 'Create a current event when a mutating admin action is accepted upstream.', 'default_enabled' => '1'],
+            'action_failure' => ['label' => 'Admin Action Failed', 'description' => 'Create a current event when a mutating admin action is rejected or fails upstream.', 'default_enabled' => '1'],
+            'command' => ['label' => 'Command Failed', 'description' => 'Create a current event when a command transitions into a failed state.', 'default_enabled' => '1'],
+            'recovery_lock' => ['label' => 'Recovery Lock Failed', 'description' => 'Create a current event when a recovery-lock command transitions into a failed state.', 'default_enabled' => '1'],
+            'enrollment' => ['label' => 'Enrollment Regressed', 'description' => 'Create a current event when a device leaves the enrolled state.', 'default_enabled' => '1'],
+            'dep' => ['label' => 'ADE/DEP Regressed', 'description' => 'Create a current event when ADE/DEP enrollment transitions from enabled to disabled.', 'default_enabled' => '1'],
+            'filevault' => ['label' => 'FileVault Disabled', 'description' => 'Create a current event when FileVault transitions from enabled to disabled.', 'default_enabled' => '1'],
+            'supervision' => ['label' => 'Supervision Disabled', 'description' => 'Create a current event when supervision transitions from enabled to disabled.', 'default_enabled' => '1'],
+            'firewall' => ['label' => 'Firewall Disabled', 'description' => 'Create a current event when firewall protection transitions from enabled to disabled.', 'default_enabled' => '1'],
+            'sip' => ['label' => 'SIP Disabled', 'description' => 'Create a current event when SIP transitions from enabled to disabled.', 'default_enabled' => '1'],
+            'passcode' => ['label' => 'Passcode Noncompliant', 'description' => 'Create a current event when passcode compliance transitions from compliant to non-compliant.', 'default_enabled' => '1'],
+            'activation_lock' => ['label' => 'Activation Lock Disabled', 'description' => 'Create a current event when Activation Lock transitions from enabled to disabled.', 'default_enabled' => '1'],
+            'stale' => ['label' => 'Device Became Stale', 'description' => 'Create a current event when last seen time crosses the configured stale threshold.', 'default_enabled' => '1'],
+        ];
+    }
+
+    private function built_in_event_settings()
+    {
+        $catalog = $this->built_in_event_catalog();
+        $defaults = [];
+        foreach ($catalog as $suffix => $meta) {
+            $defaults[$suffix] = isset($meta['default_enabled']) && (string) $meta['default_enabled'] === '0' ? '0' : '1';
+        }
+
+        $raw = trim($this->get_config_value('event_builtin_settings_json', ''));
+        if ($raw === '') {
+            return $defaults;
+        }
+
+        $decoded = json_decode($raw, true);
+        if (! is_array($decoded)) {
+            return $defaults;
+        }
+
+        foreach ($catalog as $suffix => $_meta) {
+            if (array_key_exists($suffix, $decoded)) {
+                $defaults[$suffix] = (string) $decoded[$suffix] === '0' ? '0' : '1';
+            }
+        }
+
+        return $defaults;
+    }
+
+    private function is_built_in_event_enabled($suffix)
+    {
+        $catalog = $this->built_in_event_catalog();
+        if (! array_key_exists($suffix, $catalog)) {
+            return true;
+        }
+
+        $settings = $this->built_in_event_settings();
+        return ! isset($settings[$suffix]) || (string) $settings[$suffix] !== '0';
+    }
+
+    private function custom_event_field_catalog()
+    {
+        return [
+            'status' => ['label' => 'Enrollment Status', 'type' => 'string', 'triggers' => ['changed_to']],
+            'is_supervised' => ['label' => 'Supervision', 'type' => 'bool', 'triggers' => ['became_disabled']],
+            'is_dep_enrollment' => ['label' => 'ADE / DEP', 'type' => 'bool', 'triggers' => ['became_disabled']],
+            'filevault_enabled' => ['label' => 'FileVault', 'type' => 'bool', 'triggers' => ['became_disabled']],
+            'firewall_enabled' => ['label' => 'Firewall', 'type' => 'bool', 'triggers' => ['became_disabled']],
+            'sip_enabled' => ['label' => 'SIP', 'type' => 'bool', 'triggers' => ['became_disabled']],
+            'activation_lock_enabled' => ['label' => 'Activation Lock', 'type' => 'bool', 'triggers' => ['became_disabled']],
+            'passcode_compliant' => ['label' => 'Passcode Compliance', 'type' => 'bool', 'triggers' => ['became_disabled']],
+            'last_seen_at' => ['label' => 'Last Seen', 'type' => 'datetime', 'triggers' => ['older_than_hours']],
+        ];
+    }
+
+    private function normalize_custom_event_rules($raw)
+    {
+        $rules = $raw;
+        if (is_string($raw)) {
+            $trimmed = trim($raw);
+            if ($trimmed === '') {
+                return [];
+            }
+            $rules = json_decode($trimmed, true);
+        }
+
+        if (! is_array($rules)) {
+            throw new \RuntimeException('Custom event rules must be a JSON array.');
+        }
+
+        $field_catalog = $this->custom_event_field_catalog();
+        $built_in_suffixes = array_keys($this->built_in_event_catalog());
+        $normalized = [];
+        $seen_suffixes = [];
+
+        foreach ($rules as $index => $rule) {
+            if (! is_array($rule)) {
+                throw new \RuntimeException('Each custom event rule must be a JSON object.');
+            }
+
+            $enabled = isset($rule['enabled']) && (string) $rule['enabled'] === '0' ? '0' : '1';
+            $suffix = strtolower(trim((string) ($rule['suffix'] ?? '')));
+            $suffix = preg_replace('/[^a-z0-9_]+/', '_', $suffix);
+            $suffix = trim($suffix, '_');
+            if ($suffix === '') {
+                throw new \RuntimeException('Each custom event rule requires a non-empty suffix.');
+            }
+            if (in_array($suffix, $built_in_suffixes, true)) {
+                throw new \RuntimeException('Custom event suffix "' . $suffix . '" conflicts with a built-in event.');
+            }
+            if (isset($seen_suffixes[$suffix])) {
+                throw new \RuntimeException('Duplicate custom event suffix "' . $suffix . '" is not allowed.');
+            }
+            $seen_suffixes[$suffix] = true;
+
+            $source_field = trim((string) ($rule['source_field'] ?? ''));
+            if (! isset($field_catalog[$source_field])) {
+                throw new \RuntimeException('Custom event source field "' . $source_field . '" is not supported.');
+            }
+
+            $trigger_type = trim((string) ($rule['trigger_type'] ?? ''));
+            if (! in_array($trigger_type, $field_catalog[$source_field]['triggers'], true)) {
+                throw new \RuntimeException('Trigger "' . $trigger_type . '" is not allowed for source field "' . $source_field . '".');
+            }
+
+            $severity = strtolower(trim((string) ($rule['severity'] ?? 'warning')));
+            if (! in_array($severity, ['info', 'warning', 'danger', 'success'], true)) {
+                $severity = 'warning';
+            }
+
+            $message = trim((string) ($rule['message'] ?? ''));
+            if ($message === '') {
+                throw new \RuntimeException('Custom event "' . $suffix . '" requires a message.');
+            }
+
+            $target_value = trim((string) ($rule['target_value'] ?? ''));
+            if ($trigger_type === 'changed_to' && $target_value === '') {
+                throw new \RuntimeException('Custom event "' . $suffix . '" requires target_value for changed_to.');
+            }
+
+            $threshold_hours = '';
+            if ($trigger_type === 'older_than_hours') {
+                $hours = (int) ($rule['threshold_hours'] ?? 0);
+                if ($hours < 1) {
+                    throw new \RuntimeException('Custom event "' . $suffix . '" requires threshold_hours >= 1.');
+                }
+                $threshold_hours = (string) $hours;
+            }
+
+            $normalized[] = [
+                'enabled' => $enabled,
+                'suffix' => $suffix,
+                'label' => trim((string) ($rule['label'] ?? '')),
+                'source_field' => $source_field,
+                'trigger_type' => $trigger_type,
+                'severity' => $severity,
+                'message' => $message,
+                'target_value' => $trigger_type === 'changed_to' ? $target_value : '',
+                'threshold_hours' => $threshold_hours,
+                'sort_order' => (string) $index,
+            ];
+        }
+
+        return $normalized;
+    }
+
+    private function custom_event_rules()
+    {
+        try {
+            return $this->normalize_custom_event_rules($this->get_config_value('custom_event_rules_json', '[]'));
+        } catch (\RuntimeException $e) {
+            return [];
+        }
+    }
+
     private function store_simplemdm_event($serial_number, $suffix, $type, $message, $data = [])
     {
         $serial_number = trim((string) $serial_number);
         if ($serial_number === '') {
+            return;
+        }
+        if (! $this->is_built_in_event_enabled($suffix)) {
             return;
         }
 
@@ -246,6 +421,92 @@ class Simplemdm_controller extends Module_controller
         }
 
         return $ts <= (time() - $this->get_stale_event_threshold_seconds());
+    }
+
+    private function is_device_stale_for_hours($last_seen_at, $hours)
+    {
+        $ts = $this->parse_simplemdm_timestamp($last_seen_at);
+        if ($ts === null) {
+            return false;
+        }
+
+        $hours = (int) $hours;
+        if ($hours < 1) {
+            $hours = 1;
+        }
+
+        return $ts <= (time() - ($hours * 3600));
+    }
+
+    private function evaluate_custom_device_events($before, $after, $record = [])
+    {
+        if (! is_array($after) || empty($after['serial_number'])) {
+            return;
+        }
+
+        $serial = (string) $after['serial_number'];
+        foreach ($this->custom_event_rules() as $rule) {
+            if ((string) ($rule['enabled'] ?? '1') !== '1') {
+                continue;
+            }
+
+            $source_field = (string) ($rule['source_field'] ?? '');
+            if ($source_field === '' || ! array_key_exists($source_field, $record)) {
+                continue;
+            }
+
+            $suffix = (string) ($rule['suffix'] ?? '');
+            if ($suffix === '') {
+                continue;
+            }
+
+            $trigger_type = (string) ($rule['trigger_type'] ?? '');
+            $severity = (string) ($rule['severity'] ?? 'warning');
+            $message = (string) ($rule['message'] ?? '');
+            $event_data = [
+                'source' => 'simplemdm',
+                'reason' => 'custom_event',
+                'serial_number' => $serial,
+                'simplemdm_id' => (string) ($after['simplemdm_id'] ?? ''),
+                'custom_event_suffix' => $suffix,
+                'custom_event_label' => (string) ($rule['label'] ?? ''),
+                'source_field' => $source_field,
+                'trigger_type' => $trigger_type,
+            ];
+
+            $should_store = false;
+            $should_clear = false;
+
+            if ($trigger_type === 'became_disabled') {
+                $old_value = $this->normalize_device_bool(is_array($before) ? ($before[$source_field] ?? null) : null);
+                $new_value = $this->normalize_device_bool($after[$source_field] ?? null);
+                $should_store = $old_value === 1 && $new_value !== 1;
+                $should_clear = $new_value === 1;
+                $event_data['current_value'] = $new_value;
+            } elseif ($trigger_type === 'changed_to') {
+                $target_value = $this->normalize_device_status($rule['target_value'] ?? '');
+                $old_value = $this->normalize_device_status(is_array($before) ? ($before[$source_field] ?? '') : '');
+                $new_value = $this->normalize_device_status($after[$source_field] ?? '');
+                $should_store = $target_value !== '' && $old_value !== $target_value && $new_value === $target_value;
+                $should_clear = $target_value !== '' && $new_value !== '' && $new_value !== $target_value;
+                $event_data['target_value'] = $target_value;
+                $event_data['current_value'] = $new_value;
+            } elseif ($trigger_type === 'older_than_hours') {
+                $threshold_hours = (int) ($rule['threshold_hours'] ?? 0);
+                $old_stale = is_array($before) ? $this->is_device_stale_for_hours($before[$source_field] ?? null, $threshold_hours) : false;
+                $new_stale = $this->is_device_stale_for_hours($after[$source_field] ?? null, $threshold_hours);
+                $should_store = ! $old_stale && $new_stale;
+                $should_clear = ! $new_stale && trim((string) ($after[$source_field] ?? '')) !== '';
+                $event_data['threshold_hours'] = $threshold_hours;
+                $event_data['current_value'] = isset($after[$source_field]) ? (string) $after[$source_field] : '';
+            }
+
+            if ($should_store) {
+                $this->store_simplemdm_event($serial, $suffix, $severity, $message, $event_data);
+            } elseif ($should_clear) {
+                $this->delete_simplemdm_event($serial, $suffix);
+            }
+        }
     }
 
     private function evaluate_device_regression_events($before, $after, $record = [])
@@ -406,6 +667,8 @@ class Simplemdm_controller extends Module_controller
                 $this->delete_simplemdm_event($serial, 'stale');
             }
         }
+
+        $this->evaluate_custom_device_events($before, $after, $record);
     }
 
     private function emit_device_regression_events_from_records($records)
@@ -3323,6 +3586,17 @@ class Simplemdm_controller extends Module_controller
                 $config[$key] = $value;
             }
         }
+        if (! isset($config['event_stale_threshold_hours'])) {
+            $config['event_stale_threshold_hours'] = '168';
+        }
+        if (! isset($config['event_builtin_settings_json'])) {
+            $config['event_builtin_settings_json'] = json_encode($this->built_in_event_settings());
+        }
+        if (! isset($config['custom_event_rules_json'])) {
+            $config['custom_event_rules_json'] = json_encode($this->custom_event_rules());
+        }
+        $config['event_builtin_catalog_json'] = json_encode($this->built_in_event_catalog());
+        $config['custom_event_field_catalog_json'] = json_encode($this->custom_event_field_catalog());
         $config['client_reporter_device_tokens_json'] = '';
         $config['client_reporter_device_token_metadata_json'] = $is_global
             ? json_encode($this->client_reporter_token_metadata())
@@ -3434,6 +3708,9 @@ class Simplemdm_controller extends Module_controller
             'client_reporter_proxy_only_enabled',
             'client_reporter_trusted_proxy_ips',
             'client_reporter_max_time_skew_seconds',
+            'event_stale_threshold_hours',
+            'event_builtin_settings_json',
+            'custom_event_rules_json',
         ];
         foreach ($config_keys as $key) {
             if (array_key_exists($key, $post)) {
@@ -3517,6 +3794,30 @@ class Simplemdm_controller extends Module_controller
                         $v = 30;
                     }
                     $value = (string) $v;
+                } elseif ($key === 'event_stale_threshold_hours') {
+                    $v = (int) $value;
+                    if ($v < 1) {
+                        $v = 168;
+                    }
+                    $value = (string) $v;
+                } elseif ($key === 'event_builtin_settings_json') {
+                    $decoded = json_decode(trim($value) === '' ? '{}' : $value, true);
+                    if (! is_array($decoded)) {
+                        jsonView(['status' => 'error', 'message' => 'Built-in event settings must be a JSON object.'], 400);
+                        return;
+                    }
+                    $normalized = [];
+                    foreach ($this->built_in_event_catalog() as $suffix => $_meta) {
+                        $normalized[$suffix] = array_key_exists($suffix, $decoded) && (string) $decoded[$suffix] === '0' ? '0' : '1';
+                    }
+                    $value = json_encode($normalized);
+                } elseif ($key === 'custom_event_rules_json') {
+                    try {
+                        $value = json_encode($this->normalize_custom_event_rules($value));
+                    } catch (\RuntimeException $e) {
+                        jsonView(['status' => 'error', 'message' => $e->getMessage()], 400);
+                        return;
+                    }
                 } elseif ($key === 'client_reporter_allowed_fact_keys_json') {
                     $value = trim($value);
                     if ($value === '') {

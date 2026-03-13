@@ -888,8 +888,8 @@ php /path/to/munkireport/please migrate
    - `sync_device_subresources_enabled`
    - `device_subresource_limit`
 
-![SimpleMDM Settings](docs/images/admin_api_sync_status.png)
-![Sync Status and Scheduling](docs/images/admin_sync_status.png)
+![SimpleMDM Settings (representative admin layout)](docs/images/admin_api_sync_status.png)
+![Sync Status and Scheduling (representative admin layout)](docs/images/admin_sync_status.png)
 
 ### Settings Reference
 
@@ -1602,6 +1602,180 @@ UI visibility note:
 - event rows are stored in the host `event` table
 - for those events to appear in the MunkiReport Events widget/listing, the device must also have normal host rows in `machine` and `reportdata`
 - this is a host-app listing constraint, not a SimpleMDM module-specific filter
+
+Event Settings in Admin:
+- built-in events can now be enabled or disabled individually from the `Event Settings` card
+- the built-in stale event uses `event_stale_threshold_hours`
+- custom events can be created in the UI without editing PHP, but they are intentionally constrained to supported fields and trigger types
+- custom rules are stored in `custom_event_rules_json` and each rule emits its own `simplemdm_<suffix>` event key
+- custom event `Source Field` values come from the module's synced device data, which is refreshed from full SimpleMDM API syncs and best-effort device webhook upserts
+- `Changed To` rules require the exact stored target value, for example `Enrollment Status` + `unenrolled`
+- `Became Disabled` rules are intended for boolean security controls such as FileVault, Firewall, SIP, Activation Lock, ADE/DEP, and Supervision
+- `Older Than Hours` rules are intended for `Last Seen`
+
+Custom event field guide:
+- `Suffix`
+  - required unique identifier used as the event module key suffix
+  - example: `custom_unenrolled` becomes `simplemdm_custom_unenrolled`
+  - admin-defined inside the Custom Events UI; it does not come from the SimpleMDM API or from widget metadata
+- `Label`
+  - optional admin-facing name shown in the Event Settings card
+- `Source Field`
+  - the synced SimpleMDM device field to evaluate
+  - current supported options are the fields shown in the dropdown, such as Enrollment Status, FileVault, Firewall, ADE / DEP, Supervision, Last Seen, Passcode Compliance, SIP, and Activation Lock
+- `Trigger`
+  - the rule type allowed for the selected source field
+  - examples:
+    - `Changed To` for status-like fields
+    - `Became Disabled` for protection/enforcement fields
+    - `Older Than Hours` for `Last Seen`
+- `Target Value`
+  - only used with `Changed To`
+  - example: `unenrolled`
+- `Severity`
+  - MunkiReport event severity (`info`, `warning`, `danger`, `success`)
+- `Message`
+  - the text written into the host `event.message`
+
+How the module reads custom-event source data:
+- full sync writes SimpleMDM device state into the local `simplemdm` table
+- webhook ingestion performs best-effort partial device upserts when supported device attributes are present
+- before and after each relevant device update, the controller snapshots the stored device row and compares the fields that were actually present in the incoming record
+- built-in and custom event rules are then evaluated from that changed device state, not from free-form UI input
+
+Duplicate rule behavior:
+- a custom rule cannot use a suffix that conflicts with a built-in event suffix
+- two custom rules cannot use the same suffix
+- the module does not block semantic duplicates
+- this means you can intentionally create a custom rule that watches the same condition as a built-in event or another custom rule, as long as the suffix is different
+- this is allowed so different teams can use different messages, severities, thresholds, or separate event slots for the same underlying condition
+
+Built-in event breakdown:
+- `simplemdm_action`
+  - Trigger: a mutating admin device action is accepted by the upstream SimpleMDM API
+  - Use: current audit/notice event for successful operator actions
+  - Custom-event equivalent: not applicable; this comes from an admin action response, not a device-field rule
+- `simplemdm_action_failure`
+  - Trigger: a mutating admin device action is rejected or fails upstream
+  - Use: immediate visibility that an attempted action did not succeed
+  - Custom-event equivalent: not applicable; this comes from an admin action response, not a device-field rule
+- `simplemdm_command`
+  - Trigger: a SimpleMDM command transitions into a failed state
+  - Use: highlight failed operational commands
+  - Custom-event equivalent: not applicable; this comes from command status flow, not a device-field rule
+- `simplemdm_recovery_lock`
+  - Trigger: a recovery-lock-related command transitions into a failed state
+  - Use: separate security-sensitive command failure visibility
+  - Custom-event equivalent: not applicable; this comes from command status flow, not a device-field rule
+- `simplemdm_enrollment`
+  - Trigger: device transitions from enrolled to not enrolled
+  - Use: management coverage regression
+  - If it were custom:
+    - `Source Field`: `Enrollment Status`
+    - `Trigger`: `Changed To`
+    - `Target Value`: `unenrolled`
+- `simplemdm_dep`
+  - Trigger: ADE / DEP transitions from enabled to disabled
+  - Use: automated enrollment regression
+  - If it were custom:
+    - `Source Field`: `ADE / DEP`
+    - `Trigger`: `Became Disabled`
+- `simplemdm_filevault`
+  - Trigger: FileVault transitions from enabled to disabled
+  - Use: encryption regression
+  - If it were custom:
+    - `Source Field`: `FileVault`
+    - `Trigger`: `Became Disabled`
+- `simplemdm_supervision`
+  - Trigger: supervision transitions from enabled to disabled
+  - Use: management authority regression
+  - If it were custom:
+    - `Source Field`: `Supervision`
+    - `Trigger`: `Became Disabled`
+- `simplemdm_firewall`
+  - Trigger: firewall transitions from enabled to disabled
+  - Use: endpoint protection regression
+  - If it were custom:
+    - `Source Field`: `Firewall`
+    - `Trigger`: `Became Disabled`
+- `simplemdm_sip`
+  - Trigger: SIP transitions from enabled to disabled
+  - Use: platform security regression
+  - If it were custom:
+    - `Source Field`: `SIP`
+    - `Trigger`: `Became Disabled`
+- `simplemdm_passcode`
+  - Trigger: passcode compliance transitions from compliant to non-compliant
+  - Use: device compliance regression
+  - If it were custom:
+    - `Source Field`: `Passcode Compliance`
+    - `Trigger`: `Became Disabled`
+- `simplemdm_activation_lock`
+  - Trigger: Activation Lock transitions from enabled to disabled
+  - Use: anti-theft / security regression
+  - If it were custom:
+    - `Source Field`: `Activation Lock`
+    - `Trigger`: `Became Disabled`
+- `simplemdm_stale`
+  - Trigger: `last_seen_at` crosses the configured `event_stale_threshold_hours`
+  - Use: stale-device detection with one shared default threshold
+  - If it were custom:
+    - `Source Field`: `Last Seen`
+    - `Trigger`: `Older Than Hours`
+    - `Threshold Hours`: use the same hour value as `event_stale_threshold_hours`
+
+Useful custom event layouts:
+- awaiting enrollment tracking
+  - `Suffix`: `awaiting_enrollment`
+  - `Label`: `Awaiting Enrollment`
+  - `Source Field`: `Enrollment Status`
+  - `Trigger`: `Changed To`
+  - `Target Value`: `awaiting_enrollment`
+  - `Severity`: `Info`
+  - `Message`: `SimpleMDM: device moved into awaiting enrollment`
+  - Use case: highlight devices that are in a pre-enrolled or staging state without reusing the built-in unenrolled event.
+- retired device transition
+  - `Suffix`: `retired_status`
+  - `Label`: `Retired Device`
+  - `Source Field`: `Enrollment Status`
+  - `Trigger`: `Changed To`
+  - `Target Value`: `retired`
+  - `Severity`: `Info`
+  - `Message`: `SimpleMDM: device changed to retired`
+  - Use case: surface lifecycle transitions into retirement as a visible operational event.
+- aggressive stale rule for VIP or lab devices
+  - `Suffix`: `stale_48h`
+  - `Label`: `Stale After 48 Hours`
+  - `Source Field`: `Last Seen`
+  - `Trigger`: `Older Than Hours`
+  - `Threshold Hours`: `48`
+  - `Severity`: `Warning`
+  - `Message`: `SimpleMDM: device has not checked in for 48 hours`
+  - Use case: apply a stricter threshold than the built-in stale event for a more sensitive workflow.
+- critical stale rule for high-priority systems
+  - `Suffix`: `stale_12h_critical`
+  - `Label`: `Critical Stale After 12 Hours`
+  - `Source Field`: `Last Seen`
+  - `Trigger`: `Older Than Hours`
+  - `Threshold Hours`: `12`
+  - `Severity`: `Danger`
+  - `Message`: `SimpleMDM: priority device has not checked in for 12 hours`
+  - Use case: create a higher-severity stale event for tightly managed fleets or executive devices.
+- ADE/DEP disabled with custom messaging
+  - `Suffix`: `dep_disabled_ops`
+  - `Label`: `ADE Disabled Ops`
+  - `Source Field`: `ADE / DEP`
+  - `Trigger`: `Became Disabled`
+  - `Severity`: `Danger`
+  - `Message`: `SimpleMDM: automated enrollment was lost and operations review is required`
+  - Use case: keep a separate event slot and message for an operations-specific escalation workflow, even though the underlying condition overlaps the built-in ADE/DEP event.
+
+When custom rules are worth using:
+- when you need a different threshold than the built-in stale event
+- when you want a distinct message or severity for the same underlying field
+- when you want to track a different `Enrollment Status` target value than the built-in unenrolled regression
+- when you want a separate event slot for a different audience or workflow
+- the UI will auto-suggest a `Suffix` for new rows based on the selected `Source Field` and `Trigger`, but you can still replace it with your own stable identifier
 
 `simplemdm_group`
 - Purpose: full assignment-group insight.

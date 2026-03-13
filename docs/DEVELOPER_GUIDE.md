@@ -171,11 +171,156 @@ Conflict guidance:
   - `Last Completed Source`, `Last Completed Status`, and `Last Completed Time` in the `Sync Status` panel mirror the most recent completed run so queue telemetry and run history are not confused.
   - `Recent Runs` is backed by `simplemdm_sync_run`, which records queued, running, completed, and failed runs.
   - `Clear Run History` deletes recorded rows from `simplemdm_sync_run` and resets the last-completed UI state when no run is queued or active.
+  - `Event Settings` exposes:
+    - per-built-in event enable/disable toggles
+    - a built-in stale threshold in hours
+    - constrained custom event rules stored in `custom_event_rules_json`
+  - Custom event rules are not arbitrary logic:
+    - `Source Field` maps to a supported key from the synced device snapshot
+    - `Trigger` is constrained by field type (`changed_to`, `became_disabled`, `older_than_hours`)
+    - `Suffix` becomes `simplemdm_<suffix>` in the host `event.module`
+    - `Suffix` is admin-defined; it is not read from the SimpleMDM API or from widget metadata
   - Queue creation uses a dedicated queued run row so a new queued request does not overwrite the source of the last completed run before pickup.
   - `simplemdm_sync.py` is still the real worker; recurring runs require cron to launch it.
   - Host/manual runs should use an explicit `--api-key` or `SIMPLEMDM_API_KEY`; they should not rely on an authenticated browser session to bootstrap secrets.
   - In-module action buttons use the same runner prerequisite checks as the schedule panel, and the controller re-validates those prerequisites server-side.
   - Optional in-module execution allows the UI to install/remove cron and run approved script actions for global admins.
+  - Custom events are intentionally limited to supported fields and trigger types so the admin UI does not become a generic rules engine.
+
+### Event Evaluation Data Flow
+
+- Full sync writes SimpleMDM device data into `simplemdm`.
+- Webhook ingestion can partially update the same device row when supported device attributes are present in the webhook payload.
+- Before and after a relevant device write, the controller snapshots the device through `get_device_snapshot()`.
+- `evaluate_device_regression_events()` handles built-in events.
+- `evaluate_custom_device_events()` handles admin-defined custom rules from `custom_event_rules_json`.
+- Custom rules only evaluate fields that were actually present in the incoming record path, which prevents unrelated partial webhook payloads from falsely triggering rules.
+
+Practical implication for admins:
+- the Custom Events UI does not invent data
+- it reads already-synced SimpleMDM-backed fields
+- when a rule uses `Changed To`, the `Target Value` must match the stored module value exactly, for example `unenrolled`
+
+Duplicate rule behavior:
+- `normalize_custom_event_rules()` rejects custom suffixes that collide with built-in event suffixes
+- it also rejects duplicate custom suffixes inside the custom rule set
+- it does not try to detect semantic duplicates
+- this is deliberate so admins can create multiple event slots for the same underlying condition with different messages, severities, thresholds, or team-specific routing
+
+Built-in event breakdown:
+- `simplemdm_action`
+  - source: `api_devices()` accepted mutating action response
+  - purpose: audit/notice for successful operator action
+  - custom-event equivalent: not applicable
+- `simplemdm_action_failure`
+  - source: `api_devices()` failed mutating action response
+  - purpose: make failed operator actions visible without reading logs
+  - custom-event equivalent: not applicable
+- `simplemdm_command`
+  - source: command ingest / webhook command upsert
+  - purpose: current failed-command alert
+  - custom-event equivalent: not applicable
+- `simplemdm_recovery_lock`
+  - source: failed recovery-lock command ingest
+  - purpose: separate alert for recovery-lock failures
+  - custom-event equivalent: not applicable
+- `simplemdm_enrollment`
+  - source: device snapshot comparison
+  - purpose: enrolled-state regression
+  - if represented as a custom rule:
+    - `Source Field`: `Enrollment Status`
+    - `Trigger`: `Changed To`
+    - `Target Value`: `unenrolled`
+- `simplemdm_dep`
+  - source: device snapshot comparison
+  - purpose: ADE / DEP regression
+  - if represented as a custom rule:
+    - `Source Field`: `ADE / DEP`
+    - `Trigger`: `Became Disabled`
+- `simplemdm_filevault`
+  - source: device snapshot comparison
+  - purpose: encryption regression
+  - if represented as a custom rule:
+    - `Source Field`: `FileVault`
+    - `Trigger`: `Became Disabled`
+- `simplemdm_supervision`
+  - source: device snapshot comparison
+  - purpose: supervision regression
+  - if represented as a custom rule:
+    - `Source Field`: `Supervision`
+    - `Trigger`: `Became Disabled`
+- `simplemdm_firewall`
+  - source: device snapshot comparison
+  - purpose: firewall regression
+  - if represented as a custom rule:
+    - `Source Field`: `Firewall`
+    - `Trigger`: `Became Disabled`
+- `simplemdm_sip`
+  - source: device snapshot comparison
+  - purpose: SIP regression
+  - if represented as a custom rule:
+    - `Source Field`: `SIP`
+    - `Trigger`: `Became Disabled`
+- `simplemdm_passcode`
+  - source: device snapshot comparison
+  - purpose: passcode compliance regression
+  - if represented as a custom rule:
+    - `Source Field`: `Passcode Compliance`
+    - `Trigger`: `Became Disabled`
+- `simplemdm_activation_lock`
+  - source: device snapshot comparison
+  - purpose: activation-lock regression
+  - if represented as a custom rule:
+    - `Source Field`: `Activation Lock`
+    - `Trigger`: `Became Disabled`
+- `simplemdm_stale`
+  - source: device snapshot comparison against configured stale threshold
+  - purpose: one shared built-in stale-device alert
+  - if represented as a custom rule:
+    - `Source Field`: `Last Seen`
+    - `Trigger`: `Older Than Hours`
+    - `Threshold Hours`: use the same value as `event_stale_threshold_hours`
+
+Custom event patterns that are worth documenting and supporting:
+- alternate status targets
+  - example: `Enrollment Status` -> `Changed To` -> `awaiting_enrollment` or `retired`
+  - useful because the built-in enrollment event is specifically about leaving the enrolled state, not every status value
+- alternate stale thresholds
+  - example: `Last Seen` -> `Older Than Hours` -> `48` or `12`
+  - useful because the built-in stale event uses one shared module threshold, while custom rules can create separate thresholds and severities
+- alternate workflow-specific messaging
+  - example: `ADE / DEP` -> `Became Disabled` with a different message and module suffix
+  - useful when one team wants a separate event slot or wording without changing the global built-in event
+
+Examples of useful custom layouts:
+- `awaiting_enrollment`
+  - `Source Field`: `Enrollment Status`
+  - `Trigger`: `Changed To`
+  - `Target Value`: `awaiting_enrollment`
+  - use case: staging queue visibility
+- `retired_status`
+  - `Source Field`: `Enrollment Status`
+  - `Trigger`: `Changed To`
+  - `Target Value`: `retired`
+  - use case: retirement workflow visibility
+- `stale_48h`
+  - `Source Field`: `Last Seen`
+  - `Trigger`: `Older Than Hours`
+  - `Threshold Hours`: `48`
+  - use case: stricter stale threshold than the built-in default
+- `stale_12h_critical`
+  - `Source Field`: `Last Seen`
+  - `Trigger`: `Older Than Hours`
+  - `Threshold Hours`: `12`
+  - use case: aggressive alerting for priority devices
+- `dep_disabled_ops`
+  - `Source Field`: `ADE / DEP`
+  - `Trigger`: `Became Disabled`
+  - use case: separate event slot/message for operations escalation, even though it overlaps the built-in ADE/DEP condition
+
+Admin UI behavior note:
+- new custom rows auto-suggest a suffix from the selected field + trigger combination
+- if the admin edits the suffix manually, the UI stops overwriting it
 
 ### Scheduling Workflow
 
@@ -431,7 +576,7 @@ Use existing screenshots while changing UI:
 ![SimpleMDM Report (continued)](images/dashboard_security_enrollment.png)
 ![Device Detail Overview](images/simplemdm_device_detail.png)
 ![Device Actions Runner](images/device_action_runner.png)
-![Admin Settings](images/admin_api_sync_status.png)
+![Admin Settings (representative admin layout)](images/admin_api_sync_status.png)
 
 ## 8) Common Change Workflows
 

@@ -15,6 +15,12 @@ class SimplemdmSupplementalCollationFix extends Migration
 
     public function up()
     {
+        $driver = Capsule::connection()->getDriverName();
+
+        if ($driver !== 'mysql') {
+            return;
+        }
+
         foreach ($this->tables as $table) {
             if (Capsule::schema()->hasTable($table)) {
                 Capsule::statement(sprintf(

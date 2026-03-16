@@ -12,6 +12,8 @@ class SimplemdmClientReporterHardening extends Migration
 
         if (! $capsule::schema()->hasTable('simplemdm_client_reporter_nonce')) {
             $capsule::schema()->create('simplemdm_client_reporter_nonce', function (Blueprint $table) {
+                $table->charset = 'utf8mb4';
+                $table->collation = 'utf8mb4_unicode_ci';
                 $table->increments('id');
                 $table->string('nonce_hash')->unique();
                 $table->string('serial_number')->nullable()->index();
@@ -24,6 +26,8 @@ class SimplemdmClientReporterHardening extends Migration
 
         if (! $capsule::schema()->hasTable('simplemdm_client_reporter_token')) {
             $capsule::schema()->create('simplemdm_client_reporter_token', function (Blueprint $table) {
+                $table->charset = 'utf8mb4';
+                $table->collation = 'utf8mb4_unicode_ci';
                 $table->increments('id');
                 $table->string('serial_number')->index();
                 $table->string('label')->default('default');

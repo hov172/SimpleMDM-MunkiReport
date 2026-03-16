@@ -12,6 +12,8 @@ class SimplemdmSupplementalSummary extends Migration
 
         if (! $capsule::schema()->hasTable('simplemdm_supplemental_summary')) {
             $capsule::schema()->create('simplemdm_supplemental_summary', function (Blueprint $table) {
+                $table->charset = 'utf8mb4';
+                $table->collation = 'utf8mb4_unicode_ci';
                 $table->increments('id');
                 $table->string('serial_number')->unique();
                 $table->text('source_modules_json')->nullable();

@@ -12,6 +12,8 @@ class SimplemdmClientFacts extends Migration
 
         if (! $capsule::schema()->hasTable('simplemdm_client_fact')) {
             $capsule::schema()->create('simplemdm_client_fact', function (Blueprint $table) {
+                $table->charset = 'utf8mb4';
+                $table->collation = 'utf8mb4_unicode_ci';
                 $table->increments('id');
                 $table->string('serial_number')->index();
                 $table->string('fact_type')->index();
@@ -31,6 +33,8 @@ class SimplemdmClientFacts extends Migration
 
         if (! $capsule::schema()->hasTable('simplemdm_client_fact_history')) {
             $capsule::schema()->create('simplemdm_client_fact_history', function (Blueprint $table) {
+                $table->charset = 'utf8mb4';
+                $table->collation = 'utf8mb4_unicode_ci';
                 $table->increments('id');
                 $table->string('serial_number')->index();
                 $table->string('fact_type')->index();

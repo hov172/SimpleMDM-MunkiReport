@@ -158,21 +158,26 @@ Notes:
 4. Widgets fail to load or return generic API errors:
    - Re-run migrations and confirm the module DB tables exist.
    - Confirm you are on a current module revision; older revisions could fail on assignment-group/OS-security widget queries in some environments.
-5. `Sync Status -> Queue Next Worker Run` stays queued forever:
+5. `SimpleMDM Devices Table` shows `Failed to load devices` after upgrading to the supplemental-data release:
+   - Confirm the supplemental/client tables were migrated successfully.
+   - This release adds [2026_03_16_000000_simplemdm_supplemental_collation_fix.php](/Users/jay/Developer/Github/GitHub/SimpleMDM/munkireport-php/local/modules/simplemdm/migrations/2026_03_16_000000_simplemdm_supplemental_collation_fix.php) to normalize new supplemental tables to the same `utf8mb4_unicode_ci` collation used by existing `simplemdm` tables.
+   - Symptom: `/module/simplemdm/get_data` returns a DB collation error and the dashboard/report device table widget falls back to `Failed to load devices`.
+   - Fix: run the latest module migrations, including the collation repair migration.
+6. `Sync Status -> Queue Next Worker Run` stays queued forever:
    - Confirm a real cron entry exists or manually run `python3 local/modules/simplemdm/scripts/simplemdm_sync.py --api-key 'YOUR_SIMPLEMDM_API_KEY' --munkireport-url '<url>' --respect-schedule --force-run`.
    - That queue button does not execute Python directly from the web request.
    - If module-side Python is available, use `In-Module Sync And Schedule -> Run Sync Now` for an immediate run instead.
-6. `Recent Runs` does not populate after upgrade:
+7. `Recent Runs` does not populate after upgrade:
    - Confirm the `simplemdm_sync_run` table exists.
    - Run `php please migrate`.
    - Hard refresh the admin page so the new UI state loads.
-7. Status cards do not update until a manual refresh:
+8. Status cards do not update until a manual refresh:
    - Confirm the latest module JS is loaded with a hard refresh.
    - Confirm the page is polling `get_config` successfully in browser dev tools.
    - Confirm no browser extension is blocking periodic XHR requests.
-8. Docker command failures:
+9. Docker command failures:
    - Confirm compose service name (`munkireport`) and container status (`docker compose ps`).
-9. Cron helper scripts fail with `Permission denied`:
+10. Cron helper scripts fail with `Permission denied`:
    - Confirm the execute bit is present on `scripts/install_cron.sh` and `scripts/remove_cron.sh`.
    - If needed, restore it with:
 

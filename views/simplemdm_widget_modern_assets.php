@@ -266,6 +266,10 @@ body.simplemdm-theme-dark.simplemdm-layout-compact {
     background: var(--simplemdm-heading-bg);
     color: var(--simplemdm-ink);
     padding: 13px 15px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
 }
 
 .simplemdm-modern-widget .panel-title {
@@ -274,6 +278,9 @@ body.simplemdm-theme-dark.simplemdm-layout-compact {
     font-size: 13px;
     letter-spacing: 0.55px;
     text-transform: uppercase;
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
 }
 
 .simplemdm-modern-widget .panel-title i {
@@ -449,14 +456,17 @@ body.simplemdm-report-interactive #simplemdm-report-grid > #simplemdm-dashboard-
 }
 
 .simplemdm-modern-widget .simplemdm-drag-handle {
-    float: right;
+    float: none;
+    flex: 0 0 auto;
     font-size: 13px;
     opacity: 0;
     cursor: move;
-    margin-left: 8px;
+    margin-left: 0;
     padding: 2px 4px;
     border-radius: 5px;
     pointer-events: none;
+    line-height: 1;
+    align-self: center;
 }
 
 .simplemdm-modern-widget .simplemdm-drag-handle:hover {
@@ -468,11 +478,13 @@ body.simplemdm-theme-dark .simplemdm-modern-widget .simplemdm-drag-handle:hover 
 }
 
 .simplemdm-modern-widget .simplemdm-widget-actions {
-    float: right;
+    float: none;
     display: inline-flex;
     gap: 4px;
-    margin-left: 8px;
+    margin-left: 0;
     align-items: center;
+    justify-content: flex-end;
+    flex: 0 0 auto;
     opacity: 0;
     pointer-events: none;
 }
@@ -492,11 +504,21 @@ body.simplemdm-theme-dark .simplemdm-modern-widget .simplemdm-drag-handle:hover 
     border: 1px solid var(--simplemdm-border);
     background: transparent;
     color: var(--simplemdm-muted);
-    padding: 0 4px;
-    line-height: 1.3;
+    padding: 0;
+    line-height: 1;
     border-radius: 4px;
     font-size: 11px;
     cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    vertical-align: middle;
 }
 
 .simplemdm-modern-widget .simplemdm-order-btn:hover {
@@ -508,11 +530,21 @@ body.simplemdm-theme-dark .simplemdm-modern-widget .simplemdm-drag-handle:hover 
     border: 1px solid var(--simplemdm-border);
     background: transparent;
     color: var(--simplemdm-muted);
-    padding: 0 4px;
-    line-height: 1.3;
+    padding: 0;
+    line-height: 1;
     border-radius: 4px;
     font-size: 11px;
     cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    vertical-align: middle;
 }
 
 .simplemdm-modern-widget .simplemdm-collapse-btn:hover {

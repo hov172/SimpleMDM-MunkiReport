@@ -504,26 +504,35 @@ body.simplemdm-theme-dark .simplemdm-modern-widget .simplemdm-drag-handle:hover 
     border: 1px solid var(--simplemdm-border);
     background: transparent;
     color: var(--simplemdm-muted);
-    padding: 0;
+    padding: 0 6px;
     line-height: 1;
     border-radius: 4px;
     font-size: 11px;
     cursor: pointer;
     appearance: none;
     -webkit-appearance: none;
-    width: 24px;
+    width: auto;
     height: 24px;
-    min-width: 24px;
+    min-width: 36px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    gap: 4px;
     box-sizing: border-box;
     vertical-align: middle;
+    white-space: nowrap;
 }
 
 .simplemdm-modern-widget .simplemdm-order-btn:hover {
     color: var(--simplemdm-ink);
     border-color: var(--simplemdm-accent);
+}
+
+.simplemdm-modern-widget .simplemdm-order-btn .simplemdm-order-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
 }
 
 .simplemdm-modern-widget .simplemdm-collapse-btn {
@@ -987,6 +996,7 @@ body.simplemdm-theme-dark #simplemdm-dashboard-grid > .simplemdm-dashboard-item 
         return k === 'simplemdm_resource_types'
             || k === 'simplemdm_group_top'
             || k === 'simplemdm_group'
+            || k === 'simplemdm_group_apps'
             || k === 'simplemdm_devices_table';
     }
 
@@ -1774,9 +1784,9 @@ body.simplemdm-theme-dark #simplemdm-dashboard-grid > .simplemdm-dashboard-item 
                     actions.className = 'simplemdm-widget-actions';
                     actions.innerHTML = ''
                         + '<button type="button" class="simplemdm-collapse-btn" data-simplemdm-collapse="toggle" title="Collapse widget" aria-label="Collapse widget"><i class="fa fa-minus" aria-hidden="true"></i></button>'
-                        + '<button type="button" class="simplemdm-order-btn" data-simplemdm-order="top" title="Move widget to top" aria-label="Move widget to top"><i class="fa fa-angle-double-up" aria-hidden="true"></i></button>'
-                        + '<button type="button" class="simplemdm-order-btn" data-simplemdm-order="up" title="Move widget up" aria-label="Move widget up"><i class="fa fa-angle-up" aria-hidden="true"></i></button>'
-                        + '<button type="button" class="simplemdm-order-btn" data-simplemdm-order="down" title="Move widget down" aria-label="Move widget down"><i class="fa fa-angle-down" aria-hidden="true"></i></button>';
+                        + '<button type="button" class="simplemdm-order-btn" data-simplemdm-order="top" title="Move widget to top" aria-label="Move widget to top"><i class="fa fa-angle-double-up" aria-hidden="true"></i><span class="simplemdm-order-label">Top</span></button>'
+                        + '<button type="button" class="simplemdm-order-btn" data-simplemdm-order="up" title="Move widget up" aria-label="Move widget up"><i class="fa fa-angle-up" aria-hidden="true"></i><span class="simplemdm-order-label">Up</span></button>'
+                        + '<button type="button" class="simplemdm-order-btn" data-simplemdm-order="down" title="Move widget down" aria-label="Move widget down"><i class="fa fa-angle-down" aria-hidden="true"></i><span class="simplemdm-order-label">Down</span></button>';
                     heading.appendChild(actions);
                 }
                 var handle = document.createElement('span');
@@ -2078,6 +2088,40 @@ body.simplemdm-theme-dark #simplemdm-dashboard-grid > .simplemdm-dashboard-item 
 
     window.simplemdmResetDashboardLayout = function() {
         simplemdmDashboardState = sanitizeDashboardLayoutState(null);
+        saveDashboardLayoutState();
+        if (typeof window.simplemdmReflowDashboardGrid === 'function') {
+            window.simplemdmReflowDashboardGrid();
+        }
+    };
+
+    window.simplemdmGetGridColumnCount = function() {
+        return Math.max(1, simplemdmGridMetrics.cols || getDashboardColumnCount());
+    };
+
+    window.simplemdmGetWidgetSpan = function(key) {
+        var widgetKey = normalizeSimplemdmWidgetKey(key);
+        if (!widgetKey) {
+            return 1;
+        }
+        var customSpan = parseInt(simplemdmDashboardState.span[widgetKey], 10);
+        if (customSpan && customSpan > 0) {
+            return customSpan;
+        }
+        return isFeaturedWidgetKey(widgetKey) ? window.simplemdmGetGridColumnCount() : 1;
+    };
+
+    window.simplemdmSetWidgetSpan = function(key, span) {
+        var widgetKey = normalizeSimplemdmWidgetKey(key);
+        if (!widgetKey) {
+            return;
+        }
+        var cols = window.simplemdmGetGridColumnCount();
+        var nextSpan = parseInt(span, 10);
+        if (isNaN(nextSpan)) {
+            return;
+        }
+        nextSpan = Math.max(1, Math.min(cols, nextSpan));
+        simplemdmDashboardState.span[widgetKey] = nextSpan;
         saveDashboardLayoutState();
         if (typeof window.simplemdmReflowDashboardGrid === 'function') {
             window.simplemdmReflowDashboardGrid();
@@ -2477,7 +2521,8 @@ function resizeChartsForMode(mode) {
         var reportExplicitOrder = {
             simplemdm_resource_types: 1,
             simplemdm_group: 2,
-            simplemdm_devices_table: 3,
+            simplemdm_group_apps: 3,
+            simplemdm_devices_table: 4,
             simplemdm_group_top: 10,
             // Report-only compact ordering for smaller column widgets.
             simplemdm_enrollment: 100,
@@ -2730,6 +2775,10 @@ function resizeChartsForMode(mode) {
         function getItemSpan(item, totalCols) {
             if (!item || totalCols <= 1) {
                 return 1;
+            }
+            var forcedSpan = parseInt(item.getAttribute('data-simplemdm-force-span'), 10);
+            if (forcedSpan && forcedSpan > 0) {
+                return Math.max(1, Math.min(totalCols, forcedSpan));
             }
             var key = String(item.getAttribute('data-simplemdm-key') || '');
             var customSpan = parseInt(simplemdmDashboardState.span[key], 10);

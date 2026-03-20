@@ -953,6 +953,7 @@ Use this section as the plain-language guide to every setting shown in `Admin ->
   - Meaning: per-widget on/off control for the SimpleMDM report/dashboard widgets.
   - Use case: hide widgets your team does not use, simplify the report page, or reduce visual noise for operators.
   - When to change it: when customizing the dashboard/report experience for a team.
+  - Current behavior: all widgets registered in `provides.yml`, including `simplemdm_group_apps` (`Assignment Group Apps`), appear in this list and save as `widget_<id>` config keys.
 
 #### Advanced Sync & Compliance
 
@@ -2186,7 +2187,7 @@ Interactive layout behavior (module-wide):
   - Bottom-right corner: width + height
 - Featured widgets (such as `simplemdm_group` and `simplemdm_resource_types`) are also resizable.
 - Non-featured widgets default to a uniform baseline footprint (single-column span + baseline min-height) while still expanding for larger content.
-- Fallback ordering controls are included in each widget header (`top`, `up`, `down`) for precise keyboard/mouse operation.
+- Fallback ordering controls are included in each widget header (`Top`, `Up`, `Down`) for precise keyboard/mouse operation.
 - Custom dashboard widget order/size is persisted in browser `localStorage` per dashboard URL.
 - You can reset custom layout state from browser console with `window.simplemdmResetDashboardLayout()`.
 - A floating `Reset Layout` button is available on supported pages.
@@ -2197,9 +2198,15 @@ Interactive layout behavior (module-wide):
 - Current featured full-width widgets (within the SimpleMDM widget set) are ordered as:
   - `simplemdm_resource_types`
   - `simplemdm_group`
+  - `simplemdm_group_apps`
   - `simplemdm_devices_table`
   - `simplemdm_group_top`
 - Report page default ordering keeps the full-width widgets above unchanged and applies a cleaner default sequence for small column widgets below them.
+- Current report default top section is:
+  - `simplemdm_resource_types`
+  - `simplemdm_group`
+  - `simplemdm_group_apps`
+  - `simplemdm_devices_table`
 
 Scope notes:
 - This behavior is module-only and applies to all users loading SimpleMDM widgets.
@@ -2420,6 +2427,9 @@ Check browser console/network and confirm module route resolves:
 - This widget does not require per-device deep sync. It does not depend on `devices/{id}/installed_apps`.
 - If assignment groups reference app IDs that are missing from local `app` records, the normal sync now backfills those IDs automatically from `apps/{id}`.
 - If the widget still shows stale frontend errors after a code update, hard-refresh the page or reset the dashboard layout.
+- Default layout behavior:
+  - `Assignment Group Apps` is a featured full-width widget by default on the SimpleMDM report.
+  - It can still be hidden from Admin > SimpleMDM Settings > Widget Visibility.
 
 ### Resource listing shows a DataTables Ajax error
 
@@ -2435,6 +2445,7 @@ Check browser console/network and confirm module route resolves:
 - `Widget Visibility` controls whether a widget may render.
 - Dashboard/report pages only show widgets that exist in that page layout.
 - Confirm the widget is present in your active dashboard YAML (`local/dashboards/*.yml`) or on the SimpleMDM report page.
+- `simplemdm_group_apps` is part of the SimpleMDM report widget set and can also be included in dashboard YAML layouts.
 - If needed, click `Reset Layout` to clear stale per-page localStorage layout state (report reset does not overwrite dashboard defaults, and dashboard reset does not overwrite report defaults).
 
 ### Command status widget is empty

@@ -16,6 +16,10 @@
     margin-left: auto;
 }
 
+#simplemdm-group-apps-widget .simplemdm-group-apps-width-toggle {
+    margin-left: 8px;
+}
+
 #simplemdm-group-apps-widget .simplemdm-group-apps-empty {
     color: var(--simplemdm-muted);
     text-align: center;
@@ -96,7 +100,10 @@
             </div>
             <div class="simplemdm-group-apps-controls">
                 <div class="text-muted small">Showing assignment groups and their synced assigned apps.</div>
-                <button type="button" class="btn btn-xs btn-default simplemdm-section-toggle" id="simplemdm-group-apps-toggle-all">+ Expand</button>
+                <div>
+                    <button type="button" class="btn btn-xs btn-default simplemdm-group-apps-width-toggle" id="simplemdm-group-apps-width-toggle">Regular Width</button>
+                    <button type="button" class="btn btn-xs btn-default simplemdm-section-toggle" id="simplemdm-group-apps-toggle-all">+ Expand</button>
+                </div>
             </div>
             <div id="simplemdm-group-apps-groups-wrap" class="simplemdm-collapsed">
                 <div id="simplemdm-group-apps-groups">
@@ -110,8 +117,11 @@
 <script>
 $(document).on('appReady', function() {
     var widgetId = '#simplemdm-group-apps-widget';
+    var widgetKey = 'simplemdm_group_apps';
     var groupsCollapsed = true;
     var defaultVisibleGroups = 3;
+    var fullWidthClass = 'col-lg-12';
+    var regularWidthClass = 'col-lg-6';
 
     function esc(value) {
         return $('<div>').text(String(value === null || value === undefined ? '' : value)).html();
@@ -126,6 +136,59 @@ $(document).on('appReady', function() {
             return appUrl + '/index.php?' + path + (query ? '?' + query : '');
         }
         return appUrl + path + (query ? '?' + query : '');
+    }
+
+    function getWidgetColumn() {
+        return $(widgetId).closest('[class*="col-"]');
+    }
+
+    function getDashboardItem() {
+        return $(widgetId).closest('.simplemdm-dashboard-item');
+    }
+
+    function isFullWidth() {
+        var $item = getDashboardItem();
+        var renderedSpan = parseInt($item.attr('data-simplemdm-span'), 10);
+        if (renderedSpan && typeof window.simplemdmGetGridColumnCount === 'function') {
+            return renderedSpan >= window.simplemdmGetGridColumnCount();
+        }
+        var forcedSpan = parseInt($item.attr('data-simplemdm-force-span'), 10);
+        if (forcedSpan && typeof window.simplemdmGetGridColumnCount === 'function') {
+            return forcedSpan >= window.simplemdmGetGridColumnCount();
+        }
+        if (typeof window.simplemdmGetGridColumnCount === 'function' && typeof window.simplemdmGetWidgetSpan === 'function') {
+            return window.simplemdmGetWidgetSpan(widgetKey) >= window.simplemdmGetGridColumnCount();
+        }
+        return getWidgetColumn().hasClass(fullWidthClass) && !getWidgetColumn().hasClass(regularWidthClass);
+    }
+
+    function updateWidthToggleLabel() {
+        $('#simplemdm-group-apps-width-toggle').text(isFullWidth() ? 'Regular Width' : 'Full Width');
+    }
+
+    function applyWidgetWidth(fullWidth) {
+        var $col = getWidgetColumn();
+        if (! $col.length) {
+            return;
+        }
+        var $item = getDashboardItem();
+        if ($item.length && typeof window.simplemdmGetGridColumnCount === 'function') {
+            var nextSpan = fullWidth ? window.simplemdmGetGridColumnCount() : 1;
+            $item.attr('data-simplemdm-force-span', String(nextSpan));
+            $item.attr('data-simplemdm-span', String(nextSpan));
+        }
+        $col.removeClass(fullWidthClass + ' ' + regularWidthClass).addClass(fullWidth ? fullWidthClass : regularWidthClass);
+        if (typeof window.simplemdmGetGridColumnCount === 'function' && typeof window.simplemdmSetWidgetSpan === 'function') {
+            window.simplemdmSetWidgetSpan(widgetKey, fullWidth ? window.simplemdmGetGridColumnCount() : 1);
+        }
+        updateWidthToggleLabel();
+        if (typeof window.simplemdmReflowDashboardGrid === 'function') {
+            window.simplemdmReflowDashboardGrid();
+            setTimeout(window.simplemdmReflowDashboardGrid, 120);
+            setTimeout(window.simplemdmReflowDashboardGrid, 420);
+        } else {
+            window.dispatchEvent(new Event('resize'));
+        }
     }
 
     function applyGroupsState() {
@@ -266,6 +329,13 @@ $(document).on('appReady', function() {
         }
     });
 
+    $('#simplemdm-group-apps-width-toggle').on('click', function(ev) {
+        if (ev && ev.preventDefault) {
+            ev.preventDefault();
+        }
+        applyWidgetWidth(!isFullWidth());
+    });
+
     $(document).off('click.simplemdmGroupAppsToggle', widgetId + ' [data-section-toggle]')
         .on('click.simplemdmGroupAppsToggle', widgetId + ' [data-section-toggle]', function(ev) {
             if (ev && ev.preventDefault) {
@@ -287,7 +357,9 @@ $(document).on('appReady', function() {
             }
         });
 
+    updateWidthToggleLabel();
     renderWidget();
     window.addEventListener('simplemdm:modechange', renderWidget);
+    window.addEventListener('resize', updateWidthToggleLabel);
 });
 </script>

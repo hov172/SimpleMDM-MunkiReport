@@ -89,8 +89,8 @@ $(document).on('appReady', function(e, lang) {
         listBody.toggleClass('simplemdm-collapsed', collapsedState);
         listBody.attr('data-collapsed', collapsedState ? '1' : '0');
         listBody.css({
-            maxHeight: collapsedState ? '260px' : 'none',
-            height: collapsedState ? '260px' : 'auto',
+            maxHeight: collapsedState ? '160px' : 'none',
+            height: collapsedState ? '160px' : 'auto',
             overflowY: collapsedState ? 'auto' : 'visible',
             overflowX: 'hidden',
             display: 'block'

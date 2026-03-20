@@ -152,6 +152,21 @@ def get_config():
         default=os.environ.get('SIMPLEMDM_RUN_SOURCE', ''),
         help='Run source label (for example: scheduled, manual_host, in_module_immediate)'
     )
+    parser.add_argument(
+        '--sync-app-id',
+        default='',
+        help='Fetch and submit one specific app resource by ID'
+    )
+    parser.add_argument(
+        '--include-app-installs',
+        action='store_true',
+        help='When --sync-app-id is set, also fetch and submit apps/{id}/installs'
+    )
+    parser.add_argument(
+        '--app-installs-only',
+        action='store_true',
+        help='When --sync-app-id is set, skip apps/{id} and fetch only apps/{id}/installs'
+    )
 
     args = parser.parse_args()
 
@@ -450,6 +465,28 @@ def fetch_all_resources(endpoint, api_key, since_cursor=''):
     return records, False
 
 
+def fetch_resource_by_id(collection, resource_id, api_key):
+    """Fetch a single resource object from a collection endpoint."""
+    if not collection or resource_id in (None, ''):
+        return None
+
+    endpoint = f'{collection}/{resource_id}'
+    try:
+        response = simplemdm_request(endpoint, api_key, silent_statuses={404})
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            logger.debug(f"Resource not found: {endpoint}")
+            return None
+        logger.warning(f"Failed to fetch {endpoint}: HTTP {e.code}")
+        return None
+    except Exception as e:
+        logger.warning(f"Failed to fetch {endpoint}: {e}")
+        return None
+
+    data = response.get('data', {})
+    return data if isinstance(data, dict) else None
+
+
 def probe_collection_endpoint(endpoint, api_key):
     """Probe whether an endpoint is available in this tenant/API version."""
     cache_key = f'probe:{endpoint}'
@@ -693,6 +730,31 @@ def transform_resource(resource, source_endpoint):
     }
 
 
+def collect_assignment_group_app_ids(groups):
+    """Extract app IDs referenced by assignment group relationships."""
+    app_ids = set()
+    if not isinstance(groups, list):
+        return app_ids
+
+    for group in groups:
+        if not isinstance(group, dict):
+            continue
+        relationships = group.get('relationships', {})
+        if not isinstance(relationships, dict):
+            continue
+        apps = relationships.get('apps', {}).get('data', [])
+        if not isinstance(apps, list):
+            continue
+        for app_ref in apps:
+            if not isinstance(app_ref, dict):
+                continue
+            app_id = app_ref.get('id')
+            if app_id not in (None, ''):
+                app_ids.add(str(app_id))
+
+    return app_ids
+
+
 def fetch_recent_commands(api_key, max_records=250, device_ids=None):
     """
     Fetch command status records.
@@ -810,6 +872,107 @@ def submit_resources_to_munkireport(records, munkireport_url, api_key, token='')
                 time.sleep(REQUEST_BACKOFF_SECONDS * attempt)
                 continue
             return False
+
+
+def run_targeted_app_sync(config, run_uuid=''):
+    """Fetch and submit a single app resource and optionally its installs."""
+    app_id = str(getattr(config, 'sync_app_id', '') or '').strip()
+    if not app_id:
+        logger.error('Targeted app sync requires --sync-app-id')
+        sys.exit(1)
+
+    start = time.time()
+    resource_records = []
+
+    if not config.app_installs_only:
+        item = fetch_resource_by_id('apps', app_id, config.api_key)
+        if item:
+            transformed = transform_resource(item, 'apps')
+            if transformed:
+                resource_records.append(transformed)
+        else:
+            logger.warning(f'App metadata not found for apps/{app_id}')
+
+    if config.include_app_installs or config.app_installs_only:
+        nested_endpoint = f'apps/{app_id}/installs'
+        if probe_nested_endpoint(nested_endpoint, config.api_key):
+            items, unavailable = fetch_all_resources(nested_endpoint, config.api_key)
+            if not unavailable:
+                for item in items:
+                    transformed = transform_resource(item, nested_endpoint)
+                    if transformed:
+                        resource_records.append(transformed)
+        else:
+            logger.info(f'Nested endpoint not available: apps/{app_id}/installs')
+
+    if not resource_records:
+        logger.warning(f'No targeted app records were fetched for app ID {app_id}')
+        if not config.dry_run:
+            update_sync_status(
+                config.munkireport_url,
+                config.api_key,
+                'Success',
+                f"{datetime.now(timezone.utc).isoformat()} - targeted app sync found no records for app {app_id}",
+                config.munkireport_token,
+                extra={
+                    'sync_request_state': 'idle',
+                    'run_uuid': run_uuid,
+                    'sync_last_duration_ms': int((time.time() - start) * 1000),
+                    'sync_last_api_requests': REQUEST_METRICS['api_requests'],
+                    'sync_last_api_errors': REQUEST_METRICS['api_errors'],
+                    'sync_last_rate_limit_hits': REQUEST_METRICS['rate_limit_hits'],
+                    'sync_last_scope': 'targeted_app',
+                }
+            )
+        return
+
+    if config.dry_run:
+        logger.info(f"DRY RUN - Targeted app sync would submit {len(resource_records)} records for app {app_id}")
+        return
+
+    resource_batch_size = 100
+    for i in range(0, len(resource_records), resource_batch_size):
+        batch = resource_records[i:i + resource_batch_size]
+        ok = submit_resources_to_munkireport(
+            batch, config.munkireport_url, config.api_key, config.munkireport_token
+        )
+        if not ok:
+            logger.error('Aborting targeted app sync due to resource submission failure')
+            update_sync_status(
+                config.munkireport_url,
+                config.api_key,
+                'Failed',
+                f"{datetime.now(timezone.utc).isoformat()} - targeted app submission failure for app {app_id}",
+                config.munkireport_token,
+                extra={
+                    'sync_request_state': 'idle',
+                    'run_uuid': run_uuid,
+                    'sync_last_duration_ms': int((time.time() - start) * 1000),
+                    'sync_last_api_requests': REQUEST_METRICS['api_requests'],
+                    'sync_last_api_errors': REQUEST_METRICS['api_errors'],
+                    'sync_last_rate_limit_hits': REQUEST_METRICS['rate_limit_hits'],
+                    'sync_last_scope': 'targeted_app',
+                }
+            )
+            sys.exit(1)
+
+    logger.info(f"Targeted app sync completed successfully for app {app_id} ({len(resource_records)} records)")
+    update_sync_status(
+        config.munkireport_url,
+        config.api_key,
+        'Success',
+        f"{datetime.now(timezone.utc).isoformat()} - targeted app sync for {app_id} submitted {len(resource_records)} resources",
+        config.munkireport_token,
+        extra={
+            'sync_request_state': 'idle',
+            'run_uuid': run_uuid,
+            'sync_last_duration_ms': int((time.time() - start) * 1000),
+            'sync_last_api_requests': REQUEST_METRICS['api_requests'],
+            'sync_last_api_errors': REQUEST_METRICS['api_errors'],
+            'sync_last_rate_limit_hits': REQUEST_METRICS['rate_limit_hits'],
+            'sync_last_scope': 'targeted_app',
+        }
+    )
 
 def submit_commands_to_munkireport(records, munkireport_url, api_key, token=''):
     """Submit command records to MunkiReport."""
@@ -945,6 +1108,11 @@ def main():
     logger.info("Starting SimpleMDM sync...")
     since_cursor = config.last_sync_cursor if config.delta and config.last_sync_cursor else ''
     scope = 'delta' if since_cursor else 'full'
+
+    if str(getattr(config, 'sync_app_id', '') or '').strip():
+        logger.info(f"Running targeted app sync for app ID {config.sync_app_id}")
+        run_targeted_app_sync(config, run_uuid)
+        return
 
     # These lookup maps help convert related IDs in device payloads into more
     # readable names before we send normalized records to MunkiReport.
@@ -1120,6 +1288,28 @@ def main():
                     transformed = transform_resource(item, nested_endpoint)
                     if transformed:
                         resource_records.append(transformed)
+
+    assignment_group_items = fetched_by_endpoint.get('assignment_groups', [])
+    referenced_app_ids = collect_assignment_group_app_ids(assignment_group_items)
+    hydrated_app_ids = {
+        str(record.get('resource_id'))
+        for record in resource_records
+        if str(record.get('resource_type')) == 'app' and record.get('resource_id') not in (None, '')
+    }
+    missing_assignment_group_app_ids = sorted(referenced_app_ids - hydrated_app_ids)
+
+    if missing_assignment_group_app_ids:
+        logger.info(
+            f"Hydrating {len(missing_assignment_group_app_ids)} app records referenced by assignment groups "
+            f"but missing from top-level app sync"
+        )
+        for app_id in missing_assignment_group_app_ids:
+            item = fetch_resource_by_id('apps', app_id, config.api_key)
+            if not item:
+                continue
+            transformed = transform_resource(item, 'apps')
+            if transformed:
+                resource_records.append(transformed)
 
     if resource_records:
         logger.info(f"Submitting {len(resource_records)} non-device resources...")

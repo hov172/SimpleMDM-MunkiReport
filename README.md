@@ -1378,6 +1378,9 @@ python3 /path/to/munkireport/local/modules/simplemdm/scripts/simplemdm_sync.py \
 - `--commands-limit N`: cap command fetch count
 - `--sync-device-subresources`: fetch `devices/{id}/profiles`, `devices/{id}/installed_apps`, and `devices/{id}/users`
 - `--device-subresource-limit N`: cap deep per-device subresource fetch (0 = all)
+- `--sync-app-id ID`: targeted sync for one app resource
+- `--include-app-installs`: with `--sync-app-id`, also fetch `apps/{id}/installs`
+- `--app-installs-only`: with `--sync-app-id`, skip `apps/{id}` and fetch only `apps/{id}/installs`
 - `--respect-schedule`: honor admin schedule controls (`enable_scheduled_sync` + `sync_interval_minutes`)
 - `--force-run`: bypass `--respect-schedule` gate and run immediately
 - `--sync-interval-minutes N`: override schedule interval for this run (`0` uses admin config value)
@@ -1403,6 +1406,10 @@ Current supported child collection sync includes:
   - `devices/{id}/profiles`
   - `devices/{id}/installed_apps`
   - `devices/{id}/users`
+
+Automatic reconciliation behavior:
+- During normal sync, the module now backfills missing `app` records referenced by `assignment_group -> relationships.apps` even if those IDs were not returned in the top-level `apps` collection.
+- This keeps assignment-group app reporting stable across future syncs without requiring per-device deep sync.
 
 Undocumented or unsupported collection probes are intentionally excluded so sync telemetry reflects real API failures instead of expected 404s.
 
@@ -1486,10 +1493,12 @@ Optional production additions:
 - `simplemdm_command_status` (command state distribution)
 - `simplemdm_compliance` (compliant vs noncompliant + reasons)
 - `simplemdm_sync_health` (latest sync telemetry + scope/delta/rate-limit stats)
+- `simplemdm_group_apps` (full-width assignment-group to assigned-app mapping with expandable per-group app lists)
 
 Widget purpose note:
 - `simplemdm_group` = full groups widget (top chart + expandable assignment group list + drilldown links)
 - `simplemdm_group_top` = compact top-groups summary widget
+- `simplemdm_group_apps` = full-width assignment-group app widget backed by synced `assignment_group` relationships and local `app` metadata
 
 ### Per-resource-type widgets (individually add/remove)
 
@@ -2398,6 +2407,19 @@ Check browser console/network and confirm module route resolves:
   - `/module/simplemdm/get_os_security_stats`
 - If either returns a generic API error, confirm the module is updated and migrations completed cleanly.
 - If JSON is valid but the browser still shows stale content, hard-refresh the page to reload widget JavaScript.
+
+### Assignment Group Apps widget fails to load or shows missing metadata
+
+- Probe these endpoints directly while logged in:
+  - `/module/simplemdm/get_assignment_group_app_stats`
+  - `/module/simplemdm/get_assignment_group_app_debug`
+  - `/module/simplemdm/get_assignment_group_app_name_debug/{APP_ID}`
+- Expected `get_assignment_group_app_stats` behavior:
+  - returns `groups`, `global_unique_app_count`, and `missing_metadata_count`
+  - uses synced `assignment_group` relationships plus local `app` resources
+- This widget does not require per-device deep sync. It does not depend on `devices/{id}/installed_apps`.
+- If assignment groups reference app IDs that are missing from local `app` records, the normal sync now backfills those IDs automatically from `apps/{id}`.
+- If the widget still shows stale frontend errors after a code update, hard-refresh the page or reset the dashboard layout.
 
 ### Resource listing shows a DataTables Ajax error
 

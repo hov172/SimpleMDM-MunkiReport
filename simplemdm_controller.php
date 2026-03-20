@@ -4893,6 +4893,214 @@ class Simplemdm_controller extends Module_controller
         jsonView(getdbh()->query($sql)->fetchAll(\PDO::FETCH_ASSOC));
     }
 
+    public function get_assignment_group_app_stats()
+    {
+        $this->connectDB();
+
+        $app_rows = Simplemdm_resource_model::select('resource_id', 'resource_type', 'name', 'attributes_json', 'data_json')
+            ->where('resource_type', 'app')
+            ->get();
+        $app_lookup = [];
+        foreach ($app_rows as $app_row) {
+            $app_id = trim((string) $app_row->resource_id);
+            if ($app_id === '') {
+                continue;
+            }
+            $app_lookup[$app_id] = [
+                'resource_type' => 'app',
+                'resource_id' => $app_id,
+                'name' => $this->derive_resource_name_from_row($app_row),
+            ];
+        }
+
+        $group_rows = Simplemdm_resource_model::select('resource_id', 'name', 'attributes_json', 'relationships_json', 'data_json')
+            ->where('resource_type', 'assignment_group')
+            ->orderBy('name', 'asc')
+            ->get();
+
+        if ($group_rows->isEmpty()) {
+            jsonView([
+                'status' => 'success',
+                'groups' => [],
+                'global_unique_app_count' => 0,
+                'has_assignment_groups' => false,
+                'source' => 'assignment_group_relationships',
+            ]);
+            return;
+        }
+
+        $result = [];
+        $global_app_ids = [];
+        $missing_metadata_count = 0;
+
+        foreach ($group_rows as $group_row) {
+            $rels = [];
+            if ($group_row->relationships_json) {
+                $rels = json_decode((string) $group_row->relationships_json, true);
+                if (! is_array($rels)) {
+                    $rels = [];
+                }
+            }
+            if (! $rels && $group_row->data_json) {
+                $data = json_decode((string) $group_row->data_json, true);
+                if (is_array($data) && isset($data['relationships']) && is_array($data['relationships'])) {
+                    $rels = $data['relationships'];
+                }
+            }
+
+            $apps_data = isset($rels['apps']['data']) && is_array($rels['apps']['data']) ? $rels['apps']['data'] : [];
+            $devices_data = isset($rels['devices']['data']) && is_array($rels['devices']['data']) ? $rels['devices']['data'] : [];
+
+            $apps = [];
+            foreach ($apps_data as $app_ref) {
+                if (! is_array($app_ref)) {
+                    continue;
+                }
+                $app_id = trim((string) ($app_ref['id'] ?? ''));
+                if ($app_id === '') {
+                    continue;
+                }
+                $app = isset($app_lookup[$app_id]) ? $app_lookup[$app_id] : [
+                    'resource_type' => trim((string) ($app_ref['type'] ?? 'app')) !== '' ? (string) $app_ref['type'] : 'app',
+                    'resource_id' => $app_id,
+                    'name' => 'Missing app metadata (ID ' . $app_id . ')',
+                    'is_resolved' => false,
+                ];
+                if (! array_key_exists('is_resolved', $app)) {
+                    $app['is_resolved'] = ! $this->is_unresolved_resource_name((string) ($app['name'] ?? ''));
+                }
+                if (! $app['is_resolved']) {
+                    $missing_metadata_count++;
+                }
+                $apps[] = $app;
+                $global_app_ids[$app_id] = true;
+            }
+
+            usort($apps, function ($a, $b) {
+                return strcmp(
+                    strtolower((string) ($a['name'] ?? '')),
+                    strtolower((string) ($b['name'] ?? ''))
+                );
+            });
+
+            $result[] = [
+                'label' => $this->derive_resource_name_from_row($group_row),
+                'resource_id' => (string) $group_row->resource_id,
+                'device_count' => count($devices_data),
+                'unique_app_count' => count($apps),
+                'app_record_count' => count($apps),
+                'apps' => $apps,
+            ];
+        }
+
+        usort($result, function ($a, $b) {
+            $count_compare = (int) ($b['unique_app_count'] ?? 0) <=> (int) ($a['unique_app_count'] ?? 0);
+            if ($count_compare !== 0) {
+                return $count_compare;
+            }
+            return strcmp(
+                strtolower((string) ($a['label'] ?? '')),
+                strtolower((string) ($b['label'] ?? ''))
+            );
+        });
+
+        jsonView([
+            'status' => 'success',
+            'groups' => $result,
+            'global_unique_app_count' => count($global_app_ids),
+            'missing_metadata_count' => $missing_metadata_count,
+            'has_assignment_groups' => true,
+            'source' => 'assignment_group_relationships',
+        ]);
+    }
+
+    public function get_assignment_group_app_debug()
+    {
+        $this->connectDB();
+
+        $device_count = (int) Simplemdm_model::whereNotNull('simplemdm_id')->count();
+        $assignment_group_rows = (int) Simplemdm_resource_model::where('resource_type', 'assignment_group')->count();
+        $app_rows = (int) Simplemdm_resource_model::where('resource_type', 'app')->count();
+        $assignment_group_types = Simplemdm_resource_model::where('resource_type', 'assignment_group')
+            ->select('resource_type')
+            ->distinct()
+            ->orderBy('resource_type')
+            ->pluck('resource_type')
+            ->toArray();
+
+        jsonView([
+            'status' => 'success',
+            'device_count_with_ids' => $device_count,
+            'assignment_group_row_count' => $assignment_group_rows,
+            'app_row_count' => $app_rows,
+            'assignment_group_resource_types' => array_values($assignment_group_types),
+            'source' => 'assignment_group_relationships',
+        ]);
+    }
+
+    public function get_assignment_group_app_name_debug($resource_id = '')
+    {
+        $this->connectDB();
+
+        $resource_id = trim((string) $resource_id);
+        if ($resource_id === '') {
+            jsonView(['status' => 'error', 'message' => 'Missing resource id'], 400);
+            return;
+        }
+
+        $serialize_row = function ($row) {
+            if (! $row) {
+                return null;
+            }
+            return [
+                'resource_type' => isset($row->resource_type) ? (string) $row->resource_type : '',
+                'resource_id' => isset($row->resource_id) ? (string) $row->resource_id : '',
+                'name' => isset($row->name) ? (string) $row->name : '',
+                'source_endpoint' => isset($row->source_endpoint) ? (string) $row->source_endpoint : '',
+                'derived_name' => $this->derive_resource_name_from_row($row),
+                'attributes_json' => isset($row->attributes_json) ? json_decode((string) $row->attributes_json, true) : null,
+                'data_json' => isset($row->data_json) ? json_decode((string) $row->data_json, true) : null,
+            ];
+        };
+
+        $app_row = Simplemdm_resource_model::select('resource_type', 'resource_id', 'name', 'source_endpoint', 'attributes_json', 'data_json')
+            ->where('resource_type', 'app')
+            ->where('resource_id', $resource_id)
+            ->first();
+
+        $installed_rows = Simplemdm_resource_model::select('resource_type', 'resource_id', 'name', 'source_endpoint', 'attributes_json', 'data_json')
+            ->where('resource_type', 'installed_app')
+            ->where('resource_id', $resource_id)
+            ->orderBy('source_endpoint', 'asc')
+            ->limit(25)
+            ->get();
+
+        $final_name = '';
+        if ($app_row) {
+            $final_name = $this->derive_resource_name_from_row($app_row);
+        }
+        if ($this->is_unresolved_resource_name($final_name)) {
+            foreach ($installed_rows as $row) {
+                $candidate = $this->derive_resource_name_from_row($row);
+                if (! $this->is_unresolved_resource_name($candidate)) {
+                    $final_name = $candidate;
+                    break;
+                }
+            }
+        }
+        if ($this->is_unresolved_resource_name($final_name)) {
+            $final_name = 'Missing app metadata (ID ' . $resource_id . ')';
+        }
+
+        jsonView([
+            'status' => 'success',
+            'resource_id' => $resource_id,
+            'final_name' => $final_name !== '' ? $final_name : ('App #' . $resource_id),
+            'app_row' => $serialize_row($app_row),
+            'installed_app_rows' => array_values(array_map($serialize_row, $installed_rows->all())),
+        ]);
+    }
+
     public function get_supplemental_overview_stats()
     {
         $this->connectDB();
@@ -5632,6 +5840,43 @@ class Simplemdm_controller extends Module_controller
             }
         }
 
+        if ($resource_type === 'app') {
+            $app_keys = [
+                'app_name', 'localized_name', 'itunes_store_name', 'bundle_id',
+                'identifier', 'package_name', 'file_name', 'filename', 'sku',
+            ];
+            foreach ($app_keys as $key) {
+                if (isset($attributes[$key]) && trim((string)$attributes[$key]) !== '') {
+                    return trim((string)$attributes[$key]);
+                }
+            }
+            if (isset($data['attributes']) && is_array($data['attributes'])) {
+                foreach ($app_keys as $key) {
+                    if (isset($data['attributes'][$key]) && trim((string)$data['attributes'][$key]) !== '') {
+                        return trim((string)$data['attributes'][$key]);
+                    }
+                }
+            }
+
+            $nested_sources = [];
+            foreach (['metadata', 'package', 'app', 'itunes_store_app'] as $nested_key) {
+                if (isset($attributes[$nested_key]) && is_array($attributes[$nested_key])) {
+                    $nested_sources[] = $attributes[$nested_key];
+                }
+                if (isset($data['attributes'][$nested_key]) && is_array($data['attributes'][$nested_key])) {
+                    $nested_sources[] = $data['attributes'][$nested_key];
+                }
+            }
+
+            foreach ($nested_sources as $nested) {
+                foreach (array_merge($preferred_keys, $app_keys) as $key) {
+                    if (isset($nested[$key]) && trim((string)$nested[$key]) !== '') {
+                        return trim((string)$nested[$key]);
+                    }
+                }
+            }
+        }
+
         if ($resource_type === 'enrollment') {
             $parts = [];
 
@@ -5672,6 +5917,16 @@ class Simplemdm_controller extends Module_controller
             isset($row->attributes_json) ? $row->attributes_json : [],
             isset($row->data_json) ? $row->data_json : []
         );
+    }
+
+    private function is_unresolved_resource_name($name)
+    {
+        $name = trim((string) $name);
+        if ($name === '') {
+            return true;
+        }
+
+        return (bool) preg_match('/^(App\s+#|Missing app metadata \(ID )/i', $name);
     }
 
     private function lookup_resource_name($resource_type, $resource_id)

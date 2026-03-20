@@ -36,6 +36,8 @@ widgets:
         view: simplemdm_os_security_widget
     simplemdm_group_top:
         view: simplemdm_group_top_widget
+    simplemdm_group_apps:
+        view: simplemdm_group_apps_widget
     simplemdm_resource_mix:
         view: simplemdm_resource_mix_widget
     simplemdm_command_status:

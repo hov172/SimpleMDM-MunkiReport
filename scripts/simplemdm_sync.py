@@ -46,6 +46,8 @@ REQUEST_METRICS = {
     'api_errors': 0,
     'rate_limit_hits': 0,
 }
+RECENT_API_ERRORS = []
+MAX_RECENT_API_ERRORS = 10
 ENDPOINT_SUPPORT_CACHE = {}
 
 SIMPLEMDM_API_BASE = 'https://a.simplemdm.com/api/v1'
@@ -318,10 +320,24 @@ def simplemdm_request(endpoint, api_key, silent_statuses=None):
             response = urllib.request.urlopen(req, context=ctx, timeout=REQUEST_TIMEOUT)
             return json.loads(response.read().decode())
         except urllib.error.HTTPError as e:
+            ignored_device_child_422 = (
+                e.code == 422
+                and endpoint.startswith('devices/')
+                and any(
+                    endpoint == f'devices/{endpoint.split("/")[1]}/{child}'
+                    or endpoint.startswith(f'devices/{endpoint.split("/")[1]}/{child}?')
+                    for child in ('profiles', 'installed_apps', 'users')
+                )
+            )
             is_silent = e.code in silent_statuses
-            if not is_silent:
+            if not is_silent and not ignored_device_child_422:
                 REQUEST_METRICS['api_errors'] += 1
-            if e.code not in silent_statuses:
+                detail = f'HTTP {e.code} {e.reason} for {url}'
+                RECENT_API_ERRORS.append(detail)
+                del RECENT_API_ERRORS[:-MAX_RECENT_API_ERRORS]
+            if ignored_device_child_422:
+                logger.warning(f"Skipping device child endpoint after HTTP 422: {url}")
+            elif e.code not in silent_statuses:
                 logger.error(f"HTTP Error {e.code}: {e.reason} for {url}")
             if e.code == 429:
                 REQUEST_METRICS['rate_limit_hits'] += 1
@@ -334,6 +350,9 @@ def simplemdm_request(endpoint, api_key, silent_statuses=None):
             raise
         except urllib.error.URLError as e:
             REQUEST_METRICS['api_errors'] += 1
+            detail = f'URL error {e.reason} for {url}'
+            RECENT_API_ERRORS.append(detail)
+            del RECENT_API_ERRORS[:-MAX_RECENT_API_ERRORS]
             logger.error(f"URL Error: {e.reason} for {url}")
             if attempt < REQUEST_RETRIES:
                 time.sleep(REQUEST_BACKOFF_SECONDS * attempt)
@@ -341,11 +360,43 @@ def simplemdm_request(endpoint, api_key, silent_statuses=None):
             raise
 
 
+def format_recent_api_errors():
+    if not RECENT_API_ERRORS:
+        return ''
+    return ' | '.join(RECENT_API_ERRORS[-MAX_RECENT_API_ERRORS:])
+
+
 def _append_since(endpoint, since_cursor):
     if not since_cursor:
         return endpoint
     joiner = '&' if '?' in endpoint else '?'
     return f'{endpoint}{joiner}updated_at_gt={urllib.parse.quote(str(since_cursor))}'
+
+
+def _is_device_child_endpoint(endpoint):
+    parts = str(endpoint or '').split('/')
+    return len(parts) == 3 and parts[0] == 'devices' and parts[2] in ('profiles', 'installed_apps', 'users')
+
+
+def _looks_like_macos_device(device):
+    model_name = str(device.get('model_name') or '').lower()
+    if any(token in model_name for token in ('macbook', 'imac', 'mac mini', 'mac studio', 'mac pro')):
+        return True
+
+    attrs = device.get('attributes_json', {})
+    if isinstance(attrs, dict):
+        product_name = str(attrs.get('product_name') or attrs.get('model') or '').lower()
+        if product_name.startswith('mac'):
+            return True
+
+    return False
+
+
+def _supports_device_users_route(device):
+    status = str(device.get('status') or '').strip().lower()
+    if status != 'enrolled':
+        return False
+    return _looks_like_macos_device(device)
 
 
 def fetch_all_devices(api_key, since_cursor=''):
@@ -398,11 +449,15 @@ def fetch_all_resources(endpoint, api_key, since_cursor=''):
     records = []
     starting_after = None
     unavailable = False
+    use_limit = True
 
     while True:
-        url = f'{endpoint}?limit=100'
+        url = endpoint
+        if use_limit:
+            url += '?limit=100'
         if starting_after:
-            url += f'&starting_after={starting_after}'
+            joiner = '&' if '?' in url else '?'
+            url += f'{joiner}starting_after={starting_after}'
         request_url = _append_since(url, since_cursor)
 
         try:
@@ -433,6 +488,11 @@ def fetch_all_resources(endpoint, api_key, since_cursor=''):
                     if not starting_after:
                         break
                     continue
+            if e.code == 422 and _is_device_child_endpoint(endpoint) and use_limit:
+                logger.warning(f"Retrying {endpoint} without limit parameter after HTTP 422")
+                use_limit = False
+                starting_after = None
+                continue
             if e.code == 404:
                 unavailable = True
                 logger.debug(f"Endpoint not found (404): {endpoint}")
@@ -1270,6 +1330,15 @@ def main():
             if device_id in (None, ''):
                 continue
             for child in device_children:
+                if child == 'users' and not _supports_device_users_route(device):
+                    logger.info(
+                        "Skipping devices/%s/users for unsupported device state "
+                        "(status=%s, model=%s)",
+                        device_id,
+                        device.get('status') or '',
+                        device.get('model_name') or '',
+                    )
+                    continue
                 nested_endpoint = f'devices/{device_id}/{child}'
                 cache_key = f'device-child:{child}'
                 if cache_key in ENDPOINT_SUPPORT_CACHE and not ENDPOINT_SUPPORT_CACHE[cache_key]:
@@ -1383,6 +1452,7 @@ def main():
             'sync_last_duration_ms': duration_ms,
             'sync_last_api_requests': REQUEST_METRICS['api_requests'],
             'sync_last_api_errors': REQUEST_METRICS['api_errors'],
+            'sync_last_api_error_details': format_recent_api_errors(),
             'sync_last_rate_limit_hits': REQUEST_METRICS['rate_limit_hits'],
             'sync_last_delta_mode': '1' if config.delta else '0',
             'sync_last_scope': scope,

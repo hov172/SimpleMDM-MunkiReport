@@ -2109,11 +2109,50 @@ class Simplemdm_controller extends Module_controller
             ->first();
     }
 
+    private function expire_stale_running_sync_runs($maxAgeSeconds = 7200)
+    {
+        if (! $this->has_sync_runs_table()) {
+            return;
+        }
+
+        $maxAgeSeconds = (int) $maxAgeSeconds;
+        if ($maxAgeSeconds < 60) {
+            $maxAgeSeconds = 60;
+        }
+
+        $cutoff = date('Y-m-d H:i:s', time() - $maxAgeSeconds);
+        $staleRuns = Simplemdm_sync_run_model::where('status', 'running')
+            ->where(function ($query) use ($cutoff) {
+                $query->whereNotNull('started_at')
+                    ->where('started_at', '<', $cutoff)
+                    ->orWhere(function ($nested) use ($cutoff) {
+                        $nested->whereNull('started_at')
+                            ->whereNotNull('requested_at')
+                            ->where('requested_at', '<', $cutoff);
+                    });
+            })
+            ->get();
+
+        foreach ($staleRuns as $run) {
+            $startedAt = $this->format_sync_datetime($run->started_at);
+            $requestedAt = $this->format_sync_datetime($run->requested_at);
+            $reference = $startedAt !== '' ? $startedAt : $requestedAt;
+            $run->status = 'failed';
+            $run->finished_at = date('Y-m-d H:i:s');
+            $run->error_summary = trim(
+                'Stale running sync auto-cleared after timeout'
+                . ($reference !== '' ? ' (started/requested at ' . $reference . ')' : '')
+            );
+            $run->save();
+        }
+    }
+
     private function get_running_sync_run()
     {
         if (! $this->has_sync_runs_table()) {
             return null;
         }
+        $this->expire_stale_running_sync_runs();
         return Simplemdm_sync_run_model::where('status', 'running')
             ->orderBy('started_at', 'desc')
             ->orderBy('id', 'desc')
@@ -3683,6 +3722,7 @@ class Simplemdm_controller extends Module_controller
             'sync_last_duration_ms',
             'sync_last_api_requests',
             'sync_last_api_errors',
+            'sync_last_api_error_details',
             'sync_last_rate_limit_hits',
             'sync_last_delta_mode',
             'sync_last_scope',
@@ -4742,6 +4782,9 @@ class Simplemdm_controller extends Module_controller
                 if (isset($post['sync_last_api_errors'])) {
                     $run->api_errors = (int) $post['sync_last_api_errors'];
                 }
+                if (isset($post['sync_last_api_error_details'])) {
+                    $run->error_summary = trim((string) $post['sync_last_api_error_details']);
+                }
                 if (isset($post['sync_last_rate_limit_hits'])) {
                     $run->rate_limit_hits = (int) $post['sync_last_rate_limit_hits'];
                 }
@@ -4773,6 +4816,7 @@ class Simplemdm_controller extends Module_controller
             'sync_last_duration_ms',
             'sync_last_api_requests',
             'sync_last_api_errors',
+            'sync_last_api_error_details',
             'sync_last_rate_limit_hits',
             'sync_last_delta_mode',
             'sync_last_scope',
@@ -6408,6 +6452,7 @@ class Simplemdm_controller extends Module_controller
             'sync_last_duration_ms',
             'sync_last_api_requests',
             'sync_last_api_errors',
+            'sync_last_api_error_details',
             'sync_last_rate_limit_hits',
             'sync_last_delta_mode',
             'sync_last_scope',

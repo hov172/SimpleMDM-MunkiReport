@@ -118,6 +118,7 @@
 $(document).on('appReady', function() {
     var widgetId = '#simplemdm-group-apps-widget';
     var widgetKey = 'simplemdm_group_apps';
+    var $widget = $(widgetId);
     var groupsCollapsed = true;
     var defaultVisibleGroups = 3;
     var fullWidthClass = 'col-lg-12';
@@ -146,8 +147,15 @@ $(document).on('appReady', function() {
         return $(widgetId).closest('.simplemdm-dashboard-item');
     }
 
+    function getWidgetRoot() {
+        return $(widgetId).closest('[id^="simplemdm-widget-"], [id^="widget-"], [id^="widget_"]');
+    }
+
     function isFullWidth() {
         var $item = getDashboardItem();
+        if (! $item.length) {
+            $item = getWidgetRoot();
+        }
         var renderedSpan = parseInt($item.attr('data-simplemdm-span'), 10);
         if (renderedSpan && typeof window.simplemdmGetGridColumnCount === 'function') {
             return renderedSpan >= window.simplemdmGetGridColumnCount();
@@ -166,12 +174,32 @@ $(document).on('appReady', function() {
         $('#simplemdm-group-apps-width-toggle').text(isFullWidth() ? 'Regular Width' : 'Full Width');
     }
 
+    function triggerImmediateGridReflow() {
+        if (typeof window.simplemdmReflowDashboardGrid === 'function') {
+            window.simplemdmReflowDashboardGrid();
+            if (window.requestAnimationFrame) {
+                window.requestAnimationFrame(function() {
+                    window.simplemdmReflowDashboardGrid();
+                    window.requestAnimationFrame(function() {
+                        window.simplemdmReflowDashboardGrid();
+                    });
+                });
+            }
+        }
+        if (window.dispatchEvent && typeof Event === 'function') {
+            window.dispatchEvent(new Event('resize'));
+        }
+    }
+
     function applyWidgetWidth(fullWidth) {
         var $col = getWidgetColumn();
         if (! $col.length) {
             return;
         }
         var $item = getDashboardItem();
+        if (! $item.length) {
+            $item = getWidgetRoot();
+        }
         if ($item.length && typeof window.simplemdmGetGridColumnCount === 'function') {
             var nextSpan = fullWidth ? window.simplemdmGetGridColumnCount() : 1;
             $item.attr('data-simplemdm-force-span', String(nextSpan));
@@ -182,13 +210,7 @@ $(document).on('appReady', function() {
             window.simplemdmSetWidgetSpan(widgetKey, fullWidth ? window.simplemdmGetGridColumnCount() : 1);
         }
         updateWidthToggleLabel();
-        if (typeof window.simplemdmReflowDashboardGrid === 'function') {
-            window.simplemdmReflowDashboardGrid();
-            setTimeout(window.simplemdmReflowDashboardGrid, 120);
-            setTimeout(window.simplemdmReflowDashboardGrid, 420);
-        } else {
-            window.dispatchEvent(new Event('resize'));
-        }
+        triggerImmediateGridReflow();
     }
 
     function applyGroupsState() {
@@ -316,40 +338,15 @@ $(document).on('appReady', function() {
         });
     }
 
-    $('#simplemdm-group-apps-toggle-all').on('click', function(ev) {
-        if (ev && ev.preventDefault) {
-            ev.preventDefault();
-        }
-        groupsCollapsed = !groupsCollapsed;
-        applyGroupsState();
-        if (typeof window.simplemdmReflowDashboardGrid === 'function') {
-            window.simplemdmReflowDashboardGrid();
-            setTimeout(window.simplemdmReflowDashboardGrid, 120);
-            setTimeout(window.simplemdmReflowDashboardGrid, 420);
-        }
-    });
+    if (! $widget.data('simplemdmGroupAppsBound')) {
+        $widget.data('simplemdmGroupAppsBound', 1);
 
-    $('#simplemdm-group-apps-width-toggle').on('click', function(ev) {
-        if (ev && ev.preventDefault) {
-            ev.preventDefault();
-        }
-        applyWidgetWidth(!isFullWidth());
-    });
-
-    $(document).off('click.simplemdmGroupAppsToggle', widgetId + ' [data-section-toggle]')
-        .on('click.simplemdmGroupAppsToggle', widgetId + ' [data-section-toggle]', function(ev) {
+        $('#simplemdm-group-apps-toggle-all').off('click.simplemdmGroupApps').on('click.simplemdmGroupApps', function(ev) {
             if (ev && ev.preventDefault) {
                 ev.preventDefault();
             }
-            var sectionId = String($(this).attr('data-section-toggle') || '');
-            if (!sectionId) {
-                return;
-            }
-            var $body = $('#simplemdm-section-' + sectionId);
-            var $btn = $(this).find('.simplemdm-section-toggle');
-            var expand = !$body.is(':visible');
-            $body.stop(true, true).slideToggle(160);
-            $btn.text(expand ? '- Collapse' : '+ Expand');
+            groupsCollapsed = !groupsCollapsed;
+            applyGroupsState();
             if (typeof window.simplemdmReflowDashboardGrid === 'function') {
                 window.simplemdmReflowDashboardGrid();
                 setTimeout(window.simplemdmReflowDashboardGrid, 120);
@@ -357,9 +354,39 @@ $(document).on('appReady', function() {
             }
         });
 
+        $('#simplemdm-group-apps-width-toggle').off('click.simplemdmGroupApps').on('click.simplemdmGroupApps', function(ev) {
+            if (ev && ev.preventDefault) {
+                ev.preventDefault();
+            }
+            applyWidgetWidth(!isFullWidth());
+        });
+
+        $(document).off('click.simplemdmGroupAppsToggle', widgetId + ' [data-section-toggle]')
+            .on('click.simplemdmGroupAppsToggle', widgetId + ' [data-section-toggle]', function(ev) {
+                if (ev && ev.preventDefault) {
+                    ev.preventDefault();
+                }
+                var sectionId = String($(this).attr('data-section-toggle') || '');
+                if (!sectionId) {
+                    return;
+                }
+                var $body = $('#simplemdm-section-' + sectionId);
+                var $btn = $(this).find('.simplemdm-section-toggle');
+                var expand = !$body.is(':visible');
+                $body.stop(true, true).slideToggle(160);
+                $btn.text(expand ? '- Collapse' : '+ Expand');
+                if (typeof window.simplemdmReflowDashboardGrid === 'function') {
+                    window.simplemdmReflowDashboardGrid();
+                    setTimeout(window.simplemdmReflowDashboardGrid, 120);
+                    setTimeout(window.simplemdmReflowDashboardGrid, 420);
+                }
+            });
+
+        window.addEventListener('simplemdm:modechange', renderWidget);
+        window.addEventListener('resize', updateWidthToggleLabel);
+    }
+
     updateWidthToggleLabel();
     renderWidget();
-    window.addEventListener('simplemdm:modechange', renderWidget);
-    window.addEventListener('resize', updateWidthToggleLabel);
 });
 </script>

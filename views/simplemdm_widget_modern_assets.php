@@ -2095,7 +2095,12 @@ body.simplemdm-theme-dark #simplemdm-dashboard-grid > .simplemdm-dashboard-item 
     };
 
     window.simplemdmGetGridColumnCount = function() {
-        return Math.max(1, simplemdmGridMetrics.cols || getDashboardColumnCount());
+        var measuredCols = parseInt(simplemdmGridMetrics.cols, 10);
+        var measuredWidth = parseInt(simplemdmGridMetrics.colWidth, 10);
+        if (measuredCols && measuredCols > 1 && measuredWidth && measuredWidth > 0) {
+            return Math.max(1, measuredCols);
+        }
+        return Math.max(1, getDashboardColumnCount());
     };
 
     window.simplemdmGetWidgetSpan = function(key) {

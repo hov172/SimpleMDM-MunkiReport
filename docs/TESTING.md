@@ -50,6 +50,8 @@ Use these rules during testing:
 9. recurring schedule execution still requires cron to launch `simplemdm_sync.py`.
 10. `simplemdm_sync.py` is the worker; `install_cron.sh` is only a helper for installing its schedule.
 11. `sync_last_api_errors` should reflect real API failures only; expected unsupported endpoint probes should not inflate it.
+12. `devices/{id}/users` should be skipped for unsupported device/platform combinations without removing those devices from local inventory.
+13. stale `simplemdm_sync_run` rows older than 2 hours should auto-clear to `failed` on later worker/status checks.
 
 ## 3) Hosted / VM Smoke Test
 

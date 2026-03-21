@@ -425,6 +425,7 @@ Notes:
 - Collection fetches are paginated with `limit=100` and `starting_after=<id>`.
 - Delta mode appends the saved cursor when supported by the upstream endpoint.
 - If an endpoint returns `404`, the worker treats it as unsupported for that tenant/API version and skips it.
+- Device-child `422` responses that are expected for unsupported deep routes are treated as warnings instead of real API failures.
 - Command sync uses tenant-wide `GET /commands` only. If it is unavailable, command sync is skipped.
 
 ### 7.2 Nested Resource Endpoints
@@ -439,6 +440,11 @@ These are used only when `sync_device_subresources_enabled=1` or `--sync-device-
 - `GET /devices/{id}/profiles`
 - `GET /devices/{id}/installed_apps`
 - `GET /devices/{id}/users`
+
+Current worker rules:
+- `GET /devices/{id}/users` is attempted only for devices that look like macOS and are currently `enrolled`.
+- Unenrolled Macs and non-macOS devices are still synced as devices, but their `/users` child route is skipped.
+- This keeps device inventory complete while avoiding known upstream `422` responses for unsupported device state/platform combinations.
 
 ### 7.4 Upstream Passthrough Endpoints Exposed Via `api_devices`
 

@@ -1407,6 +1407,8 @@ Current supported child collection sync includes:
   - `devices/{id}/profiles`
   - `devices/{id}/installed_apps`
   - `devices/{id}/users`
+    - `devices/{id}/users` is fetched only for supported macOS devices that are currently `enrolled`
+    - the worker skips `users` for unsupported platforms and unenrolled devices so expected upstream `422` responses do not inflate API error telemetry
 
 Automatic reconciliation behavior:
 - During normal sync, the module now backfills missing `app` records referenced by `assignment_group -> relationships.apps` even if those IDs were not returned in the top-level `apps` collection.
@@ -1435,10 +1437,15 @@ Sync mode decisions:
 Telemetry written back on sync status updates:
 - API request count
 - API error count
+- recent API error detail summary when real API errors occurred
 - Rate-limit hit count
 - Last sync scope (`full` or `delta`)
 - Delta cursor used/new cursor
 - Whether command sync ran
+
+Run history safety:
+- `simplemdm_sync_run` rows stuck in `running` for more than 2 hours are auto-marked `failed`
+- this prevents old interrupted runs from blocking or confusing later sync status
 
 Example (faster test run):
 

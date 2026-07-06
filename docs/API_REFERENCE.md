@@ -64,6 +64,7 @@ All are called via:
 | `ingest_client_facts` | POST | Upsert allowlisted client-reported facts into `simplemdm_client_fact` | Client reporter secret |
 | `update_sync_status` | POST | Update sync status and telemetry fields in `simplemdm_config` | Sync token |
 | `webhook` | POST | Store webhook event; best-effort device/command updates | Webhook secret OR sync token |
+| `ingest_mcp_findings` | POST | Replace/insert MCP-computed findings into `simplemdm_mcp_finding` (source-scoped replace, 2 MB / 2000-finding caps) | Sync token |
 
 ## 3) Config Endpoints
 
@@ -728,3 +729,11 @@ Common error payloads:
   - malformed payload on ingest/webhook operations
 - generic `{"error":"Something failed, turn on DEBUG for more information."}`:
   - indicates a server-side controller/database error; check PHP/app logs and confirm the module is upgraded and migrated cleanly
+
+
+### Added 2026-07-07
+
+| Route | Method | Purpose | Auth |
+|---|---|---|---|
+| `get_events[/serial]` | GET | SimpleMDM alert/regression events (`?limit&type`) | Session |
+| `get_mcp_findings[/serial]` | GET | MCP-pushed findings with severity totals | Session |

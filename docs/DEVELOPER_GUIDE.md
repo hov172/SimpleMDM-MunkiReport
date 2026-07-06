@@ -539,6 +539,7 @@ Primary file: `simplemdm_processor.php`
 | `simplemdm_supplemental_summary` | `simplemdm_supplemental_summary_model.php` | Summary/index layer for Option A filters, widgets, and freshness |
 | `simplemdm_client_fact` | `simplemdm_client_fact_model.php` | Current-value table for Option B client-reported facts |
 | `simplemdm_client_fact_history` | `simplemdm_client_fact_history_model.php` | Optional history trail for Option B facts |
+| `simplemdm_mcp_finding` | `simplemdm_mcp_finding_model.php` | Findings pushed by the SimpleMDM-MCP server (`ingest_mcp_findings`), rendered by the MCP Findings widget |
 
 Migration files are in `migrations/` and should normally be appended.
 Treat already-deployed migrations as immutable; only correct a migration in-place before rollout if the shipped revision is not yet safe to deploy.

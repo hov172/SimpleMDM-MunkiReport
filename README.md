@@ -7,6 +7,15 @@ Module-only SimpleMDM integration for MunkiReport.
 
 This module syncs devices and API resources from SimpleMDM server-side, stores them locally, and exposes listings, widgets, and per-device connected resource views.
 
+> [!TIP]
+> **Query this module with natural language:** the companion [SimpleMDM-MCP](https://github.com/hov172/SimpleMDM-MCP)
+> server exposes your SimpleMDM fleet to Claude (or any MCP client) as 189 tools — and its five
+> `get_munkireport_*` tools consume **this module's** `/module/simplemdm/…` routes to pull the
+> MunkiReport-side data the SimpleMDM API doesn't expose. Install both and you can ask things like
+> *"which Macs are out of compliance according to MunkiReport?"* in plain English. Point the MCP
+> server's `MUNKIREPORT_BASE_URL` at this instance; its default `MUNKIREPORT_MODULE_PREFIX`
+> (`/module/simplemdm`) already matches this module's routes.
+
 ## Preview
 
 The SimpleMDM module provides a high-fidelity dashboard and granular inventory views.
@@ -42,6 +51,7 @@ Comprehensive grids for device listing and API resource distribution.
 - Optional delta-sync, command-status sync, and sync telemetry reporting are built into the sync script + module.
 - Supplemental cross-module enrichment is available for supported local data sources, with per-device detail, client-tab summaries, listing filters, and summary-backed widgets.
 - Option B client-reporter ingestion is available for a narrow allowlisted fact set, stored separately from authoritative SimpleMDM fields.
+- Natural-language querying via the companion [SimpleMDM-MCP](https://github.com/hov172/SimpleMDM-MCP) server, whose `get_munkireport_*` MCP tools read this module's routes.
 
 Developer docs:
 - See `docs/DEVELOPER_GUIDE.md` for architecture, code map, flow charts, and extension workflows.

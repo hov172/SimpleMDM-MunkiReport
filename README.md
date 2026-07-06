@@ -62,6 +62,26 @@ Developer docs:
 - API routes/auth reference: `docs/API_REFERENCE.md`
 - Testing and QA: `docs/TESTING.md`
 
+## Connect SimpleMDM-MCP (natural-language queries)
+
+With this module installed, the companion [SimpleMDM-MCP](https://github.com/hov172/SimpleMDM-MCP)
+server can query it from Claude (or any MCP client):
+
+1. Install and sync this module (Quick Start above).
+2. In the MCP server's environment, set `MUNKIREPORT_BASE_URL=https://your-munkireport.example.com`
+   — its default `MUNKIREPORT_MODULE_PREFIX` (`/module/simplemdm`) already matches this module's routes.
+3. Authenticate: this module's read routes require an authenticated MunkiReport session
+   (only the token-protected sync/ingest routes are exempt). Give the MCP server either
+   `MUNKIREPORT_COOKIE` (a session cookie) or `MUNKIREPORT_AUTH_HEADER_NAME`/`_VALUE` for
+   SSO/header-auth deployments.
+4. Test from the MCP side with `get_munkireport_sync_health`. An expired session shows up
+   there as a JSON parse error (MunkiReport returns `Authenticate first.` as HTTP 200 text).
+
+The MCP tools map to these routes: `get_sync_telemetry`, `get_compliance_stats`,
+`get_device_resources/{serial}` (this module's own SimpleMDM-synced data), and
+`get_supplemental_overview_stats` + `get_supplemental_applecare_stats` — the two that carry
+**Option A cross-module data** aggregated from other installed MunkiReport modules.
+
 ## Supplemental Data
 
 This module now has three distinct data paths:

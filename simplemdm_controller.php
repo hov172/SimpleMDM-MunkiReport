@@ -8,7 +8,7 @@
  **/
 class Simplemdm_controller extends Module_controller
 {
-    private $sync_actions = ['ingest', 'ingest_resources', 'ingest_commands', 'ingest_client_facts', 'webhook', 'update_sync_status', 'begin_sync_run', 'get_config'];
+    private $sync_actions = ['ingest', 'ingest_resources', 'ingest_commands', 'ingest_client_facts', 'ingest_mcp_findings', 'webhook', 'update_sync_status', 'begin_sync_run', 'get_config'];
     private $downloadable_scripts = ['simplemdm_sync.py', 'install_cron.sh', 'remove_cron.sh'];
 
     function __construct()
@@ -28,6 +28,7 @@ class Simplemdm_controller extends Module_controller
         require_once $this->module_path . '/simplemdm_client_fact_history_model.php';
         require_once $this->module_path . '/simplemdm_client_reporter_nonce_model.php';
         require_once $this->module_path . '/simplemdm_client_reporter_token_model.php';
+        require_once $this->module_path . '/simplemdm_mcp_finding_model.php';
 
         // Check if authorized (except token-protected sync endpoints)
         $is_sync_action = false;
@@ -6355,6 +6356,160 @@ class Simplemdm_controller extends Module_controller
      *
      * @return void
      **/
+    /**
+     * Ingest findings computed by an external MCP server (SOFA CVE posture,
+     * audit deltas, stale/compliance findings — data neither SimpleMDM nor
+     * MunkiReport produces alone). Sync-token authenticated like the other
+     * ingest endpoints. POST JSON:
+     *   { "source": "sofa_audit", "replace": true,
+     *     "findings": [ { "serial_number"?, "finding_type", "severity",
+     *                     "message", "data"? } ] }
+     * replace=true (default) swaps out all previous findings from the same
+     * source, so repeated pushes reflect current state instead of piling up.
+     *
+     * @return void
+     **/
+    public function ingest_mcp_findings()
+    {
+        $this->connectDB();
+        if (! $this->is_valid_sync_token()) {
+            jsonView(['status' => 'error', 'message' => 'Unauthorized'], 401);
+            return;
+        }
+
+        $payload = file_get_contents('php://input');
+        if (strlen($payload) > 2097152) {
+            jsonView(['status' => 'error', 'message' => 'Payload too large (2 MB cap)'], 413);
+            return;
+        }
+        $data = json_decode($payload, true);
+        if (! is_array($data)) {
+            jsonView(['status' => 'error', 'message' => 'Invalid JSON data'], 400);
+            return;
+        }
+
+        $source = isset($data['source']) ? strtolower(trim((string) $data['source'])) : '';
+        if ($source === '' || ! preg_match('/^[a-z0-9_\-]{1,64}$/', $source)) {
+            jsonView(['status' => 'error', 'message' => 'source is required (a-z, 0-9, _, -)'], 400);
+            return;
+        }
+
+        $findings = isset($data['findings']) && is_array($data['findings']) ? $data['findings'] : null;
+        if ($findings === null) {
+            jsonView(['status' => 'error', 'message' => 'findings array is required'], 400);
+            return;
+        }
+        if (count($findings) > 2000) {
+            jsonView(['status' => 'error', 'message' => 'Too many findings (2000 cap per push)'], 413);
+            return;
+        }
+
+        $valid_severities = ['danger', 'warning', 'info'];
+        $now = gmdate('c');
+        $rows = [];
+        $skipped = 0;
+        foreach ($findings as $finding) {
+            if (! is_array($finding)) {
+                $skipped++;
+                continue;
+            }
+            $type = isset($finding['finding_type']) ? trim((string) $finding['finding_type']) : '';
+            $message = isset($finding['message']) ? trim((string) $finding['message']) : '';
+            if ($type === '' || $message === '') {
+                $skipped++;
+                continue;
+            }
+            $severity = isset($finding['severity']) ? strtolower(trim((string) $finding['severity'])) : 'info';
+            if (! in_array($severity, $valid_severities, true)) {
+                $severity = 'info';
+            }
+            $extra = '';
+            if (isset($finding['data']) && $finding['data'] !== null && $finding['data'] !== '') {
+                $extra = is_string($finding['data']) ? $finding['data'] : json_encode($finding['data']);
+                if ($extra === false) {
+                    $extra = '';
+                }
+                if (strlen($extra) > 4096) {
+                    $extra = substr($extra, 0, 4096);
+                }
+            }
+            $rows[] = [
+                'serial_number' => isset($finding['serial_number']) ? substr(trim((string) $finding['serial_number']), 0, 64) : null,
+                'source'        => $source,
+                'finding_type'  => substr($type, 0, 128),
+                'severity'      => $severity,
+                'message'       => substr($message, 0, 1000),
+                'data'          => $extra,
+                'reported_at'   => $now,
+            ];
+        }
+
+        $replace = ! isset($data['replace']) || $data['replace'] !== false;
+        if ($replace) {
+            Simplemdm_mcp_finding_model::where('source', $source)->delete();
+        }
+        foreach (array_chunk($rows, 200) as $chunk) {
+            Simplemdm_mcp_finding_model::insert($chunk);
+        }
+
+        jsonView([
+            'status'   => 'success',
+            'source'   => $source,
+            'stored'   => count($rows),
+            'skipped'  => $skipped,
+            'replaced' => $replace,
+        ]);
+    }
+
+    /**
+     * Read back MCP-pushed findings (widget + MCP consumer).
+     * GET /module/simplemdm/get_mcp_findings[/serial]?severity=&source=&limit=
+     *
+     * @return void
+     **/
+    public function get_mcp_findings($serial_number = '')
+    {
+        $limit = isset($_GET['limit']) ? (int) $_GET['limit'] : 100;
+        if ($limit < 1) {
+            $limit = 100;
+        }
+        if ($limit > 500) {
+            $limit = 500;
+        }
+
+        $query = Simplemdm_mcp_finding_model::orderBy('id', 'desc')->limit($limit);
+
+        $serial_number = trim((string) $serial_number);
+        if ($serial_number !== '') {
+            $query->where('serial_number', $serial_number);
+        }
+        $severity = isset($_GET['severity']) ? strtolower(trim((string) $_GET['severity'])) : '';
+        if ($severity !== '') {
+            $query->where('severity', $severity);
+        }
+        $source = isset($_GET['source']) ? strtolower(trim((string) $_GET['source'])) : '';
+        if ($source !== '') {
+            $query->where('source', $source);
+        }
+
+        $rows = [];
+        foreach ($query->get() as $row) {
+            $rows[] = $row->toArray();
+        }
+
+        $totals = [
+            'danger'  => (int) Simplemdm_mcp_finding_model::where('severity', 'danger')->count(),
+            'warning' => (int) Simplemdm_mcp_finding_model::where('severity', 'warning')->count(),
+            'info'    => (int) Simplemdm_mcp_finding_model::where('severity', 'info')->count(),
+        ];
+
+        jsonView([
+            'count'    => count($rows),
+            'totals'   => $totals,
+            'findings' => $rows,
+        ]);
+    }
+
     public function get_events($serial_number = '')
     {
         $limit = isset($_GET['limit']) ? (int) $_GET['limit'] : 100;

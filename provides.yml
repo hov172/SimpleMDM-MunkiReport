@@ -18,6 +18,8 @@ reports:
         view: simplemdm_report
         i18n: simplemdm.report_title
 widgets:
+    simplemdm_mcp_findings:
+        view: simplemdm_mcp_findings_widget
     simplemdm_enrollment:
         view: simplemdm_enrollment_widget
     simplemdm_dep:

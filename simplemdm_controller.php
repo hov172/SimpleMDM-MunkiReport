@@ -4683,11 +4683,7 @@ class Simplemdm_controller extends Module_controller
             $this->upsert_webhook_command($event_data);
         }
 
-        $response = ['status' => 'success'];
-        if ($token_count !== null) {
-            $response['client_reporter_device_token_count'] = $token_count;
-        }
-        jsonView($response);
+        jsonView(['status' => 'success']);
     }
 
     /**
@@ -6350,6 +6346,50 @@ class Simplemdm_controller extends Module_controller
      *
      * @return void
      **/
+    /**
+     * Current SimpleMDM alert/regression events (the 13 built-in event types
+     * plus custom rules) from the shared MunkiReport events table. These are
+     * written by store_simplemdm_event() but previously had no read route —
+     * consumed by the SimpleMDM-MCP get_munkireport_alerts tool.
+     * GET /module/simplemdm/get_events[/serial]?limit=100&type=danger|warning|info
+     *
+     * @return void
+     **/
+    public function get_events($serial_number = '')
+    {
+        $limit = isset($_GET['limit']) ? (int) $_GET['limit'] : 100;
+        if ($limit < 1) {
+            $limit = 100;
+        }
+        if ($limit > 500) {
+            $limit = 500;
+        }
+
+        $query = Event_model::where('module', 'like', 'simplemdm%')
+            ->orderBy('id', 'desc')
+            ->limit($limit);
+
+        $serial_number = trim((string) $serial_number);
+        if ($serial_number !== '') {
+            $query->where('serial_number', $serial_number);
+        }
+
+        $type = isset($_GET['type']) ? trim((string) $_GET['type']) : '';
+        if ($type !== '') {
+            $query->where('type', $type);
+        }
+
+        $rows = [];
+        foreach ($query->get() as $row) {
+            $rows[] = $row->toArray();
+        }
+
+        jsonView([
+            'count' => count($rows),
+            'events' => $rows,
+        ]);
+    }
+
     public function get_command_status_stats()
     {
         $rows = Simplemdm_command_model::selectRaw("COALESCE(NULLIF(TRIM(status), ''), 'unknown') AS label, COUNT(*) AS count")

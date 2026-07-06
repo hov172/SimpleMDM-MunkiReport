@@ -77,10 +77,21 @@ server can query it from Claude (or any MCP client):
 4. Test from the MCP side with `get_munkireport_sync_health`. An expired session shows up
    there as a JSON parse error (MunkiReport returns `Authenticate first.` as HTTP 200 text).
 
-The MCP tools map to these routes: `get_sync_telemetry`, `get_compliance_stats`,
-`get_device_resources/{serial}` (this module's own SimpleMDM-synced data), and
-`get_supplemental_overview_stats` + `get_supplemental_applecare_stats` — the two that carry
-**Option A cross-module data** aggregated from other installed MunkiReport modules.
+The MCP tools map to these routes (14 tools as of SimpleMDM-MCP v0.32.0):
+
+- **Alerts**: `get_events[/serial]?limit&type` — the 13 built-in alert/regression events plus
+  custom rules (route added 2026-07-07 for the MCP's `get_munkireport_alerts` tool).
+- **Module's own SimpleMDM-synced data**: `get_sync_telemetry`, `get_compliance_stats`,
+  `get_device_resources/{serial}`, `get_command_status_stats`, `get_dashboard_trend?days=N`,
+  `get_runner_status`.
+- **Option A cross-module data** (aggregated from other installed MunkiReport modules):
+  `get_supplemental_overview_stats`, `get_supplemental_applecare_stats`,
+  `get_supplemental_data/{serial}`, `get_supplemental_status`.
+- **Option B client facts**: `get_client_facts/{serial}`.
+- **Actions** (write-gated on the MCP side): `request_sync`, `refresh_supplemental_summary[/serial]`.
+
+Note: `get_supplemental_status`, `get_client_facts`, `get_runner_status`, and both actions
+require an **admin (global)** MunkiReport session; the rest need a plain logged-in session.
 
 ## Supplemental Data
 

@@ -77,7 +77,7 @@ server can query it from Claude (or any MCP client):
 4. Test from the MCP side with `get_munkireport_sync_health`. An expired session shows up
    there as a JSON parse error (MunkiReport returns `Authenticate first.` as HTTP 200 text).
 
-The MCP tools map to these routes (14 tools as of SimpleMDM-MCP v0.32.0):
+The MCP tools map to these routes (16 tools as of SimpleMDM-MCP v0.33.0):
 
 - **Alerts**: `get_events[/serial]?limit&type` — the 13 built-in alert/regression events plus
   custom rules (route added 2026-07-07 for the MCP's `get_munkireport_alerts` tool).

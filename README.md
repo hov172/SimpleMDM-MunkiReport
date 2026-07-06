@@ -88,6 +88,9 @@ The MCP tools map to these routes (14 tools as of SimpleMDM-MCP v0.32.0):
   `get_supplemental_overview_stats`, `get_supplemental_applecare_stats`,
   `get_supplemental_data/{serial}`, `get_supplemental_status`.
 - **Option B client facts**: `get_client_facts/{serial}`.
+- **MCP findings channel**: `ingest_mcp_findings` (sync-token POST — the MCP pushes its
+  computed findings: CVE exposure, audit deltas, stale/compliance detections) and
+  `get_mcp_findings[/serial]?severity&source&limit` (read-back + the MCP Findings widget).
 - **Actions** (write-gated on the MCP side): `request_sync`, `refresh_supplemental_summary[/serial]`.
 
 Note: `get_supplemental_status`, `get_client_facts`, `get_runner_status`, and both actions

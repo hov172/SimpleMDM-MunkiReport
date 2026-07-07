@@ -5,7 +5,7 @@ This reference documents module routes, expected auth, and common usage patterns
 For step-by-step client deployment examples, see:
 - `docs/CLIENT_REPORTER_DEPLOYMENT.md`
 - README section "Connect ReportSimpleMDM" for wiring the ReportSimpleMDM macOS/iOS app to
-  this module's token-readable dashboard routes
+  this module's token-readable routes
 
 Base path examples use MunkiReport's default front-controller format:
 - `/index.php?/module/simplemdm/...`
@@ -38,14 +38,17 @@ Workflow note:
 | Config write (`save_config`) | Global admin session OR sync token header |
 | Admin sync queue (`request_sync`) | Global admin session |
 | Client reporter ingest (`op=ingest_client_facts`) | Client reporter secret header |
-| Ingest routes (`op=ingest*`, `op=update_sync_status`, `op=begin_sync_run`) | Sync token header |
+| Ingest routes (`op=ingest*`, `op=update_sync_status`, `op=begin_sync_run`; direct `/route` form also accepted since 2026-07-08) | Sync token header |
 | Webhook (`op=webhook`) | Webhook secret header OR sync token header |
 | Device passthrough (`api_devices`) | Global admin session; mutating methods also require action secret |
 
-Token-readable dashboard routes (added 2026-07-07 for headless API clients such as
-ReportSimpleMDM): these ten read-only routes accept the sync token header
-(`X-SIMPLEMDM-API-KEY`) as an alternative to a session. The token grants exactly these
-routes — all write/admin routes still require a session even with a valid token.
+Token-readable routes (expanded 2026-07-08 for headless API clients such as
+ReportSimpleMDM and SimpleMDM-MCP): these sixteen read-only routes accept the sync token
+header (`X-SIMPLEMDM-API-KEY`) as an alternative to a session. The token grants exactly
+these read routes. Sync/ingest routes above also accept the sync token, but still
+re-validate route-specific auth before doing work. Admin/action routes (`request_sync`,
+`refresh_supplemental_summary`, `save_config` writes from non-admin contexts,
+`api_devices`) still require their normal auth gates.
 
 - `get_sync_telemetry`
 - `get_compliance_stats`
@@ -57,6 +60,13 @@ routes — all write/admin routes still require a session even with a valid toke
 - `get_supplemental_overview_stats`
 - `get_supplemental_applecare_stats`
 - `get_device_resources/{serial}`
+- `get_events[/serial]` (added to the token list 2026-07-08)
+- `get_dashboard_trend` (added 2026-07-08)
+- `get_supplemental_data/{serial}` (added 2026-07-08)
+- `get_client_facts/{serial}` (added 2026-07-08 — exposes per-device endpoint facts to any
+  key holder; see SECURITY.md)
+- `get_runner_status` (added 2026-07-08)
+- `get_mcp_findings[/serial]` (added 2026-07-08)
 
 Headers used by module:
 - Sync token: `X-SIMPLEMDM-API-KEY`
@@ -92,7 +102,7 @@ All are called via:
 | `/module/simplemdm/get_config` | GET | Read module settings | Global admin session OR sync token header |
 | `/module/simplemdm/index?op=get_config` | GET | Worker-friendly config bootstrap route | Global admin session OR sync token header |
 | `/module/simplemdm/get_script_catalog` | GET | Read downloadable script metadata and external command templates | Global admin |
-| `/module/simplemdm/get_runner_status` | GET | Read module runtime, cron, and runner readiness state | Global admin |
+| `/module/simplemdm/get_runner_status` | GET | Read module runtime, cron, and runner readiness state | Global admin session OR sync token header |
 | `/module/simplemdm/get_supplemental_status` | GET | Read supplemental detection, freshness, and summary health | Global admin session OR sync token header |
 | `/module/simplemdm/save_config` | POST | Save module settings | Global admin OR sync token |
 | `/module/simplemdm/request_sync` | POST | Queue a sync run from the admin UI | Global admin |
@@ -384,8 +394,8 @@ It now enforces the saved runner prerequisites server-side as well, so `sync_now
 | `/module/simplemdm/get_device_resources/{serial}` | GET | Connected/derived resource mapping for device |
 | `/module/simplemdm/get_device_subresources/{serial}` | GET | Synced per-device subresource tables |
 
-Auth: authenticated MunkiReport session, except `get_device_resources/{serial}`, which also
-accepts the sync token header (see Auth Summary).
+Auth: authenticated MunkiReport session, except `get_device_resources/{serial}` and
+`get_supplemental_data/{serial}`, which also accept the sync token header (see Auth Summary).
 
 ## 5) Stats/Widget Endpoints
 
@@ -406,8 +416,11 @@ accepts the sync token header (see Auth Summary).
 | `/module/simplemdm/get_supplemental_overview_stats` | GET | Summary-backed supplemental fleet overview |
 | `/module/simplemdm/get_supplemental_applecare_stats` | GET | Summary-backed AppleCare lifecycle bands |
 
-Auth: authenticated MunkiReport session. The routes listed under "Token-readable dashboard
-routes" in the Auth Summary also accept the sync token header.
+Auth: authenticated MunkiReport session. The routes listed under "Token-readable routes"
+in the Auth Summary (which includes `get_sync_telemetry`, `get_compliance_stats`,
+`get_command_status_stats`, `get_assignment_group_stats`, `get_resource_type_stats`,
+`get_os_security_stats`, `get_dashboard_trend`, and the supplemental stats routes) also
+accept the sync token header.
 
 ## 6) UI Page Routes
 
@@ -727,15 +740,17 @@ Configure ReportSimpleMDM with:
 - Auth header: `X-SIMPLEMDM-API-KEY`
 - Auth value: the SimpleMDM module API key from module admin settings
 
-Then test one token-readable dashboard route:
+Then test one token-readable route:
 
 ```bash
 curl -H "X-SIMPLEMDM-API-KEY: <api_key>" \
   "https://<mr>/module/simplemdm/get_sync_telemetry"
 ```
 
-The response should be JSON. The sync token grants only the token-readable dashboard routes in
-the Auth Summary; write/admin routes still require a MunkiReport admin session.
+The response should be JSON. The sync token grants the sixteen token-readable routes in
+the Auth Summary. Sync/ingest routes also accept the sync token but still re-check their
+own auth; admin/action routes (`request_sync`, `refresh_supplemental_summary`,
+`api_devices`) still require a MunkiReport admin session.
 
 ## Ingest devices
 
@@ -775,9 +790,9 @@ Common error payloads:
   - indicates a server-side controller/database error; check PHP/app logs and confirm the module is upgraded and migrated cleanly
 
 
-### Added 2026-07-07
+### Added 2026-07-08
 
 | Route | Method | Purpose | Auth |
 |---|---|---|---|
-| `get_events[/serial]` | GET | SimpleMDM alert/regression events (`?limit&type`) | Session |
-| `get_mcp_findings[/serial]` | GET | MCP-pushed findings with severity totals | Session |
+| `get_events[/serial]` | GET | SimpleMDM alert/regression events (`?limit&type`) | Session OR sync token |
+| `get_mcp_findings[/serial]` | GET | MCP-pushed findings with severity totals | Session OR sync token |

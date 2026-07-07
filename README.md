@@ -70,10 +70,12 @@ server can query it from Claude (or any MCP client):
 1. Install and sync this module (Quick Start above).
 2. In the MCP server's environment, set `MUNKIREPORT_BASE_URL=https://your-munkireport.example.com`
    — its default `MUNKIREPORT_MODULE_PREFIX` (`/module/simplemdm`) already matches this module's routes.
-3. Authenticate: this module's read routes require an authenticated MunkiReport session
-   (only the token-protected sync/ingest routes are exempt). Give the MCP server either
-   `MUNKIREPORT_COOKIE` (a session cookie) or `MUNKIREPORT_AUTH_HEADER_NAME`/`_VALUE` for
-   SSO/header-auth deployments.
+3. Authenticate: as of 2026-07-08 every read route the MCP calls accepts the sync token
+   header, so the simplest setup is `MUNKIREPORT_AUTH_HEADER_NAME=X-SIMPLEMDM-API-KEY` with
+   `MUNKIREPORT_AUTH_HEADER_VALUE` set to the same SimpleMDM API key the module stores — no
+   browser session needed. `MUNKIREPORT_COOKIE` (a session cookie) still works as an
+   alternative and is required for the two admin actions (`request_sync`,
+   `refresh_supplemental_summary`).
 4. Test from the MCP side with `get_munkireport_sync_health`. An expired session shows up
    there as a JSON parse error (MunkiReport returns `Authenticate first.` as HTTP 200 text).
 
@@ -93,15 +95,20 @@ The MCP tools map to these routes (16 tools as of SimpleMDM-MCP v0.33.0):
   `get_mcp_findings[/serial]?severity&source&limit` (read-back + the MCP Findings widget).
 - **Actions** (write-gated on the MCP side): `request_sync`, `refresh_supplemental_summary[/serial]`.
 
-Note: `get_client_facts`, `get_runner_status`, and both actions require an **admin (global)**
-MunkiReport session; the rest need a plain logged-in session. As of 2026-07-07, ten read-only
+Note: as of 2026-07-08, sixteen read-only routes accept the sync token header
+(`X-SIMPLEMDM-API-KEY`) as an alternative to a MunkiReport session, so headless clients
+(SimpleMDM-MCP, ReportSimpleMDM) can read module data without a browser session: the ten
 dashboard routes (`get_sync_telemetry`, `get_compliance_stats`, `get_command_status_stats`,
 `get_assignment_group_stats`, `get_resource_type_stats`, `get_os_security_stats`,
 `get_supplemental_status`, `get_supplemental_overview_stats`, `get_supplemental_applecare_stats`,
-`get_device_resources/{serial}`) alternatively accept the sync token header
-(`X-SIMPLEMDM-API-KEY`) so headless clients like ReportSimpleMDM can read dashboard data
-without a browser session. The token grants exactly those routes; write/admin routes still
-require a session.
+`get_device_resources/{serial}`) plus `get_events`, `get_dashboard_trend`,
+`get_supplemental_data/{serial}`, `get_client_facts/{serial}`, `get_runner_status`, and
+`get_mcp_findings`. The token-protected sync/ingest routes (including `ingest_mcp_findings`
+for the MCP findings push) also pass the core module filter when called directly with a
+valid token. Only the two actions (`request_sync`, `refresh_supplemental_summary`) still
+require an **admin (global)** MunkiReport session. Anyone holding the SimpleMDM API key can
+read all sixteen routes — including per-device client facts — so treat the key accordingly
+and use HTTPS.
 
 ## Connect ReportSimpleMDM
 
@@ -137,8 +144,8 @@ Steps in the app:
    paste a logged-in MunkiReport session cookie into `Cookie Header`.)
 7. Save, then let the dashboard refresh. `Settings` should show `Module Data: Available`.
 
-The app reads exactly the ten token-readable dashboard routes listed above; it never calls
-write or admin routes. Use HTTPS so the key is not sent in the clear.
+The app reads the token-readable module routes it needs for dashboards and device detail;
+it never calls write or admin routes. Use HTTPS so the key is not sent in the clear.
 
 Verify from the command line with the same header the app sends:
 

@@ -504,6 +504,8 @@ Primary file: `scripts/simplemdm_sync.py`
 - Pulls devices/resources/commands from SimpleMDM API
 - For host/manual runs, expects an explicit `--api-key` or `SIMPLEMDM_API_KEY` so config bootstrap does not depend on browser-session auth
 - Fetches worker config through `index?op=get_config` using sync-token or API-key auth
+- Uses a 120-second request timeout with retry/backoff so large tenants and slower
+  MunkiReport ingest responses are less likely to fail mid-run
 - Restricts collection discovery to documented SimpleMDM GET endpoints so telemetry reflects real failures
 - Flattens/normalizes fields for `simplemdm`
 - Preserves raw payload fragments in JSON fields
@@ -657,6 +659,8 @@ Rule of thumb:
 ## 9) Security Boundaries
 
 - Ingest/write routes rely on sync auth token/API key checks.
+- Token-readable module data routes allow sync-token auth for selected read-only
+  dashboard/detail/MCP-readback endpoints.
 - Admin-triggered queue requests rely on global admin session checks.
 - Worker-side run claims rely on sync auth token/API key checks.
 - Host/manual workers should use explicit API-key or sync-token auth; do not assume a browser session is available.

@@ -12,7 +12,9 @@ The module has five primary write paths:
 4. Device API passthrough (`api_devices`, mutating operations)
 5. Client reporter ingest (`ingest_client_facts`)
 
-Read/report/listing routes require a normal authenticated MunkiReport session.
+Most read/report/listing routes require a normal authenticated MunkiReport session.
+A narrow allowlist of read-only module data routes also accepts the sync token header
+for headless clients.
 
 ## 2) Auth and Secret Matrix
 
@@ -26,6 +28,7 @@ Read/report/listing routes require a normal authenticated MunkiReport session.
 | `index?op=get_config` | Global admin OR sync auth | Session auth or `X-SIMPLEMDM-API-KEY` |
 | `index?op=webhook` | Webhook secret OR sync auth | `X-SIMPLEMDM-WEBHOOK-SECRET` or `X-SIMPLEMDM-API-KEY` |
 | `index?op=ingest_client_facts` | Client reporter secret | `X-SIMPLEMDM-CLIENT-SECRET` |
+| Token-readable module data routes | Session auth OR sync auth | Session auth or `X-SIMPLEMDM-API-KEY` |
 | `save_config` | Global admin OR sync auth | Session auth or `X-SIMPLEMDM-API-KEY` |
 | `request_sync` | Global admin session | Session auth |
 | `api_devices` `GET` | Global admin session | Session auth |
@@ -35,6 +38,12 @@ Notes:
 - `api_key` is not returned to non-global users.
 - Sync-auth `get_config` callers receive non-secret settings plus `*_set` flags, not raw secret values.
 - `webhook_secret` and `action_api_secret` are masked for non-global users (`*_set` flags only).
+- Token-readable module data routes are limited to read-only dashboard/detail/MCP-readback
+  endpoints; mutating operations still require their route-specific auth checks.
+- The token list includes `get_client_facts/{serial}` (since 2026-07-08): per-device
+  endpoint facts (console user, uptime, local FileVault state) are readable by anyone
+  holding the SimpleMDM API key. Serve the module over HTTPS only and rotate the key if it
+  may have leaked.
 
 ## 3) Secrets and Purpose
 
@@ -166,12 +175,15 @@ These controls improve client submission trust without changing the current supp
 1. Non-global user cannot retrieve raw `api_key`, `webhook_secret`, or `action_api_secret`.
 2. Ingest endpoints reject requests missing `X-SIMPLEMDM-API-KEY`.
 3. `begin_sync_run` rejects requests missing `X-SIMPLEMDM-API-KEY`.
-4. `request_sync` rejects non-global sessions.
-5. Webhook endpoint rejects invalid secret and invalid sync token.
-6. `ingest_client_facts` rejects requests missing or invalid `X-SIMPLEMDM-CLIENT-SECRET`.
-7. If HMAC is enabled, `ingest_client_facts` rejects missing or invalid signature/timestamp headers.
-8. If replay protection is enabled, `ingest_client_facts` rejects reused nonces.
-9. If per-device tokens are enabled, `ingest_client_facts` rejects missing or invalid device tokens.
-10. If proxy-only or IP allowlist controls are enabled, `ingest_client_facts` rejects requests outside those network rules.
-11. Mutating `api_devices` call fails without valid action secret.
-12. Read-only `api_devices` calls still require global admin session.
+4. Token-readable module data routes accept a valid `X-SIMPLEMDM-API-KEY`.
+5. Token-readable module data routes reject a missing or invalid `X-SIMPLEMDM-API-KEY`
+   when no MunkiReport session is present.
+6. `request_sync` rejects non-global sessions.
+7. Webhook endpoint rejects invalid secret and invalid sync token.
+8. `ingest_client_facts` rejects requests missing or invalid `X-SIMPLEMDM-CLIENT-SECRET`.
+9. If HMAC is enabled, `ingest_client_facts` rejects missing or invalid signature/timestamp headers.
+10. If replay protection is enabled, `ingest_client_facts` rejects reused nonces.
+11. If per-device tokens are enabled, `ingest_client_facts` rejects missing or invalid device tokens.
+12. If proxy-only or IP allowlist controls are enabled, `ingest_client_facts` rejects requests outside those network rules.
+13. Mutating `api_devices` call fails without valid action secret.
+14. Read-only `api_devices` calls still require global admin session.

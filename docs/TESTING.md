@@ -52,6 +52,8 @@ Use these rules during testing:
 11. `sync_last_api_errors` should reflect real API failures only; expected unsupported endpoint probes should not inflate it.
 12. `devices/{id}/users` should be skipped for unsupported device/platform combinations without removing those devices from local inventory.
 13. stale `simplemdm_sync_run` rows older than 2 hours should auto-clear to `failed` on later worker/status checks.
+14. Headless clients may use `X-SIMPLEMDM-API-KEY` on the documented token-readable
+    module data routes without a browser session.
 
 ## 3) Hosted / VM Smoke Test
 
@@ -80,6 +82,12 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
    - `module/simplemdm/device/{serial}`
    - confirm overview + attributes + connected resources render
    - confirm supplemental sections render with source labels and freshness state
+5. Validate one token-readable route without a browser session:
+
+```bash
+curl -H "X-SIMPLEMDM-API-KEY: YOUR_SIMPLEMDM_API_KEY" \
+  "http://127.0.0.1/module/simplemdm/get_sync_telemetry"
+```
 
 ## 4) Docker Smoke Test
 

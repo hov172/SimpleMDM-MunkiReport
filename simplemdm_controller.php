@@ -3686,6 +3686,12 @@ class Simplemdm_controller extends Module_controller
             }
         }
 
+        foreach ($this->get_widget_config_keys() as $key) {
+            if (! isset($config[$key])) {
+                $config[$key] = '1';
+            }
+        }
+
         $run_state = $this->derive_sync_state_from_runs();
         foreach ($run_state as $key => $value) {
             $config[$key] = $value;

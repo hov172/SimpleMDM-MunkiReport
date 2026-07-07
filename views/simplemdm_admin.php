@@ -3,6 +3,9 @@ $this->view('partials/head');
 include_once __DIR__ . '/simplemdm_widget_modern_assets.php';
 
 $simplemdm_widgets = [];
+$required_simplemdm_widgets = [
+    'simplemdm_mcp_findings' => 'MCP Findings',
+];
 $provides_path = APP_ROOT . 'local/modules/simplemdm/provides.yml';
 if (is_readable($provides_path)) {
     try {
@@ -24,6 +27,16 @@ if (is_readable($provides_path)) {
         }
     } catch (\Throwable $e) {
         $simplemdm_widgets = [];
+    }
+}
+
+$simplemdm_widget_ids = array_column($simplemdm_widgets, 'id');
+foreach ($required_simplemdm_widgets as $id => $label) {
+    if (! in_array($id, $simplemdm_widget_ids, true)) {
+        $simplemdm_widgets[] = [
+            'id' => $id,
+            'label' => $label,
+        ];
     }
 }
 ?>

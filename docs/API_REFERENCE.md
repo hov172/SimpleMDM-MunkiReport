@@ -795,4 +795,4 @@ Common error payloads:
 | Route | Method | Purpose | Auth |
 |---|---|---|---|
 | `get_events[/serial]` | GET | SimpleMDM alert/regression events (`?limit&type`) | Session OR sync token |
-| `get_mcp_findings[/serial]` | GET | MCP-pushed findings with severity totals | Session OR sync token |
+| `get_mcp_findings[/serial]` | GET | MCP-pushed findings (`count`, severity `totals`, and full `findings` rows: severity, finding type, serial, message, `data` JSON, reported time; `?severity&source&limit`) — feeds the MCP Findings widget | Session OR sync token |

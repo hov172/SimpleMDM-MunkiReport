@@ -2017,6 +2017,17 @@ When custom rules are worth using:
   - sync scope
 - Use case: operational monitoring for sync stability and API pressure.
 
+`simplemdm_mcp_findings`
+- Purpose: surface findings pushed by the SimpleMDM-MCP server (stale devices, CVE exposure, audit deltas, compliance detections).
+- Endpoint: `GET /module/simplemdm/get_mcp_findings?limit=5`.
+- Data shown:
+  - severity totals (danger/warning/info badges)
+  - the 5 most recent findings, each with severity badge, finding type, device serial (linked to the device detail page), message, source, and reported time
+  - pushed `data` JSON as a hover tooltip per finding
+  - "Showing N of M findings" note when more findings exist than displayed
+- Empty state: "No MCP findings pushed yet." until `ingest_mcp_findings` has stored findings.
+- Use case: bring MCP-computed insights onto the dashboard without leaving MunkiReport; the full set remains queryable via `get_mcp_findings`.
+
 Per-resource-type widget family (`simplemdm_rt_*`):
 - Shared renderer: `views/simplemdm_resource_type_base_widget.php`.
 - Shared endpoints:

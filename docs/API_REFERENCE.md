@@ -31,6 +31,7 @@ Workflow note:
 | Route Group | Auth |
 |---|---|
 | Report/listing/stats/data routes | Authenticated MunkiReport session |
+| Token-readable dashboard routes (see below) | Session OR sync token header |
 | Config read (`get_config`) | Global admin session OR sync token header (non-global/sync-auth responses get masked secret flags) |
 | Config write (`save_config`) | Global admin session OR sync token header |
 | Admin sync queue (`request_sync`) | Global admin session |
@@ -38,6 +39,22 @@ Workflow note:
 | Ingest routes (`op=ingest*`, `op=update_sync_status`, `op=begin_sync_run`) | Sync token header |
 | Webhook (`op=webhook`) | Webhook secret header OR sync token header |
 | Device passthrough (`api_devices`) | Global admin session; mutating methods also require action secret |
+
+Token-readable dashboard routes (added 2026-07-07 for headless API clients such as
+ReportSimpleMDM): these ten read-only routes accept the sync token header
+(`X-SIMPLEMDM-API-KEY`) as an alternative to a session. The token grants exactly these
+routes — all write/admin routes still require a session even with a valid token.
+
+- `get_sync_telemetry`
+- `get_compliance_stats`
+- `get_command_status_stats`
+- `get_assignment_group_stats`
+- `get_resource_type_stats`
+- `get_os_security_stats`
+- `get_supplemental_status`
+- `get_supplemental_overview_stats`
+- `get_supplemental_applecare_stats`
+- `get_device_resources/{serial}`
 
 Headers used by module:
 - Sync token: `X-SIMPLEMDM-API-KEY`
@@ -74,7 +91,7 @@ All are called via:
 | `/module/simplemdm/index?op=get_config` | GET | Worker-friendly config bootstrap route | Global admin session OR sync token header |
 | `/module/simplemdm/get_script_catalog` | GET | Read downloadable script metadata and external command templates | Global admin |
 | `/module/simplemdm/get_runner_status` | GET | Read module runtime, cron, and runner readiness state | Global admin |
-| `/module/simplemdm/get_supplemental_status` | GET | Read supplemental detection, freshness, and summary health | Global admin |
+| `/module/simplemdm/get_supplemental_status` | GET | Read supplemental detection, freshness, and summary health | Global admin session OR sync token header |
 | `/module/simplemdm/save_config` | POST | Save module settings | Global admin OR sync token |
 | `/module/simplemdm/request_sync` | POST | Queue a sync run from the admin UI | Global admin |
 | `/module/simplemdm/refresh_supplemental_summary` | POST | Rebuild supplemental summary rows | Global admin |
@@ -365,6 +382,9 @@ It now enforces the saved runner prerequisites server-side as well, so `sync_now
 | `/module/simplemdm/get_device_resources/{serial}` | GET | Connected/derived resource mapping for device |
 | `/module/simplemdm/get_device_subresources/{serial}` | GET | Synced per-device subresource tables |
 
+Auth: authenticated MunkiReport session, except `get_device_resources/{serial}`, which also
+accepts the sync token header (see Auth Summary).
+
 ## 5) Stats/Widget Endpoints
 
 | Route | Method | Purpose |
@@ -383,6 +403,9 @@ It now enforces the saved runner prerequisites server-side as well, so `sync_now
 | `/module/simplemdm/get_os_security_stats` | GET | OS/security aggregate stats |
 | `/module/simplemdm/get_supplemental_overview_stats` | GET | Summary-backed supplemental fleet overview |
 | `/module/simplemdm/get_supplemental_applecare_stats` | GET | Summary-backed AppleCare lifecycle bands |
+
+Auth: authenticated MunkiReport session. The routes listed under "Token-readable dashboard
+routes" in the Auth Summary also accept the sync token header.
 
 ## 6) UI Page Routes
 

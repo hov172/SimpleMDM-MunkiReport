@@ -93,8 +93,15 @@ The MCP tools map to these routes (16 tools as of SimpleMDM-MCP v0.33.0):
   `get_mcp_findings[/serial]?severity&source&limit` (read-back + the MCP Findings widget).
 - **Actions** (write-gated on the MCP side): `request_sync`, `refresh_supplemental_summary[/serial]`.
 
-Note: `get_supplemental_status`, `get_client_facts`, `get_runner_status`, and both actions
-require an **admin (global)** MunkiReport session; the rest need a plain logged-in session.
+Note: `get_client_facts`, `get_runner_status`, and both actions require an **admin (global)**
+MunkiReport session; the rest need a plain logged-in session. As of 2026-07-07, ten read-only
+dashboard routes (`get_sync_telemetry`, `get_compliance_stats`, `get_command_status_stats`,
+`get_assignment_group_stats`, `get_resource_type_stats`, `get_os_security_stats`,
+`get_supplemental_status`, `get_supplemental_overview_stats`, `get_supplemental_applecare_stats`,
+`get_device_resources/{serial}`) alternatively accept the sync token header
+(`X-SIMPLEMDM-API-KEY`) so headless clients like ReportSimpleMDM can read dashboard data
+without a browser session. The token grants exactly those routes; write/admin routes still
+require a session.
 
 ## Supplemental Data
 

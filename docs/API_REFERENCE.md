@@ -716,6 +716,25 @@ Allowed subpaths (high level):
 
 ## 11) Request Examples
 
+## ReportSimpleMDM connection test
+
+Configure ReportSimpleMDM with:
+
+- MunkiReport base URL: `https://<mr>`
+- Module route prefix: `/module/simplemdm`
+- Auth header: `X-SIMPLEMDM-API-KEY`
+- Auth value: the SimpleMDM module API key from module admin settings
+
+Then test one token-readable dashboard route:
+
+```bash
+curl -H "X-SIMPLEMDM-API-KEY: <api_key>" \
+  "https://<mr>/module/simplemdm/get_sync_telemetry"
+```
+
+The response should be JSON. The sync token grants only the token-readable dashboard routes in
+the Auth Summary; write/admin routes still require a MunkiReport admin session.
+
 ## Ingest devices
 
 ```bash

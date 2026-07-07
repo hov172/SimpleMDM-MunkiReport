@@ -77,6 +77,29 @@ server can query it from Claude (or any MCP client):
 4. Test from the MCP side with `get_munkireport_sync_health`. An expired session shows up
    there as a JSON parse error (MunkiReport returns `Authenticate first.` as HTTP 200 text).
 
+## Connect ReportSimpleMDM
+
+ReportSimpleMDM is a headless/read-only client for the SimpleMDM dashboard data exposed by
+this module. Configure it with:
+
+1. MunkiReport base URL: `https://your-munkireport.example.com`
+2. Module route prefix: `/module/simplemdm`
+3. Sync token header name: `X-SIMPLEMDM-API-KEY`
+4. Sync token value: the same API key saved in the SimpleMDM module admin settings.
+
+Use the token only over HTTPS and store it in the ReportSimpleMDM credential store or secret
+configuration, not in source control. To test the connection, call one of the token-readable
+dashboard routes:
+
+```bash
+curl -H "X-SIMPLEMDM-API-KEY: <module_api_key>" \
+  "https://your-munkireport.example.com/module/simplemdm/get_sync_telemetry"
+```
+
+Expected result is JSON. If the token is missing or wrong, MunkiReport returns an auth failure.
+The token grants only the read-only dashboard routes listed below; admin/write routes still
+require a logged-in MunkiReport admin session.
+
 The MCP tools map to these routes (16 tools as of SimpleMDM-MCP v0.33.0):
 
 - **Alerts**: `get_events[/serial]?limit&type` — the 13 built-in alert/regression events plus

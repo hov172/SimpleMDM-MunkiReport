@@ -361,6 +361,7 @@ Operational guidance:
 - [Upgrade Guide](docs/UPGRADE.md)
 - [API Reference](docs/API_REFERENCE.md)
 - [Testing Guide](docs/TESTING.md)
+- [Changelog](CHANGELOG.md)
 - [Quick Start (5 Minutes)](#quick-start-5-minutes)
 - [Prerequisites](#prerequisites)
 - [Hosted / VM Module Install](#hosted--vm-module-install)

@@ -9,12 +9,19 @@
 class Simplemdm_controller extends Module_controller
 {
     private $sync_actions = ['ingest', 'ingest_resources', 'ingest_commands', 'ingest_client_facts', 'ingest_mcp_findings', 'webhook', 'update_sync_status', 'begin_sync_run', 'get_config'];
+    // Read-only routes that may authenticate with the sync token (X-SIMPLEMDM-API-KEY)
+    // instead of a MunkiReport session. Token is validated once in the constructor;
+    // the authorized() override below vouches for these requests so they also pass
+    // the core Module controller filter.
+    private $token_read_actions = ['get_sync_telemetry', 'get_compliance_stats', 'get_command_status_stats', 'get_assignment_group_stats', 'get_resource_type_stats', 'get_os_security_stats', 'get_supplemental_status', 'get_supplemental_overview_stats', 'get_supplemental_applecare_stats', 'get_device_resources'];
+    private $token_read_request = false;
     private $downloadable_scripts = ['simplemdm_sync.py', 'install_cron.sh', 'remove_cron.sh'];
 
     function __construct()
     {
         // Store module path
         $this->module_path = dirname(__FILE__);
+        require_once $this->module_path . '/simplemdm_model.php';
         require_once $this->module_path . '/simplemdm_config_model.php';
         require_once $this->module_path . '/simplemdm_resource_model.php';
         require_once $this->module_path . '/simplemdm_dashboard_snapshot_model.php';
@@ -41,12 +48,34 @@ class Simplemdm_controller extends Module_controller
                     $op = isset($_GET['op']) ? trim((string)$_GET['op']) : '';
                     $is_sync_action = in_array($op, $this->sync_actions, true);
                 }
+                if (! $is_sync_action
+                    && in_array($parts[2], $this->token_read_actions, true)
+                    && $this->is_valid_sync_token()) {
+                    $this->token_read_request = true;
+                }
             }
         }
 
         if (! $is_sync_action && ! $this->authorized()) {
             die('Authenticate first.');
         }
+    }
+
+    /**
+     * Vouch for token-authenticated read-only requests.
+     *
+     * MunkiReport core (app/controllers/Module.php) session-gates every module
+     * action except index/get_script by calling this method. For requests to
+     * a whitelisted read-only action carrying a valid sync token (validated in
+     * the constructor), report authorized so headless API clients can read
+     * dashboard data without a browser session.
+     **/
+    public function authorized($what = '')
+    {
+        if ($this->token_read_request) {
+            return true;
+        }
+        return parent::authorized($what);
     }
 
     private function get_stored_api_key()
@@ -6119,25 +6148,29 @@ class Simplemdm_controller extends Module_controller
         }
 
         // 2) Targeted scan for rows that likely reference this device.
+        // Match only rows mentioning this device's id/serial/udid in SQL;
+        // hydrating broad classes of rows (e.g. every installed_app) exhausts
+        // PHP memory on large fleets. value_mentions_device() re-verifies below.
         $candidates = Simplemdm_resource_model::where(function ($q) use ($device_id, $serial, $udid) {
             $q->where(function ($sub) use ($device_id) {
                 $sub->where('resource_type', 'device')
                     ->where('resource_id', $device_id);
             })
-                ->orWhere('resource_type', 'installed_app')
                 ->orWhere('source_endpoint', 'like', '%/' . $device_id . '/%')
-                ->orWhere('data_json', 'like', '%"type":"device"%')
-                ->orWhere('relationships_json', 'like', '%"type":"device"%')
                 ->orWhere('data_json', 'like', '%"id":"' . $device_id . '"%')
                 ->orWhere('data_json', 'like', '%"id":' . $device_id . '%')
                 ->orWhere('relationships_json', 'like', '%"id":"' . $device_id . '"%')
                 ->orWhere('relationships_json', 'like', '%"id":' . $device_id . '%')
+                ->orWhere('attributes_json', 'like', '%"id":"' . $device_id . '"%')
+                ->orWhere('attributes_json', 'like', '%"id":' . $device_id . '%')
                 ->orWhere('data_json', 'like', '%"serial_number":"' . $serial . '"%')
-                ->orWhere('relationships_json', 'like', '%"serial_number":"' . $serial . '"%');
+                ->orWhere('relationships_json', 'like', '%"serial_number":"' . $serial . '"%')
+                ->orWhere('attributes_json', 'like', '%"serial_number":"' . $serial . '"%');
 
             if ($udid !== '') {
                 $q->orWhere('data_json', 'like', '%"unique_identifier":"' . $udid . '"%')
-                    ->orWhere('relationships_json', 'like', '%"unique_identifier":"' . $udid . '"%');
+                    ->orWhere('relationships_json', 'like', '%"unique_identifier":"' . $udid . '"%')
+                    ->orWhere('attributes_json', 'like', '%"unique_identifier":"' . $udid . '"%');
             }
         })->get();
 

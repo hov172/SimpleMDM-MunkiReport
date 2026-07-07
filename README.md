@@ -2574,7 +2574,7 @@ Check browser console/network and confirm module route resolves:
 - `Widget Visibility` controls whether a widget may render.
 - Dashboard/report pages only show widgets that exist in that page layout.
 - Confirm the widget is present in your active dashboard YAML (`local/dashboards/*.yml`) or on the SimpleMDM report page.
-- `simplemdm_mcp_findings` is part of the SimpleMDM report widget set and can also be included in dashboard YAML layouts. It appears only after the MCP server has pushed findings with `ingest_mcp_findings`; otherwise it shows "No MCP findings pushed yet."
+- `simplemdm_mcp_findings` is part of the SimpleMDM report widget set and can also be included in dashboard YAML layouts. It appears only after the MCP server has pushed findings with `ingest_mcp_findings`; otherwise it shows "No MCP findings pushed yet." When findings exist, the widget shows severity totals plus the 5 most recent findings in full: severity badge, finding type, device serial (linked to the device page), message, source, and reported time. The pushed `data` JSON is available as a hover tooltip on each row; the full set is readable via `get_mcp_findings`.
 - `simplemdm_group_apps` is part of the SimpleMDM report widget set and can also be included in dashboard YAML layouts.
 - If needed, click `Reset Layout` to clear stale per-page localStorage layout state (report reset does not overwrite dashboard defaults, and dashboard reset does not overwrite report defaults).
 

@@ -77,29 +77,6 @@ server can query it from Claude (or any MCP client):
 4. Test from the MCP side with `get_munkireport_sync_health`. An expired session shows up
    there as a JSON parse error (MunkiReport returns `Authenticate first.` as HTTP 200 text).
 
-## Connect ReportSimpleMDM
-
-ReportSimpleMDM is a headless/read-only client for the SimpleMDM dashboard data exposed by
-this module. Configure it with:
-
-1. MunkiReport base URL: `https://your-munkireport.example.com`
-2. Module route prefix: `/module/simplemdm`
-3. Sync token header name: `X-SIMPLEMDM-API-KEY`
-4. Sync token value: the same API key saved in the SimpleMDM module admin settings.
-
-Use the token only over HTTPS and store it in the ReportSimpleMDM credential store or secret
-configuration, not in source control. To test the connection, call one of the token-readable
-dashboard routes:
-
-```bash
-curl -H "X-SIMPLEMDM-API-KEY: <module_api_key>" \
-  "https://your-munkireport.example.com/module/simplemdm/get_sync_telemetry"
-```
-
-Expected result is JSON. If the token is missing or wrong, MunkiReport returns an auth failure.
-The token grants only the read-only dashboard routes listed below; admin/write routes still
-require a logged-in MunkiReport admin session.
-
 The MCP tools map to these routes (16 tools as of SimpleMDM-MCP v0.33.0):
 
 - **Alerts**: `get_events[/serial]?limit&type` — the 13 built-in alert/regression events plus
@@ -125,6 +102,63 @@ dashboard routes (`get_sync_telemetry`, `get_compliance_stats`, `get_command_sta
 (`X-SIMPLEMDM-API-KEY`) so headless clients like ReportSimpleMDM can read dashboard data
 without a browser session. The token grants exactly those routes; write/admin routes still
 require a session.
+
+## Connect ReportSimpleMDM
+
+[ReportSimpleMDM](https://github.com/hov172/ReportSimpleMDM) is a native macOS/iOS SwiftUI
+client for SimpleMDM. It works standalone against the SimpleMDM API, and can optionally
+connect to this module to enrich its dashboards and device detail with module-backed data
+(compliance, sync health, command status, assignment groups, OS/security stats, supplemental
+sources, and per-device resource connections).
+
+Requirements:
+
+- ReportSimpleMDM 1.6.1 Build 7 or later (earlier builds request route paths this module
+  does not serve).
+- This module at commit `f8dd079` or later (earlier module versions require a browser
+  session for the dashboard read routes).
+- The SimpleMDM API key saved in the module's admin settings (`Settings -> SimpleMDM` in
+  MunkiReport). The app authenticates with the same key, so both sides must hold the same
+  value.
+
+Steps in the app:
+
+1. Open `Settings > Server & API`.
+2. Set `Backend Mode` to `SimpleMDM + MunkiReport Module`.
+3. Enter your `SimpleMDM API Key` (the same key the module's sync worker uses).
+4. Set `MunkiReport Base URL` to the MunkiReport site root.
+   Rewrite-enabled routing: `https://munkireport.example.com`
+   Non-rewrite routing: `https://munkireport.example.com/index.php?`
+5. Leave `Module Path Prefix` at `/module/simplemdm`.
+6. Set `Auth Header Name` to `X-SIMPLEMDM-API-KEY` and leave `Auth Header Value` blank —
+   the app substitutes its SimpleMDM API key automatically.
+   (Alternative for older module versions: leave the header fields blank and paste a
+   logged-in MunkiReport session cookie into `Cookie Header`.)
+7. Save, then let the dashboard refresh. `Settings` should show `Module Data: Available`.
+
+The app reads exactly the ten token-readable dashboard routes listed above; it never calls
+write or admin routes. Use HTTPS so the key is not sent in the clear.
+
+Verify from the command line with the same header the app sends:
+
+```bash
+# rewrite-enabled routing
+curl -H "X-SIMPLEMDM-API-KEY: <api_key>" \
+  "https://munkireport.example.com/module/simplemdm/get_sync_telemetry"
+
+# non-rewrite routing
+curl -H "X-SIMPLEMDM-API-KEY: <api_key>" \
+  "https://munkireport.example.com/index.php?/module/simplemdm/get_sync_telemetry"
+```
+
+Expected result is JSON. Troubleshooting:
+
+- `Authenticate first.` as plain text (HTTP 200) — the key does not match the module's
+  stored `api_key`, or the module predates `f8dd079`. In the app this surfaces as decode
+  errors or empty module dashboards.
+- HTTP 403 `Module controller filter` — the module predates `f8dd079` (MunkiReport core is
+  session-gating the route before the module can accept the token).
+- HTTP 404 — check the base URL form (`index.php?` vs rewrite) and the module path prefix.
 
 ## Supplemental Data
 
@@ -306,6 +340,8 @@ Operational guidance:
 ## Table of Contents
 
 - [Key Points](#key-points)
+- [Connect SimpleMDM-MCP (natural-language queries)](#connect-simplemdm-mcp-natural-language-queries)
+- [Connect ReportSimpleMDM](#connect-reportsimplemdm)
 - [Developer Guide](docs/DEVELOPER_GUIDE.md)
 - [Client Reporter Add-On](docs/CLIENT_REPORTER_ADDON.md)
 - [Client Reporter Deployment Guide](docs/CLIENT_REPORTER_DEPLOYMENT.md)

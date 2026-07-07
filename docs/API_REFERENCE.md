@@ -4,6 +4,8 @@ This reference documents module routes, expected auth, and common usage patterns
 
 For step-by-step client deployment examples, see:
 - `docs/CLIENT_REPORTER_DEPLOYMENT.md`
+- README section "Connect ReportSimpleMDM" for wiring the ReportSimpleMDM macOS/iOS app to
+  this module's token-readable dashboard routes
 
 Base path examples use MunkiReport's default front-controller format:
 - `/index.php?/module/simplemdm/...`

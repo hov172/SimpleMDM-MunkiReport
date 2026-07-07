@@ -40,6 +40,8 @@ $(document).on('appReady', function() {
                     .append(document.createTextNode(row.label))
             );
         });
+    }).fail(function() {
+        $('#simplemdm-mcp-findings-widget .panel-body').html('<p class="text-danger text-center">Failed to load MCP findings.</p>');
     });
 });
 </script>

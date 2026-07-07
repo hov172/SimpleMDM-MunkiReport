@@ -2505,6 +2505,7 @@ function resizeChartsForMode(mode) {
         }
 
         var dashboardExplicitOrder = {
+            simplemdm_mcp_findings: 0,
             simplemdm_resource_types: 1,
             simplemdm_group: 2,
             simplemdm_devices_table: 3,
@@ -2524,6 +2525,7 @@ function resizeChartsForMode(mode) {
         };
 
         var reportExplicitOrder = {
+            simplemdm_mcp_findings: 0,
             simplemdm_resource_types: 1,
             simplemdm_group: 2,
             simplemdm_group_apps: 3,

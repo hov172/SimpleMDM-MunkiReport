@@ -1075,7 +1075,7 @@ Use this section as the plain-language guide to every setting shown in `Admin ->
   - Meaning: per-widget on/off control for the SimpleMDM report/dashboard widgets.
   - Use case: hide widgets your team does not use, simplify the report page, or reduce visual noise for operators.
   - When to change it: when customizing the dashboard/report experience for a team.
-  - Current behavior: all widgets registered in `provides.yml`, including `simplemdm_group_apps` (`Assignment Group Apps`), appear in this list and save as `widget_<id>` config keys.
+  - Current behavior: all widgets registered in `provides.yml`, including `simplemdm_mcp_findings` (`MCP Findings`) and `simplemdm_group_apps` (`Assignment Group Apps`), appear in this list and save as `widget_<id>` config keys.
 
 #### Advanced Sync & Compliance
 
@@ -2574,6 +2574,7 @@ Check browser console/network and confirm module route resolves:
 - `Widget Visibility` controls whether a widget may render.
 - Dashboard/report pages only show widgets that exist in that page layout.
 - Confirm the widget is present in your active dashboard YAML (`local/dashboards/*.yml`) or on the SimpleMDM report page.
+- `simplemdm_mcp_findings` is part of the SimpleMDM report widget set and can also be included in dashboard YAML layouts. It appears only after the MCP server has pushed findings with `ingest_mcp_findings`; otherwise it shows "No MCP findings pushed yet."
 - `simplemdm_group_apps` is part of the SimpleMDM report widget set and can also be included in dashboard YAML layouts.
 - If needed, click `Reset Layout` to clear stale per-page localStorage layout state (report reset does not overwrite dashboard defaults, and dashboard reset does not overwrite report defaults).
 

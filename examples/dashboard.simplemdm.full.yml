@@ -5,6 +5,9 @@ hotkey: "m"
 # This keeps the template in-module for sharing/documentation.
 
 -
+  simplemdm_mcp_findings: {}
+
+-
   simplemdm_resource_types: {}
 
 -

@@ -142,7 +142,11 @@ Steps in the app:
    configuration is needed. (On builds before 1.6.1 Build 7 the default may not populate;
    type the header name in manually. Alternative for module versions older than `f8dd079`:
    paste a logged-in MunkiReport session cookie into `Cookie Header`.)
-7. Save, then let the dashboard refresh. `Settings` should show `Module Data: Available`.
+7. Save, then let the dashboard refresh. `Settings` should show `Module Data: Available`,
+   and the app dashboard gains a "MunkiReport Insights" section grouping the module-only
+   widgets (Sync Health, Compliance, Supplemental Overview, AppleCare Coverage). Widgets
+   that can use either source (OS Versions, Assignment Groups, Resource Types) show a
+   "via MunkiReport" caption when module data is feeding them.
 
 The app reads the token-readable module routes it needs for dashboards and device detail;
 it never calls write or admin routes. Use HTTPS so the key is not sent in the clear.

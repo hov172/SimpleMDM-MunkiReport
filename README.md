@@ -130,10 +130,11 @@ Steps in the app:
    Rewrite-enabled routing: `https://munkireport.example.com`
    Non-rewrite routing: `https://munkireport.example.com/index.php?`
 5. Leave `Module Path Prefix` at `/module/simplemdm`.
-6. Set `Auth Header Name` to `X-SIMPLEMDM-API-KEY` and leave `Auth Header Value` blank —
-   the app substitutes its SimpleMDM API key automatically.
-   (Alternative for older module versions: leave the header fields blank and paste a
-   logged-in MunkiReport session cookie into `Cookie Header`.)
+6. Leave `Auth Header Name` at its default `X-SIMPLEMDM-API-KEY` with `Auth Header Value`
+   blank — the app substitutes its SimpleMDM API key automatically, so no auth
+   configuration is needed. (On builds before 1.6.1 Build 7 the default may not populate;
+   type the header name in manually. Alternative for module versions older than `f8dd079`:
+   paste a logged-in MunkiReport session cookie into `Cookie Header`.)
 7. Save, then let the dashboard refresh. `Settings` should show `Module Data: Available`.
 
 The app reads exactly the ten token-readable dashboard routes listed above; it never calls

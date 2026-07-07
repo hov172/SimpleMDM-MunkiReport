@@ -38,7 +38,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger('simplemdm_sync')
-REQUEST_TIMEOUT = 30
+REQUEST_TIMEOUT = 120
 REQUEST_RETRIES = 3
 REQUEST_BACKOFF_SECONDS = 2
 REQUEST_METRICS = {

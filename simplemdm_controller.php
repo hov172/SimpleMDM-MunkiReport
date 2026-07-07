@@ -13,7 +13,7 @@ class Simplemdm_controller extends Module_controller
     // instead of a MunkiReport session. Token is validated once in the constructor;
     // the authorized() override below vouches for these requests so they also pass
     // the core Module controller filter.
-    private $token_read_actions = ['get_sync_telemetry', 'get_compliance_stats', 'get_command_status_stats', 'get_assignment_group_stats', 'get_resource_type_stats', 'get_os_security_stats', 'get_supplemental_status', 'get_supplemental_overview_stats', 'get_supplemental_applecare_stats', 'get_device_resources'];
+    private $token_read_actions = ['get_sync_telemetry', 'get_compliance_stats', 'get_command_status_stats', 'get_assignment_group_stats', 'get_resource_type_stats', 'get_os_security_stats', 'get_supplemental_status', 'get_supplemental_overview_stats', 'get_supplemental_applecare_stats', 'get_device_resources', 'get_events', 'get_dashboard_trend', 'get_supplemental_data', 'get_client_facts', 'get_runner_status', 'get_mcp_findings'];
     private $token_read_request = false;
     private $downloadable_scripts = ['simplemdm_sync.py', 'install_cron.sh', 'remove_cron.sh'];
 
@@ -48,8 +48,15 @@ class Simplemdm_controller extends Module_controller
                     $op = isset($_GET['op']) ? trim((string)$_GET['op']) : '';
                     $is_sync_action = in_array($op, $this->sync_actions, true);
                 }
-                if (! $is_sync_action
-                    && in_array($parts[2], $this->token_read_actions, true)
+                // Vouch for token-carrying requests to whitelisted read routes AND to
+                // direct sync routes (e.g. POST ingest_mcp_findings): both must pass the
+                // core Module controller filter, which only exempts index/get_script.
+                // Sync actions still re-validate their own token/secret before any work.
+                // get_config is excluded: the vouch makes authorized('global') true,
+                // which get_config uses to decide full-vs-masked secrets — token
+                // callers must keep getting masked output via index?op=get_config.
+                if ((in_array($parts[2], $this->token_read_actions, true)
+                        || (in_array($parts[2], $this->sync_actions, true) && $parts[2] !== 'get_config'))
                     && $this->is_valid_sync_token()) {
                     $this->token_read_request = true;
                 }

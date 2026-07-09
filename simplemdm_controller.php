@@ -3692,6 +3692,16 @@ class Simplemdm_controller extends Module_controller
             }
         }
 
+        if (! isset($config['mcp_findings_enabled'])) {
+            $config['mcp_findings_enabled'] = '1';
+        }
+        if (! isset($config['mcp_findings_metadata_max_bytes'])) {
+            $config['mcp_findings_metadata_max_bytes'] = '65536';
+        }
+        if (! isset($config['mcp_findings_auto_resolve'])) {
+            $config['mcp_findings_auto_resolve'] = '1';
+        }
+
         $run_state = $this->derive_sync_state_from_runs();
         foreach ($run_state as $key => $value) {
             $config[$key] = $value;
@@ -3794,6 +3804,9 @@ class Simplemdm_controller extends Module_controller
             'event_stale_threshold_hours',
             'event_builtin_settings_json',
             'custom_event_rules_json',
+            'mcp_findings_enabled',
+            'mcp_findings_metadata_max_bytes',
+            'mcp_findings_auto_resolve',
         ];
         foreach ($config_keys as $key) {
             if (array_key_exists($key, $post)) {
@@ -3812,6 +3825,8 @@ class Simplemdm_controller extends Module_controller
                     || $key === 'client_reporter_replay_protection_enabled'
                     || $key === 'client_reporter_per_device_tokens_enabled'
                     || $key === 'client_reporter_proxy_only_enabled'
+                    || $key === 'mcp_findings_enabled'
+                    || $key === 'mcp_findings_auto_resolve'
                 ) {
                     $value = $value === '1' ? '1' : '0';
                 } elseif ($key === 'device_subresource_limit') {
@@ -3866,6 +3881,12 @@ class Simplemdm_controller extends Module_controller
                     }
                     $value = json_encode(array_values($normalized));
                 } elseif ($key === 'client_reporter_max_payload_bytes') {
+                    $v = (int) $value;
+                    if ($v < 1024) {
+                        $v = 1024;
+                    }
+                    $value = (string) $v;
+                } elseif ($key === 'mcp_findings_metadata_max_bytes') {
                     $v = (int) $value;
                     if ($v < 1024) {
                         $v = 1024;
@@ -6415,11 +6436,21 @@ class Simplemdm_controller extends Module_controller
      *
      * @return void
      **/
+    private function mcp_findings_enabled()
+    {
+        return $this->get_config_value('mcp_findings_enabled', '1') !== '0';
+    }
+
     public function ingest_mcp_findings()
     {
         $this->connectDB();
         if (! $this->is_valid_sync_token()) {
             jsonView(['status' => 'error', 'message' => 'Unauthorized'], 401);
+            return;
+        }
+
+        if (! $this->mcp_findings_enabled()) {
+            jsonView(['status' => 'error', 'message' => 'MCP findings are disabled'], 403);
             return;
         }
 
@@ -6484,8 +6515,9 @@ class Simplemdm_controller extends Module_controller
                 if ($extra === false) {
                     $extra = '';
                 }
-                if (strlen($extra) > 4096) {
-                    $extra = substr($extra, 0, 4096);
+                $metadataMaxBytes = (int) $this->get_config_value('mcp_findings_metadata_max_bytes', 65536);
+                if (strlen($extra) > $metadataMaxBytes) {
+                    $extra = substr($extra, 0, $metadataMaxBytes);
                 }
             }
 
@@ -6556,8 +6588,10 @@ class Simplemdm_controller extends Module_controller
             return;
         }
 
+        $autoResolveEnabled = $this->get_config_value('mcp_findings_auto_resolve', '1') !== '0';
+
         $resolved = 0;
-        if ($replace) {
+        if ($replace && $autoResolveEnabled) {
             $staleQuery = Simplemdm_mcp_finding_model::where('source', $source)
                 ->whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES);
             if (! empty($touchedIds)) {
@@ -6592,6 +6626,11 @@ class Simplemdm_controller extends Module_controller
      **/
     public function get_mcp_findings($serial_number = '')
     {
+        if (! $this->mcp_findings_enabled()) {
+            jsonView(['status' => 'error', 'message' => 'MCP findings are disabled'], 403);
+            return;
+        }
+
         $limit = isset($_GET['limit']) ? (int) $_GET['limit'] : 100;
         if ($limit < 1) {
             $limit = 100;
@@ -6677,6 +6716,11 @@ class Simplemdm_controller extends Module_controller
         $this->connectDB();
         if (! $this->is_valid_sync_token()) {
             jsonView(['status' => 'error', 'message' => 'Unauthorized'], 401);
+            return;
+        }
+
+        if (! $this->mcp_findings_enabled()) {
+            jsonView(['status' => 'error', 'message' => 'MCP findings are disabled'], 403);
             return;
         }
 

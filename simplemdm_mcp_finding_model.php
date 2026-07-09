@@ -10,6 +10,7 @@ class Simplemdm_mcp_finding_model extends Eloquent
         'serial_number',
         'source',
         'finding_type',
+        'category',
         'fingerprint',
         'severity',
         'status',
@@ -35,17 +36,20 @@ class Simplemdm_mcp_finding_model extends Eloquent
     const ACTIVE_STATUSES = [self::STATUS_OPEN, self::STATUS_ACKNOWLEDGED, self::STATUS_IN_PROGRESS];
 
     /**
-     * Deterministic dedup key: same source + serial_number + finding_type
-     * always maps to the same fingerprint, so repeated ingest pushes upsert
-     * the same row instead of creating duplicates. Must stay byte-for-byte
-     * identical to the backfill formula in migration
-     * 2026_07_09_000000_simplemdm_mcp_finding_lifecycle.php.
+     * Deterministic dedup key: same source + serial_number + finding_type +
+     * category always maps to the same fingerprint, so repeated ingest
+     * pushes upsert the same row instead of creating duplicates. Must stay
+     * byte-for-byte identical to the backfill formula in migration
+     * 2026_07_09_100000_simplemdm_mcp_finding_category.php. A missing/empty
+     * category hashes as '', matching the backfill of every pre-existing
+     * row -- this is what keeps dedup behavior unchanged for publishers
+     * that don't send category.
      */
-    public static function computeFingerprint($source, $serialNumber, $findingType)
+    public static function computeFingerprint($source, $serialNumber, $findingType, $category = '')
     {
         return hash(
             'sha256',
-            strtolower((string) $source) . '|' . strtolower((string) $serialNumber) . '|' . strtolower((string) $findingType)
+            strtolower((string) $source) . '|' . strtolower((string) $serialNumber) . '|' . strtolower((string) $findingType) . '|' . strtolower((string) $category)
         );
     }
 }

@@ -8,7 +8,7 @@
  **/
 class Simplemdm_controller extends Module_controller
 {
-    private $sync_actions = ['ingest', 'ingest_resources', 'ingest_commands', 'ingest_client_facts', 'ingest_mcp_findings', 'webhook', 'update_sync_status', 'begin_sync_run', 'get_config'];
+    private $sync_actions = ['ingest', 'ingest_resources', 'ingest_commands', 'ingest_client_facts', 'ingest_mcp_findings', 'webhook', 'update_sync_status', 'begin_sync_run', 'get_config', 'acknowledge_mcp_finding', 'resolve_mcp_finding', 'ignore_mcp_finding', 'suppress_mcp_finding'];
     // Read-only routes that may authenticate with the sync token (X-SIMPLEMDM-API-KEY)
     // instead of a MunkiReport session. Token is validated once in the constructor;
     // the authorized() override below vouches for these requests so they also pass
@@ -6670,6 +6670,85 @@ class Simplemdm_controller extends Module_controller
             'status_totals' => $status_totals,
             'findings'      => $rows,
         ]);
+    }
+
+    private function applyFindingStatusAction($targetStatus)
+    {
+        $this->connectDB();
+        if (! $this->is_valid_sync_token()) {
+            jsonView(['status' => 'error', 'message' => 'Unauthorized'], 401);
+            return;
+        }
+
+        $payload = file_get_contents('php://input');
+        $data = json_decode($payload, true);
+        if (! is_array($data)) {
+            jsonView(['status' => 'error', 'message' => 'Invalid JSON data'], 400);
+            return;
+        }
+
+        $rawIds = [];
+        if (isset($data['ids']) && is_array($data['ids'])) {
+            $rawIds = $data['ids'];
+        } elseif (isset($data['id'])) {
+            $rawIds = [$data['id']];
+        }
+
+        $ids = [];
+        foreach ($rawIds as $rawId) {
+            if (is_numeric($rawId) && (int) $rawId > 0) {
+                $ids[] = (int) $rawId;
+            }
+        }
+        $ids = array_values(array_unique($ids));
+
+        if (empty($ids)) {
+            jsonView(['status' => 'error', 'message' => 'id or non-empty ids array is required (positive integers)'], 400);
+            return;
+        }
+
+        $existingIds = Simplemdm_mcp_finding_model::whereIn('id', $ids)->pluck('id')->all();
+        $existingIds = array_map('intval', $existingIds);
+        $notFound = array_values(array_diff($ids, $existingIds));
+
+        $update = ['status' => $targetStatus];
+        if ($targetStatus === Simplemdm_mcp_finding_model::STATUS_RESOLVED) {
+            $update['resolved_at'] = gmdate('c');
+        } else {
+            $update['resolved_at'] = null;
+        }
+
+        $updated = 0;
+        if (! empty($existingIds)) {
+            $updated = Simplemdm_mcp_finding_model::whereIn('id', $existingIds)->update($update);
+        }
+
+        jsonView([
+            'status'    => 'success',
+            'requested' => count($ids),
+            'updated'   => $updated,
+            'not_found' => $notFound,
+        ]);
+    }
+
+    public function acknowledge_mcp_finding()
+    {
+        $this->applyFindingStatusAction(Simplemdm_mcp_finding_model::STATUS_ACKNOWLEDGED);
+    }
+
+    public function resolve_mcp_finding()
+    {
+        $this->applyFindingStatusAction(Simplemdm_mcp_finding_model::STATUS_RESOLVED);
+    }
+
+    public function ignore_mcp_finding()
+    {
+        $this->applyFindingStatusAction(Simplemdm_mcp_finding_model::STATUS_IGNORED);
+    }
+
+    public function suppress_mcp_finding()
+    {
+        $this->applyFindingStatusAction(Simplemdm_mcp_finding_model::STATUS_SUPPRESSED);
     }
 
     public function get_events($serial_number = '')

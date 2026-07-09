@@ -13,7 +13,7 @@ class Simplemdm_controller extends Module_controller
     // instead of a MunkiReport session. Token is validated once in the constructor;
     // the authorized() override below vouches for these requests so they also pass
     // the core Module controller filter.
-    private $token_read_actions = ['get_sync_telemetry', 'get_compliance_stats', 'get_command_status_stats', 'get_assignment_group_stats', 'get_resource_type_stats', 'get_os_security_stats', 'get_supplemental_status', 'get_supplemental_overview_stats', 'get_supplemental_applecare_stats', 'get_device_resources', 'get_events', 'get_dashboard_trend', 'get_supplemental_data', 'get_client_facts', 'get_runner_status', 'get_mcp_findings'];
+    private $token_read_actions = ['get_sync_telemetry', 'get_compliance_stats', 'get_command_status_stats', 'get_assignment_group_stats', 'get_resource_type_stats', 'get_os_security_stats', 'get_supplemental_status', 'get_supplemental_overview_stats', 'get_supplemental_applecare_stats', 'get_device_resources', 'get_events', 'get_dashboard_trend', 'get_supplemental_data', 'get_client_facts', 'get_runner_status', 'get_mcp_findings', 'get_mcp_finding_stats', 'export_mcp_findings', 'get_mcp_scan_status'];
     private $token_read_request = false;
     private $downloadable_scripts = ['simplemdm_sync.py', 'install_cron.sh', 'remove_cron.sh'];
 
@@ -6722,6 +6722,84 @@ class Simplemdm_controller extends Module_controller
             'totals'        => $totals,
             'status_totals' => $status_totals,
             'findings'      => $rows,
+        ]);
+    }
+
+    /**
+     * Severity/status/category/source count breakdowns for MCP findings.
+     * GET /module/simplemdm/get_mcp_finding_stats?source=&category=&scan_id=&since=
+     *
+     * @return void
+     **/
+    public function get_mcp_finding_stats()
+    {
+        if (! $this->mcp_findings_enabled()) {
+            jsonView(['status' => 'error', 'message' => 'MCP findings are disabled'], 403);
+            return;
+        }
+
+        $applyFilters = function ($query) {
+            $source = isset($_GET['source']) ? strtolower(trim((string) $_GET['source'])) : '';
+            if ($source !== '') {
+                $query->where('source', $source);
+            }
+            $category = isset($_GET['category']) ? trim((string) $_GET['category']) : '';
+            if ($category !== '') {
+                $categories = array_values(array_filter(array_map('trim', explode(',', $category))));
+                if (count($categories) === 1) {
+                    $query->where('category', $categories[0]);
+                } elseif (count($categories) > 1) {
+                    $query->whereIn('category', $categories);
+                }
+            }
+            $scanId = isset($_GET['scan_id']) ? trim((string) $_GET['scan_id']) : '';
+            if ($scanId !== '') {
+                $query->where('scan_id', $scanId);
+            }
+            $since = isset($_GET['since']) ? trim((string) $_GET['since']) : '';
+            if ($since !== '' && strtotime($since) !== false) {
+                $query->where('last_seen_at', '>=', gmdate('c', strtotime($since)));
+            }
+            return $query;
+        };
+
+        $by_status = [];
+        foreach (['open', 'acknowledged', 'in_progress', 'resolved', 'ignored', 'suppressed'] as $status) {
+            $by_status[$status] = (int) $applyFilters(Simplemdm_mcp_finding_model::where('status', $status))->count();
+        }
+
+        $by_severity = [];
+        foreach (['danger', 'warning', 'info'] as $severity) {
+            $by_severity[$severity] = (int) $applyFilters(
+                Simplemdm_mcp_finding_model::whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES)->where('severity', $severity)
+            )->count();
+        }
+
+        $by_category = [];
+        $categoryValues = $applyFilters(
+            Simplemdm_mcp_finding_model::whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES)
+        )->whereNotNull('category')->where('category', '!=', '')->distinct()->pluck('category');
+        foreach ($categoryValues as $categoryValue) {
+            $by_category[$categoryValue] = (int) $applyFilters(
+                Simplemdm_mcp_finding_model::whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES)->where('category', $categoryValue)
+            )->count();
+        }
+
+        $by_source = [];
+        $sourceValues = $applyFilters(
+            Simplemdm_mcp_finding_model::whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES)
+        )->distinct()->pluck('source');
+        foreach ($sourceValues as $sourceValue) {
+            $by_source[$sourceValue] = (int) $applyFilters(
+                Simplemdm_mcp_finding_model::whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES)->where('source', $sourceValue)
+            )->count();
+        }
+
+        jsonView([
+            'by_status'   => $by_status,
+            'by_severity' => $by_severity,
+            'by_category' => $by_category,
+            'by_source'   => $by_source,
         ]);
     }
 

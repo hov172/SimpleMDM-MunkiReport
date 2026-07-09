@@ -1082,12 +1082,15 @@ Three read-only routes to support analytics dashboards and bulk export workflows
 ```
 
 **Response field definitions**:
-- `by_status`: global count of all findings by status (`open`, `acknowledged`, `in_progress`, `resolved`, `ignored`, `suppressed`). Always includes all six keys even if the count is `0`. Not affected by query filters.
-- `by_severity`: count of active findings (`open`, `acknowledged`, `in_progress`) by severity (`danger`, `warning`, `info`). Always includes all three keys even if the count is `0`. Scoped to active statuses only (not affected by resolved/ignored/suppressed findings).
-- `by_category`: count of active findings grouped by distinct `category` values. Only includes keys that have at least one matching active finding. Null/empty categories are omitted (do not appear as a `""` key).
-- `by_source`: count of active findings grouped by distinct `source` values. Only includes keys that have at least one matching active finding.
+- `by_status`: count of all findings by status (`open`, `acknowledged`, `in_progress`, `resolved`, `ignored`, `suppressed`), scoped to the query filters (source, category, scan_id, since). Always includes all six keys even if the count is `0`.
+- `by_severity`: count of active findings (`open`, `acknowledged`, `in_progress`) by severity (`danger`, `warning`, `info`), scoped to the query filters. Always includes all three keys even if the count is `0`. Scoped to active statuses only (not affected by resolved/ignored/suppressed findings).
+- `by_category`: count of active findings grouped by distinct `category` values, scoped to the query filters. Only includes keys that have at least one matching active finding. Null/empty categories are omitted (do not appear as a `""` key).
+- `by_source`: count of active findings grouped by distinct `source` values, scoped to the query filters. Only includes keys that have at least one matching active finding.
 
 **Key distinction**: `by_status` and `by_severity` use fixed keys that are always present (even at `0`), mirroring the precedent set by `get_mcp_findings`' `status_totals` and `totals` fields. `by_category` and `by_source` are dynamic breakdowns — keys are only present if they match at least one active finding.
+
+**Error response**:
+- `403` with `{"status":"error","message":"MCP findings are disabled"}` if `mcp_findings_enabled=0`.
 
 ### export_mcp_findings — CSV/JSON Bulk Export
 
@@ -1209,6 +1212,8 @@ Three read-only routes to support analytics dashboards and bulk export workflows
     - `total`: sum of the above three counts
 
 **Important scope note**: The `counts` field reflects **only the most recent scan for that source**, not all-time totals. If a source has received multiple scans over time, earlier scans' findings are not included in the count totals — only the most recent scan's findings are counted. This allows tracking which issues are current in the latest scan vs. which may have been resolved or are from older scans.
+
+**Failure tracking**: This endpoint does not include a failure or error-tracking field. The codebase does not log ingest attempt failures, so there is no "failed" status or count to report.
 
 **Scan sequencing example**:
 1. First ingest for source `mcp` with `scan_id=scan_v1` contains 10 findings (danger: 3, warning: 5, info: 2)

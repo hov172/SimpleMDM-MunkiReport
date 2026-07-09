@@ -6599,20 +6599,50 @@ class Simplemdm_controller extends Module_controller
         if ($limit > 500) {
             $limit = 500;
         }
+        $offset = isset($_GET['offset']) ? max(0, (int) $_GET['offset']) : 0;
 
-        $query = Simplemdm_mcp_finding_model::orderBy('id', 'desc')->limit($limit);
+        $query = Simplemdm_mcp_finding_model::orderBy('id', 'desc')->limit($limit)->offset($offset);
 
         $serial_number = trim((string) $serial_number);
         if ($serial_number !== '') {
             $query->where('serial_number', $serial_number);
         }
+
         $severity = isset($_GET['severity']) ? strtolower(trim((string) $_GET['severity'])) : '';
         if ($severity !== '') {
-            $query->where('severity', $severity);
+            $severities = array_values(array_filter(array_map('trim', explode(',', $severity))));
+            if (count($severities) === 1) {
+                $query->where('severity', $severities[0]);
+            } elseif (count($severities) > 1) {
+                $query->whereIn('severity', $severities);
+            }
         }
+
+        $status = isset($_GET['status']) ? strtolower(trim((string) $_GET['status'])) : '';
+        if ($status !== '') {
+            $statuses = array_values(array_filter(array_map('trim', explode(',', $status))));
+            if (count($statuses) === 1) {
+                $query->where('status', $statuses[0]);
+            } elseif (count($statuses) > 1) {
+                $query->whereIn('status', $statuses);
+            }
+        } else {
+            $query->whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES);
+        }
+
         $source = isset($_GET['source']) ? strtolower(trim((string) $_GET['source'])) : '';
         if ($source !== '') {
             $query->where('source', $source);
+        }
+
+        $scanId = isset($_GET['scan_id']) ? trim((string) $_GET['scan_id']) : '';
+        if ($scanId !== '') {
+            $query->where('scan_id', $scanId);
+        }
+
+        $since = isset($_GET['since']) ? trim((string) $_GET['since']) : '';
+        if ($since !== '' && strtotime($since) !== false) {
+            $query->where('last_seen_at', '>=', gmdate('c', strtotime($since)));
         }
 
         $rows = [];
@@ -6621,15 +6651,24 @@ class Simplemdm_controller extends Module_controller
         }
 
         $totals = [
-            'danger'  => (int) Simplemdm_mcp_finding_model::where('severity', 'danger')->count(),
-            'warning' => (int) Simplemdm_mcp_finding_model::where('severity', 'warning')->count(),
-            'info'    => (int) Simplemdm_mcp_finding_model::where('severity', 'info')->count(),
+            'danger'  => (int) Simplemdm_mcp_finding_model::whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES)->where('severity', 'danger')->count(),
+            'warning' => (int) Simplemdm_mcp_finding_model::whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES)->where('severity', 'warning')->count(),
+            'info'    => (int) Simplemdm_mcp_finding_model::whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES)->where('severity', 'info')->count(),
+        ];
+        $status_totals = [
+            'open'         => (int) Simplemdm_mcp_finding_model::where('status', 'open')->count(),
+            'acknowledged' => (int) Simplemdm_mcp_finding_model::where('status', 'acknowledged')->count(),
+            'in_progress'  => (int) Simplemdm_mcp_finding_model::where('status', 'in_progress')->count(),
+            'resolved'     => (int) Simplemdm_mcp_finding_model::where('status', 'resolved')->count(),
+            'ignored'      => (int) Simplemdm_mcp_finding_model::where('status', 'ignored')->count(),
+            'suppressed'   => (int) Simplemdm_mcp_finding_model::where('status', 'suppressed')->count(),
         ];
 
         jsonView([
-            'count'    => count($rows),
-            'totals'   => $totals,
-            'findings' => $rows,
+            'count'         => count($rows),
+            'totals'        => $totals,
+            'status_totals' => $status_totals,
+            'findings'      => $rows,
         ]);
     }
 

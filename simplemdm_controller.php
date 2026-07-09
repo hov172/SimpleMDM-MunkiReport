@@ -6803,6 +6803,113 @@ class Simplemdm_controller extends Module_controller
         ]);
     }
 
+    /**
+     * Bulk export of MCP findings as CSV or JSON, same filters as get_mcp_findings.
+     * GET /module/simplemdm/export_mcp_findings?format=csv|json&severity=&status=&source=&category=&scan_id=&since=
+     *
+     * @return void
+     **/
+    public function export_mcp_findings()
+    {
+        if (! $this->mcp_findings_enabled()) {
+            jsonView(['status' => 'error', 'message' => 'MCP findings are disabled'], 403);
+            return;
+        }
+
+        $format = isset($_GET['format']) ? strtolower(trim((string) $_GET['format'])) : 'json';
+        if ($format !== 'csv' && $format !== 'json') {
+            jsonView(['status' => 'error', 'message' => 'format must be csv or json'], 400);
+            return;
+        }
+
+        $exportCap = 10000;
+        $query = Simplemdm_mcp_finding_model::orderBy('id', 'desc')->limit($exportCap + 1);
+
+        $severity = isset($_GET['severity']) ? strtolower(trim((string) $_GET['severity'])) : '';
+        if ($severity !== '') {
+            $severities = array_values(array_filter(array_map('trim', explode(',', $severity))));
+            if (count($severities) === 1) {
+                $query->where('severity', $severities[0]);
+            } elseif (count($severities) > 1) {
+                $query->whereIn('severity', $severities);
+            }
+        }
+
+        $status = isset($_GET['status']) ? strtolower(trim((string) $_GET['status'])) : '';
+        if ($status !== '') {
+            $statuses = array_values(array_filter(array_map('trim', explode(',', $status))));
+            if (count($statuses) === 1) {
+                $query->where('status', $statuses[0]);
+            } elseif (count($statuses) > 1) {
+                $query->whereIn('status', $statuses);
+            }
+        } else {
+            $query->whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES);
+        }
+
+        $source = isset($_GET['source']) ? strtolower(trim((string) $_GET['source'])) : '';
+        if ($source !== '') {
+            $query->where('source', $source);
+        }
+
+        $category = isset($_GET['category']) ? trim((string) $_GET['category']) : '';
+        if ($category !== '') {
+            $categories = array_values(array_filter(array_map('trim', explode(',', $category))));
+            if (count($categories) === 1) {
+                $query->where('category', $categories[0]);
+            } elseif (count($categories) > 1) {
+                $query->whereIn('category', $categories);
+            }
+        }
+
+        $scanId = isset($_GET['scan_id']) ? trim((string) $_GET['scan_id']) : '';
+        if ($scanId !== '') {
+            $query->where('scan_id', $scanId);
+        }
+
+        $since = isset($_GET['since']) ? trim((string) $_GET['since']) : '';
+        if ($since !== '' && strtotime($since) !== false) {
+            $query->where('last_seen_at', '>=', gmdate('c', strtotime($since)));
+        }
+
+        $rows = [];
+        foreach ($query->get() as $row) {
+            $rows[] = $row->toArray();
+        }
+
+        $truncated = count($rows) > $exportCap;
+        if ($truncated) {
+            $rows = array_slice($rows, 0, $exportCap);
+        }
+
+        if ($format === 'json') {
+            jsonView([
+                'count'     => count($rows),
+                'truncated' => $truncated,
+                'findings'  => $rows,
+            ]);
+            return;
+        }
+
+        $columns = ['id', 'source', 'serial_number', 'finding_type', 'category', 'severity', 'status', 'message', 'data', 'scan_id', 'occurrence_count', 'reported_at', 'first_seen_at', 'last_seen_at', 'resolved_at'];
+        header('Content-Type: text/csv');
+        header('Content-Disposition: attachment; filename="mcp_findings_export_' . gmdate('Ymd\THis\Z') . '.csv"');
+        if ($truncated) {
+            header('X-Export-Truncated: true');
+        }
+        $out = fopen('php://output', 'w');
+        fputcsv($out, $columns);
+        foreach ($rows as $row) {
+            $line = [];
+            foreach ($columns as $col) {
+                $line[] = isset($row[$col]) ? $row[$col] : '';
+            }
+            fputcsv($out, $line);
+        }
+        fclose($out);
+        exit;
+    }
+
     private function applyFindingStatusAction($targetStatus)
     {
         $this->connectDB();

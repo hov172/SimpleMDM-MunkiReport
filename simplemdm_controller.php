@@ -6523,7 +6523,9 @@ class Simplemdm_controller extends Module_controller
 
             $serialNumber = isset($finding['serial_number']) ? substr(trim((string) $finding['serial_number']), 0, 64) : null;
             $findingType = substr($type, 0, 128);
-            $fingerprint = Simplemdm_mcp_finding_model::computeFingerprint($source, $serialNumber, $findingType);
+            $category = isset($finding['category']) ? substr(trim((string) $finding['category']), 0, 128) : null;
+            $category = $category === '' ? null : $category;
+            $fingerprint = Simplemdm_mcp_finding_model::computeFingerprint($source, $serialNumber, $findingType, $category);
 
             $existing = Simplemdm_mcp_finding_model::where('source', $source)
                 ->where('fingerprint', $fingerprint)
@@ -6538,6 +6540,7 @@ class Simplemdm_controller extends Module_controller
 
                 $update = [
                     'serial_number'    => $serialNumber,
+                    'category'         => $category,
                     'severity'         => $severity,
                     'message'          => substr($message, 0, 1000),
                     'data'             => $extra,
@@ -6559,6 +6562,7 @@ class Simplemdm_controller extends Module_controller
             } else {
                 $row = Simplemdm_mcp_finding_model::create([
                     'serial_number'    => $serialNumber,
+                    'category'         => $category,
                     'source'           => $source,
                     'finding_type'     => $findingType,
                     'fingerprint'      => $fingerprint,
@@ -6672,6 +6676,16 @@ class Simplemdm_controller extends Module_controller
         $source = isset($_GET['source']) ? strtolower(trim((string) $_GET['source'])) : '';
         if ($source !== '') {
             $query->where('source', $source);
+        }
+
+        $category = isset($_GET['category']) ? trim((string) $_GET['category']) : '';
+        if ($category !== '') {
+            $categories = array_values(array_filter(array_map('trim', explode(',', $category))));
+            if (count($categories) === 1) {
+                $query->where('category', $categories[0]);
+            } elseif (count($categories) > 1) {
+                $query->whereIn('category', $categories);
+            }
         }
 
         $scanId = isset($_GET['scan_id']) ? trim((string) $_GET['scan_id']) : '';

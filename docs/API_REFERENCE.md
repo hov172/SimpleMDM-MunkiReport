@@ -978,6 +978,14 @@ Transitions are unconditional: any finding, in any current status, can be moved 
 
 **Note on scope:** `suppress_mcp_finding` only changes the status of the specific finding(s) named in the request. It does not create a persistent suppression rule that would automatically suppress future, not-yet-ingested findings — that is a separate, later feature (a dedicated suppression-rules table), not implemented by this route.
 
+### Interaction with the ingest lifecycle
+
+Manual status changes via these admin routes interact with the automatic ingest lifecycle as follows:
+
+- **`resolved` status**: If a finding is manually set to `resolved`, ingesting the same fingerprint in a later scan reopens it—status transitions back to `open` and `resolved_at` clears to `null`. This is the pre-existing reopen behavior from the ingest lifecycle.
+- **`acknowledged` status**: An acknowledged finding is in `ACTIVE_STATUSES`. If a complete scan (`replace=true`, the default) no longer includes that fingerprint, it is auto-resolved during that scan's processing, regardless of prior manual acknowledgment.
+- **`ignored` and `suppressed` statuses**: These statuses are durable. They are excluded from `ACTIVE_STATUSES`, so they are never auto-resolved by a complete scan, and the ingest reopen logic does not affect them. A manual ignore or suppress survives rescans of the same fingerprint (only metadata like `last_seen_at` and `occurrence_count` update).
+
 ### Request
 
 ```json

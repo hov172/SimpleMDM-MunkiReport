@@ -93,7 +93,7 @@ All are called via:
 | `ingest_client_facts` | POST | Upsert allowlisted client-reported facts into `simplemdm_client_fact` | Client reporter secret |
 | `update_sync_status` | POST | Update sync status and telemetry fields in `simplemdm_config` | Sync token |
 | `webhook` | POST | Store webhook event; best-effort device/command updates | Webhook secret OR sync token |
-| `ingest_mcp_findings` | POST | Replace/insert MCP-computed findings into `simplemdm_mcp_finding` (source-scoped replace, 2 MB / 2000-finding caps) | Sync token |
+| `ingest_mcp_findings` | POST | Upsert MCP-computed findings by deterministic fingerprint; auto-resolve findings absent from complete scans; reopen resolved findings if they reappear (2 MB / 2000-finding caps) | Sync token |
 
 ## 3) Config Endpoints
 
@@ -795,4 +795,164 @@ Common error payloads:
 | Route | Method | Purpose | Auth |
 |---|---|---|---|
 | `get_events[/serial]` | GET | SimpleMDM alert/regression events (`?limit&type`) | Session OR sync token |
-| `get_mcp_findings[/serial]` | GET | MCP-pushed findings (`count`, severity `totals`, and full `findings` rows: severity, finding type, serial, message, `data` JSON, reported time; `?severity&source&limit`) — feeds the MCP Findings widget | Session OR sync token |
+| `get_mcp_findings[/serial]` | GET | MCP findings with lifecycle status and history (query filters: `status`, `since`, `scan_id`, `offset`; response includes `status_totals`; defaults to active statuses only) — feeds the MCP Findings widget | Session OR sync token |
+
+## 11) MCP Findings Lifecycle (ingest & read)
+
+### ingest_mcp_findings Request
+
+**Purpose**: Upsert MCP-computed findings into the `simplemdm_mcp_finding` table by a deterministic `(source, serial_number, finding_type)` fingerprint.
+
+**Endpoint**: `POST /index.php?/module/simplemdm/index?op=ingest_mcp_findings`
+
+**Auth**: Sync token header (`X-SIMPLEMDM-API-KEY`)
+
+**Request body schema**:
+
+```json
+{
+  "source": "mcp",
+  "scan_id": "optional-scan-uuid-or-identifier",
+  "findings": [
+    {
+      "serial_number": "C02XXXXXXX",
+      "finding_type": "cve_exposure",
+      "severity": "danger",
+      "message": "CVE-2024-1234 exposure detected",
+      "data": {
+        "cve_id": "CVE-2024-1234",
+        "affected_version": "14.1"
+      }
+    }
+  ],
+  "replace": true
+}
+```
+
+**Field definitions**:
+- `source` (required string, top-level): identifier for the finding source for this entire push (e.g., `mcp`, `mcp_scanner_name`). Read from `$data['source']` at the top level of the request body — not per-finding. Must match `^[a-z0-9_\-]{1,64}$` (case-insensitive, normalized to lowercase). If missing or invalid, the request fails with `400 source is required`.
+- `scan_id` (optional string): server-provided or client-provided unique identifier for this push. If omitted, the server generates one. Used to track which scan produced which findings and to support partial-scan semantics (see lifecycle behavior below).
+- `findings` (array): array of finding objects, each with:
+  - `serial_number` (required string): device serial number
+  - `finding_type` (required string): type/category of finding (e.g., `cve_exposure`, `audit_delta`, `stale_detection`)
+  - `severity` (optional string, default `info`): one of `danger`, `warning`, `info`. If omitted or not one of these three values, it is silently coerced to `info`.
+  - `message` (required string): human-readable finding description
+  - `data` (optional object): arbitrary JSON payload with finding details. If omitted (or empty), stored as an empty value.
+- `replace` (optional boolean, default `true`): if `true`, any previously-active findings (status: open, acknowledged, or in_progress) from this `source` that do not appear in the current push are automatically resolved. If `false`, only explicitly-present findings are upserted; absent findings are left as-is (partial scan mode).
+
+**Lifecycle behavior**:
+1. Each finding is fingerprinted on `(source, serial_number, finding_type)`.
+2. If the fingerprint is new, a new `open` finding row is created with `occurrence_count=1`, `first_seen_at` and `last_seen_at` set to now, `resolved_at` NULL.
+3. If the fingerprint exists and is already `open`, the existing row is updated: `occurrence_count` increments, `last_seen_at` is updated, `status` remains `open`.
+4. If the fingerprint exists and is `acknowledged` or `in_progress`, the existing row is updated: `occurrence_count` increments, `last_seen_at` is updated, `status` remains unchanged, and the finding counts toward the `updated` response counter.
+5. If the fingerprint exists and is `resolved`, the existing row is updated: `status` transitions back to `open`, `occurrence_count` increments, `last_seen_at` is updated, `resolved_at` is set to NULL (the finding reappeared after being resolved).
+6. If `replace=true` (the default), any previously-active finding (status: open, acknowledged, or in_progress) from this `source` (same `source` value) that does not appear in the current push is automatically transitioned to `resolved` with `resolved_at` set to now. This implements "complete scan" semantics: if you were tracking 5 findings and push a new scan with only 3, the 2 absent ones are resolved.
+7. If `replace=false`, no auto-resolve happens. Only findings explicitly in the push are upserted.
+8. If a `suppressed` or `ignored` finding recurs in a push, its fields (severity, message, data, last_seen_at, occurrence_count) are updated but the finding does not count toward the `updated` response counter.
+
+**Response**:
+
+```json
+{
+  "scan_id": "scan-uuid-or-identifier",
+  "received": 42,
+  "inserted": 10,
+  "updated": 20,
+  "reopened": 2,
+  "resolved": 8,
+  "skipped": 2,
+  "replace": true
+}
+```
+
+**Response field definitions**:
+- `scan_id`: the scan identifier (client-provided or server-generated)
+- `received`: total findings in the request payload
+- `inserted`: new findings created (fingerprint did not exist before)
+- `updated`: existing open findings updated (occurrence_count incremented, last_seen_at updated)
+- `reopened`: previously-resolved findings that reappeared (status transitioned from `resolved` back to `open`)
+- `resolved`: findings auto-resolved because they were absent from a `replace=true` push
+- `skipped`: findings rejected due to basic validation failures only — a non-array finding entry, or a missing/empty `finding_type` or `message`. There is no intra-push dedup guard: if the same fingerprint appears more than once in a single push, the first occurrence is inserted/updated and each subsequent occurrence upserts the same row again (incrementing `occurrence_count` further), counting toward `updated`/`reopened` rather than `skipped`.
+- `replace`: the replace mode used for this push
+
+### get_mcp_findings Query & Response
+
+**Purpose**: Read MCP findings with optional filtering and lifecycle status tracking.
+
+**Endpoint**: `GET /module/simplemdm/get_mcp_findings[/serial]`
+
+**Auth**: Session OR sync token header (`X-SIMPLEMDM-API-KEY`)
+
+**Query parameters**:
+- `status` (optional): filter by status. Supported values: `open`, `acknowledged`, `in_progress`, `resolved`, `ignored`, `suppressed`, or a comma-separated list for multiple statuses. If omitted, defaults to `open,acknowledged,in_progress` (active statuses only).
+- `since` (optional): ISO 8601 timestamp; only return findings with `last_seen_at` >= this value.
+- `scan_id` (optional): filter to findings from a specific `scan_id`.
+- `offset` (optional): pagination offset (default 0).
+- `limit` (optional, legacy): return at most N findings; if omitted, returns all (subject to server limits).
+- `severity` (optional, legacy): filter by severity (`danger`, `warning`, `info`, or comma-separated list).
+- `source` (optional, legacy): filter by source (`mcp`, `mcp_scanner_name`, etc., or comma-separated list).
+- `/serial` (optional path parameter): if present, only return findings for the specified device serial number.
+
+**Response**:
+
+```json
+{
+  "findings": [
+    {
+      "id": 123,
+      "source": "mcp",
+      "serial_number": "C02XXXXXXX",
+      "finding_type": "cve_exposure",
+      "severity": "danger",
+      "message": "CVE-2024-1234 exposure detected",
+      "status": "open",
+      "occurrence_count": 3,
+      "first_seen_at": "2026-03-01T10:00:00Z",
+      "last_seen_at": "2026-03-09T15:30:00Z",
+      "resolved_at": null,
+      "data": {
+        "cve_id": "CVE-2024-1234",
+        "affected_version": "14.1"
+      },
+      "reported_at": "2026-03-09T15:30:00Z",
+      "scan_id": "scan-uuid"
+    }
+  ],
+  "status_totals": {
+    "open": 25,
+    "acknowledged": 3,
+    "in_progress": 1,
+    "resolved": 5,
+    "ignored": 0,
+    "suppressed": 0
+  },
+  "totals": {
+    "danger": 12,
+    "warning": 15,
+    "info": 5
+  }
+}
+```
+
+**Response field definitions**:
+- `findings`: array of finding rows matching the query filters (sorted by `id` descending — most recently inserted/updated row first; not sorted by `last_seen_at`)
+  - `id`: unique finding row id
+  - `source`: the source identifier
+  - `serial_number`: the device serial
+  - `finding_type`: the finding type
+  - `severity`: the severity
+  - `message`: the human-readable message
+  - `status`: current status (`open`, `acknowledged`, `in_progress`, `resolved`, `ignored`, `suppressed`)
+  - `occurrence_count`: total times this fingerprint has been seen
+  - `first_seen_at`: ISO 8601 timestamp when the fingerprint was first created
+  - `last_seen_at`: ISO 8601 timestamp when the fingerprint was last updated in an ingest
+  - `resolved_at`: ISO 8601 timestamp when the finding was resolved (NULL if still active)
+  - `data`: the arbitrary JSON payload provided at ingest time
+  - `reported_at`: when the finding was last reported (same as `last_seen_at`)
+  - `scan_id`: the scan identifier from the ingest that created or last updated this finding
+- `status_totals`: unconditional global counts of findings by status — one count per status (`open`, `acknowledged`, `in_progress`, `resolved`, `ignored`, `suppressed`) across the entire table. These counts are **not** affected by any query filter (`status`, `source`, `serial`, `since`, `scan_id`, etc.) — they always reflect the whole dataset, not the filtered result set.
+- `totals`: legacy field; count of findings by severity (`danger`, `warning`, `info`), always scoped to active statuses only (`open`, `acknowledged`, `in_progress`). Like `status_totals`, this is **not** affected by any query filter — it is always computed over all active findings regardless of `status`/`source`/`serial`/`since`/`scan_id` params.
+
+**Default behavior** (backward compatible):
+- Without an explicit `status` query parameter, the `findings` array returned by `get_mcp_findings` is filtered to only active findings (`open`, `acknowledged`, `in_progress`), matching the widget's original behavior. This filtering applies only to the `findings` array — it does not affect `status_totals` or `totals`.
+- `status_totals` and `totals` are always independent of every query filter param (`status`, `source`, `serial`, `since`, `scan_id`): `status_totals` is always a global count across all statuses, and `totals` is always scoped to active statuses only. Neither changes based on what filters were passed.

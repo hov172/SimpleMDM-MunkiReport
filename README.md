@@ -93,6 +93,10 @@ The MCP tools map to these routes (16 tools as of SimpleMDM-MCP v0.33.0):
 - **MCP findings channel**: `ingest_mcp_findings` (sync-token POST — the MCP pushes its
   computed findings: CVE exposure, audit deltas, stale/compliance detections) and
   `get_mcp_findings[/serial]?severity&source&limit` (read-back + the MCP Findings widget).
+  Findings now persist across pushes with lifecycle status and occurrence history instead of being
+  wiped on every push; a complete scan auto-resolves previously-active findings (open, acknowledged, in_progress) that no longer
+  appear, and resolved findings reopen if they recur. See the [CHANGELOG](CHANGELOG.md) for the
+  full field list and new query parameters.
 - **Actions** (write-gated on the MCP side): `request_sync`, `refresh_supplemental_summary[/serial]`.
 
 Note: as of 2026-07-08, sixteen read-only routes accept the sync token header

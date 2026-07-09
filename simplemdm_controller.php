@@ -6450,10 +6450,19 @@ class Simplemdm_controller extends Module_controller
             return;
         }
 
+        $scanId = isset($data['scan_id']) ? substr(trim((string) $data['scan_id']), 0, 128) : '';
+        if ($scanId === '') {
+            $scanId = 'scan_' . gmdate('Ymd\THis\Z') . '_' . bin2hex(random_bytes(4));
+        }
+
         $valid_severities = ['danger', 'warning', 'info'];
         $now = gmdate('c');
-        $rows = [];
         $skipped = 0;
+        $inserted = 0;
+        $updated = 0;
+        $reopened = 0;
+        $touchedIds = [];
+
         foreach ($findings as $finding) {
             if (! is_array($finding)) {
                 $skipped++;
@@ -6479,31 +6488,99 @@ class Simplemdm_controller extends Module_controller
                     $extra = substr($extra, 0, 4096);
                 }
             }
-            $rows[] = [
-                'serial_number' => isset($finding['serial_number']) ? substr(trim((string) $finding['serial_number']), 0, 64) : null,
-                'source'        => $source,
-                'finding_type'  => substr($type, 0, 128),
-                'severity'      => $severity,
-                'message'       => substr($message, 0, 1000),
-                'data'          => $extra,
-                'reported_at'   => $now,
-            ];
+
+            $serialNumber = isset($finding['serial_number']) ? substr(trim((string) $finding['serial_number']), 0, 64) : null;
+            $findingType = substr($type, 0, 128);
+            $fingerprint = Simplemdm_mcp_finding_model::computeFingerprint($source, $serialNumber, $findingType);
+
+            $existing = Simplemdm_mcp_finding_model::where('source', $source)
+                ->where('fingerprint', $fingerprint)
+                ->first();
+
+            if ($existing) {
+                $wasResolved = $existing->status === Simplemdm_mcp_finding_model::STATUS_RESOLVED;
+                $isSuppressedOrIgnored = in_array($existing->status, [
+                    Simplemdm_mcp_finding_model::STATUS_SUPPRESSED,
+                    Simplemdm_mcp_finding_model::STATUS_IGNORED,
+                ], true);
+
+                $update = [
+                    'serial_number'    => $serialNumber,
+                    'severity'         => $severity,
+                    'message'          => substr($message, 0, 1000),
+                    'data'             => $extra,
+                    'reported_at'      => $now,
+                    'last_seen_at'     => $now,
+                    'scan_id'          => $scanId,
+                    'occurrence_count' => $existing->occurrence_count + 1,
+                ];
+                if ($wasResolved) {
+                    $update['status'] = Simplemdm_mcp_finding_model::STATUS_OPEN;
+                    $update['resolved_at'] = null;
+                    $reopened++;
+                } elseif (! $isSuppressedOrIgnored) {
+                    $updated++;
+                }
+                $existing->fill($update);
+                $existing->save();
+                $touchedIds[] = $existing->id;
+            } else {
+                $row = Simplemdm_mcp_finding_model::create([
+                    'serial_number'    => $serialNumber,
+                    'source'           => $source,
+                    'finding_type'     => $findingType,
+                    'fingerprint'      => $fingerprint,
+                    'severity'         => $severity,
+                    'status'           => Simplemdm_mcp_finding_model::STATUS_OPEN,
+                    'occurrence_count' => 1,
+                    'scan_id'          => $scanId,
+                    'message'          => substr($message, 0, 1000),
+                    'data'             => $extra,
+                    'reported_at'      => $now,
+                    'first_seen_at'    => $now,
+                    'last_seen_at'     => $now,
+                    'resolved_at'      => null,
+                ]);
+                $inserted++;
+                $touchedIds[] = $row->id;
+            }
         }
 
         $replace = ! isset($data['replace']) || $data['replace'] !== false;
-        if ($replace) {
-            Simplemdm_mcp_finding_model::where('source', $source)->delete();
+
+        if ($replace && count($findings) > 0 && $skipped === count($findings)) {
+            jsonView([
+                'status'  => 'error',
+                'message' => 'All findings failed validation; refusing to auto-resolve on a fully invalid replace payload',
+            ], 400);
+            return;
         }
-        foreach (array_chunk($rows, 200) as $chunk) {
-            Simplemdm_mcp_finding_model::insert($chunk);
+
+        $resolved = 0;
+        if ($replace) {
+            $staleQuery = Simplemdm_mcp_finding_model::where('source', $source)
+                ->whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES);
+            if (! empty($touchedIds)) {
+                $staleQuery->whereNotIn('id', $touchedIds);
+            }
+            $resolved = $staleQuery->count();
+            $staleQuery->update([
+                'status'      => Simplemdm_mcp_finding_model::STATUS_RESOLVED,
+                'resolved_at' => $now,
+            ]);
         }
 
         jsonView([
             'status'   => 'success',
             'source'   => $source,
-            'stored'   => count($rows),
+            'scan_id'  => $scanId,
+            'received' => count($findings),
+            'inserted' => $inserted,
+            'updated'  => $updated,
+            'reopened' => $reopened,
+            'resolved' => $resolved,
             'skipped'  => $skipped,
-            'replaced' => $replace,
+            'replace'  => $replace,
         ]);
     }
 

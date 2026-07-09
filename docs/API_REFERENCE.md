@@ -811,13 +811,13 @@ Common error payloads:
 
 ```json
 {
+  "source": "mcp",
   "scan_id": "optional-scan-uuid-or-identifier",
   "findings": [
     {
-      "source": "mcp",
       "serial_number": "C02XXXXXXX",
       "finding_type": "cve_exposure",
-      "severity": "high",
+      "severity": "danger",
       "message": "CVE-2024-1234 exposure detected",
       "data": {
         "cve_id": "CVE-2024-1234",
@@ -830,14 +830,14 @@ Common error payloads:
 ```
 
 **Field definitions**:
+- `source` (required string, top-level): identifier for the finding source for this entire push (e.g., `mcp`, `mcp_scanner_name`). Read from `$data['source']` at the top level of the request body — not per-finding. Must match `^[a-z0-9_\-]{1,64}$` (case-insensitive, normalized to lowercase). If missing or invalid, the request fails with `400 source is required`.
 - `scan_id` (optional string): server-provided or client-provided unique identifier for this push. If omitted, the server generates one. Used to track which scan produced which findings and to support partial-scan semantics (see lifecycle behavior below).
 - `findings` (array): array of finding objects, each with:
-  - `source` (required string): identifier for the finding source (e.g., `mcp`, `mcp_scanner_name`)
   - `serial_number` (required string): device serial number
   - `finding_type` (required string): type/category of finding (e.g., `cve_exposure`, `audit_delta`, `stale_detection`)
-  - `severity` (required string): one of `info`, `low`, `medium`, `high`, `critical`
+  - `severity` (optional string, default `info`): one of `danger`, `warning`, `info`. If omitted or not one of these three values, it is silently coerced to `info`.
   - `message` (required string): human-readable finding description
-  - `data` (required object): arbitrary JSON payload with finding details
+  - `data` (optional object): arbitrary JSON payload with finding details. If omitted (or empty), stored as an empty value.
 - `replace` (optional boolean, default `true`): if `true`, any previously-active findings (status: open, acknowledged, or in_progress) from this `source` that do not appear in the current push are automatically resolved. If `false`, only explicitly-present findings are upserted; absent findings are left as-is (partial scan mode).
 
 **Lifecycle behavior**:
@@ -872,7 +872,7 @@ Common error payloads:
 - `updated`: existing open findings updated (occurrence_count incremented, last_seen_at updated)
 - `reopened`: previously-resolved findings that reappeared (status transitioned from `resolved` back to `open`)
 - `resolved`: findings auto-resolved because they were absent from a `replace=true` push
-- `skipped`: findings rejected due to validation errors (e.g., missing required fields, duplicate fingerprints in the same push)
+- `skipped`: findings rejected due to basic validation failures only — a non-array finding entry, or a missing/empty `finding_type` or `message`. There is no intra-push dedup guard: if the same fingerprint appears more than once in a single push, the first occurrence is inserted/updated and each subsequent occurrence upserts the same row again (incrementing `occurrence_count` further), counting toward `updated`/`reopened` rather than `skipped`.
 - `replace`: the replace mode used for this push
 
 ### get_mcp_findings Query & Response
@@ -889,7 +889,7 @@ Common error payloads:
 - `scan_id` (optional): filter to findings from a specific `scan_id`.
 - `offset` (optional): pagination offset (default 0).
 - `limit` (optional, legacy): return at most N findings; if omitted, returns all (subject to server limits).
-- `severity` (optional, legacy): filter by severity (`info`, `low`, `medium`, `high`, `critical`, or comma-separated list).
+- `severity` (optional, legacy): filter by severity (`danger`, `warning`, `info`, or comma-separated list).
 - `source` (optional, legacy): filter by source (`mcp`, `mcp_scanner_name`, etc., or comma-separated list).
 - `/serial` (optional path parameter): if present, only return findings for the specified device serial number.
 
@@ -903,7 +903,7 @@ Common error payloads:
       "source": "mcp",
       "serial_number": "C02XXXXXXX",
       "finding_type": "cve_exposure",
-      "severity": "high",
+      "severity": "danger",
       "message": "CVE-2024-1234 exposure detected",
       "status": "open",
       "occurrence_count": 3,
@@ -927,17 +927,15 @@ Common error payloads:
     "suppressed": 0
   },
   "totals": {
-    "info": 5,
-    "low": 8,
-    "medium": 15,
-    "high": 12,
-    "critical": 0
+    "danger": 12,
+    "warning": 15,
+    "info": 5
   }
 }
 ```
 
 **Response field definitions**:
-- `findings`: array of finding rows matching the query filters (sorted by `last_seen_at` descending by default)
+- `findings`: array of finding rows matching the query filters (sorted by `id` descending — most recently inserted/updated row first; not sorted by `last_seen_at`)
   - `id`: unique finding row id
   - `source`: the source identifier
   - `serial_number`: the device serial
@@ -952,10 +950,9 @@ Common error payloads:
   - `data`: the arbitrary JSON payload provided at ingest time
   - `reported_at`: when the finding was last reported (same as `last_seen_at`)
   - `scan_id`: the scan identifier from the ingest that created or last updated this finding
-- `status_totals`: count of findings by status, aggregated over findings matching the query filters (active statuses only if no explicit `status` filter was provided; all statuses if an explicit filter was given)
-- `totals`: legacy field; count of findings by severity, aggregated over findings matching the query filters (scoped to active statuses only if no explicit `status` filter was provided)
+- `status_totals`: unconditional global counts of findings by status — one count per status (`open`, `acknowledged`, `in_progress`, `resolved`, `ignored`, `suppressed`) across the entire table. These counts are **not** affected by any query filter (`status`, `source`, `serial`, `since`, `scan_id`, etc.) — they always reflect the whole dataset, not the filtered result set.
+- `totals`: legacy field; count of findings by severity (`danger`, `warning`, `info`), always scoped to active statuses only (`open`, `acknowledged`, `in_progress`). Like `status_totals`, this is **not** affected by any query filter — it is always computed over all active findings regardless of `status`/`source`/`serial`/`since`/`scan_id` params.
 
 **Default behavior** (backward compatible):
-- Without an explicit `status` query parameter, `get_mcp_findings` returns only active findings (`open`, `acknowledged`, `in_progress`), matching the widget's original behavior.
-- The `status_totals` field always reflects the counts for the findings returned by the query.
-- The `totals` (severity) field is now scoped to active statuses only when no explicit `status` filter is given, keeping the dashboard widget accurate.
+- Without an explicit `status` query parameter, the `findings` array returned by `get_mcp_findings` is filtered to only active findings (`open`, `acknowledged`, `in_progress`), matching the widget's original behavior. This filtering applies only to the `findings` array — it does not affect `status_totals` or `totals`.
+- `status_totals` and `totals` are always independent of every query filter param (`status`, `source`, `serial`, `since`, `scan_id`): `status_totals` is always a global count across all statuses, and `totals` is always scoped to active statuses only. Neither changes based on what filters were passed.

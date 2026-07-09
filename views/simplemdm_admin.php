@@ -849,6 +849,44 @@ foreach ($required_simplemdm_widgets as $id => $label) {
                 </div>
             </div>
 
+            <div class="panel panel-default simplemdm-modern-widget simplemdm-admin-collapsible" data-collapsible="mcpfindings" data-default-open="0">
+                <div class="panel-heading" data-collapsible-toggle="mcpfindings">
+                    <div class="simplemdm-admin-heading-wrap">
+                        <div class="simplemdm-admin-heading-main">
+                            <h3 class="panel-title"><i class="fa fa-flag"></i> MCP Findings Settings</h3>
+                            <div class="simplemdm-admin-heading-summary" id="summary-mcpfindings">Enable/disable, metadata size cap, and auto-resolve behavior</div>
+                        </div>
+                        <span class="simplemdm-admin-heading-toggle" id="toggle-mcpfindings">Expand</span>
+                    </div>
+                </div>
+                <div class="panel-body" data-collapsible-body="mcpfindings" style="display:none;">
+                    <p class="text-muted">Controls for the MCP findings ingest/read/admin-action routes (<code>ingest_mcp_findings</code>, <code>get_mcp_findings</code>, and the acknowledge/resolve/ignore/suppress admin actions).</p>
+                    <form id="simplemdm-mcpfindings-form">
+                        <div class="checkbox">
+                            <label>
+                                <input type="checkbox" id="mcp_findings_enabled" name="mcp_findings_enabled" value="1">
+                                Enable MCP findings ingest, read, and admin-action routes
+                            </label>
+                            <p class="help-block">When off, <code>ingest_mcp_findings</code>, <code>get_mcp_findings</code>, and the acknowledge/resolve/ignore/suppress routes all return a 403 disabled error. The dashboard widget stays visible and shows its normal "failed to load" message.</p>
+                        </div>
+                        <div class="form-group">
+                            <label for="mcp_findings_metadata_max_bytes">Metadata Max Bytes</label>
+                            <input type="number" min="1024" step="1" class="form-control" id="mcp_findings_metadata_max_bytes" name="mcp_findings_metadata_max_bytes" placeholder="65536">
+                            <p class="help-block">Maximum size (in characters) of each finding's <code>data</code> field. Larger payloads are truncated at ingest time.</p>
+                        </div>
+                        <div class="checkbox">
+                            <label>
+                                <input type="checkbox" id="mcp_findings_auto_resolve" name="mcp_findings_auto_resolve" value="1">
+                                Enable complete-scan auto-resolve
+                            </label>
+                            <p class="help-block">When off, a complete scan (<code>replace: true</code>) never auto-resolves findings absent from the scan, regardless of what the push request sends.</p>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Save MCP Findings Settings</button>
+                        <span id="mcpfindings-save-status" style="margin-left: 10px;"></span>
+                    </form>
+                </div>
+            </div>
+
             <div class="panel panel-default simplemdm-modern-widget simplemdm-admin-collapsible" data-collapsible="manual" data-default-open="0">
                 <div class="panel-heading" data-collapsible-toggle="manual">
                     <div class="simplemdm-admin-heading-wrap">
@@ -1811,6 +1849,9 @@ $(document).on('appReady', function() {
         $('#client_reporter_secret').val(data.client_reporter_secret || '');
         $('#client_reporter_max_payload_bytes').val(pickValue(data.client_reporter_max_payload_bytes, '16384'));
         $('#client_reporter_allowed_fact_keys_json').val(data.client_reporter_allowed_fact_keys_json || '');
+        $('#mcp_findings_enabled').prop('checked', String(data.mcp_findings_enabled || '1') === '1');
+        $('#mcp_findings_metadata_max_bytes').val(pickValue(data.mcp_findings_metadata_max_bytes, '65536'));
+        $('#mcp_findings_auto_resolve').prop('checked', String(data.mcp_findings_auto_resolve || '1') === '1');
         $('#client_reporter_hmac_enabled').prop('checked', String(data.client_reporter_hmac_enabled || '0') === '1');
         $('#client_reporter_replay_protection_enabled').prop('checked', String(data.client_reporter_replay_protection_enabled || '0') === '1');
         $('#client_reporter_per_device_tokens_enabled').prop('checked', String(data.client_reporter_per_device_tokens_enabled || '0') === '1');
@@ -2814,6 +2855,31 @@ $(document).on('appReady', function() {
                 msg = xhr.responseJSON.error;
             }
             setFormStatus('#widget-save-status', 'Error: ' + msg, 'text-danger');
+        });
+    });
+
+    $('#simplemdm-mcpfindings-form').on('submit', function(e) {
+        e.preventDefault();
+        $('#mcpfindings-save-status').text('Saving...').removeClass().addClass('text-info');
+
+        var payload = {
+            mcp_findings_enabled: $('#mcp_findings_enabled').is(':checked') ? '1' : '0',
+            mcp_findings_metadata_max_bytes: String($('#mcp_findings_metadata_max_bytes').val() || '65536'),
+            mcp_findings_auto_resolve: $('#mcp_findings_auto_resolve').is(':checked') ? '1' : '0'
+        };
+
+        $.post(appUrl + '/module/simplemdm/save_config', payload, function(data) {
+            if (data.status === 'success') {
+                setFormStatus('#mcpfindings-save-status', 'Saved successfully!', 'text-success', 3000);
+            } else {
+                setFormStatus('#mcpfindings-save-status', 'Error: ' + (data.message || 'Unknown'), 'text-danger');
+            }
+        }, 'json').fail(function(xhr) {
+            var msg = 'Request failed';
+            if (xhr && xhr.responseJSON && xhr.responseJSON.error) {
+                msg = xhr.responseJSON.error;
+            }
+            setFormStatus('#mcpfindings-save-status', 'Error: ' + msg, 'text-danger');
         });
     });
 

@@ -97,6 +97,7 @@ The MCP tools map to these routes (16 tools as of SimpleMDM-MCP v0.33.0):
   wiped on every push; a complete scan auto-resolves previously-active findings (open, acknowledged, in_progress) that no longer
   appear, and resolved findings reopen if they recur. See the [CHANGELOG](CHANGELOG.md) for the
   full field list and new query parameters.
+  Findings can also be transitioned manually via four admin action routes (`acknowledge_mcp_finding`, `resolve_mcp_finding`, `ignore_mcp_finding`, `suppress_mcp_finding`), independent of the automatic ingest lifecycle — see the CHANGELOG and `docs/API_REFERENCE.md` for the request/response shape.
 - **Actions** (write-gated on the MCP side): `request_sync`, `refresh_supplemental_summary[/serial]`.
 
 Note: as of 2026-07-08, sixteen read-only routes accept the sync token header

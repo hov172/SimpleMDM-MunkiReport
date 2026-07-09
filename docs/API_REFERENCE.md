@@ -956,3 +956,59 @@ Common error payloads:
 **Default behavior** (backward compatible):
 - Without an explicit `status` query parameter, the `findings` array returned by `get_mcp_findings` is filtered to only active findings (`open`, `acknowledged`, `in_progress`), matching the widget's original behavior. This filtering applies only to the `findings` array — it does not affect `status_totals` or `totals`.
 - `status_totals` and `totals` are always independent of every query filter param (`status`, `source`, `serial`, `since`, `scan_id`): `status_totals` is always a global count across all statuses, and `totals` is always scoped to active statuses only. Neither changes based on what filters were passed.
+
+## 12) MCP Findings Admin Actions
+
+Four routes to manually change a finding's `status` outside of the automatic ingest lifecycle. All four share the same request/response shape and differ only in the target status they set.
+
+### Authentication
+
+Same sync-token model as `ingest_mcp_findings` and `get_mcp_findings`: `X-SIMPLEMDM-API-KEY: <sync-token>` header, validated via the module's existing `is_valid_sync_token()` check. No new auth mechanism.
+
+### Routes
+
+| Route | Method | Sets `status` to | Also sets |
+|---|---|---|---|
+| `acknowledge_mcp_finding` | POST | `acknowledged` | `resolved_at` cleared to `null` if it was set |
+| `resolve_mcp_finding` | POST | `resolved` | `resolved_at` set to now (UTC ISO-8601) |
+| `ignore_mcp_finding` | POST | `ignored` | `resolved_at` cleared to `null` if it was set |
+| `suppress_mcp_finding` | POST | `suppressed` | `resolved_at` cleared to `null` if it was set |
+
+Transitions are unconditional: any finding, in any current status, can be moved to any of these four target statuses via any of these four routes. There is no rejection for "already in that status" or an invalid-transition error.
+
+**Note on scope:** `suppress_mcp_finding` only changes the status of the specific finding(s) named in the request. It does not create a persistent suppression rule that would automatically suppress future, not-yet-ingested findings — that is a separate, later feature (a dedicated suppression-rules table), not implemented by this route.
+
+### Request
+
+```json
+{ "id": 42 }
+```
+
+or, for batch operation:
+
+```json
+{ "ids": [42, 43, 44] }
+```
+
+Exactly one of `id` (positive integer) or `ids` (non-empty array of positive integers) must be present. Ids are the `id` column on `simplemdm_mcp_finding` (as returned by `get_mcp_findings`), not scoped by `source` — a caller does not need to also know or pass `source`.
+
+### Response
+
+```json
+{
+  "status": "success",
+  "requested": 3,
+  "updated": 2,
+  "not_found": [44]
+}
+```
+
+- `requested`: count of valid, deduplicated ids parsed from the request (post-deduplication, not the raw array length sent).
+- `updated`: count of rows actually matched and updated.
+- `not_found`: any requested ids that did not match an existing row.
+
+### Errors
+
+- `400` with `{"status":"error","message":"id or non-empty ids array is required (positive integers)"}` if the body is missing both `id` and `ids`, `ids` is empty, or no value is a positive integer.
+- `400` with `{"status":"error","message":"Invalid JSON data"}` if the request body is not valid JSON.
+- `403` (framework-level authentication gate) if the sync token is missing or invalid.

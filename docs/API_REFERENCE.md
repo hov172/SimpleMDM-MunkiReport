@@ -844,10 +844,11 @@ Common error payloads:
 1. Each finding is fingerprinted on `(source, serial_number, finding_type)`.
 2. If the fingerprint is new, a new `open` finding row is created with `occurrence_count=1`, `first_seen_at` and `last_seen_at` set to now, `resolved_at` NULL.
 3. If the fingerprint exists and is already `open`, the existing row is updated: `occurrence_count` increments, `last_seen_at` is updated, `status` remains `open`.
-4. If the fingerprint exists and is `resolved`, the existing row is updated: `status` transitions back to `open`, `occurrence_count` increments, `last_seen_at` is updated, `resolved_at` is set to NULL (the finding reappeared after being resolved).
-5. If `replace=true` (the default), any previously-active finding (status: open, acknowledged, or in_progress) from this `source` (same `source` value) that does not appear in the current push is automatically transitioned to `resolved` with `resolved_at` set to now. This implements "complete scan" semantics: if you were tracking 5 findings and push a new scan with only 3, the 2 absent ones are resolved.
-6. If `replace=false`, no auto-resolve happens. Only findings explicitly in the push are upserted.
-7. If a `suppressed` or `ignored` finding recurs in a push, its fields (severity, message, data, last_seen_at, occurrence_count) are updated but the finding does not count toward the `updated` response counter.
+4. If the fingerprint exists and is `acknowledged` or `in_progress`, the existing row is updated: `occurrence_count` increments, `last_seen_at` is updated, `status` remains unchanged, and the finding counts toward the `updated` response counter.
+5. If the fingerprint exists and is `resolved`, the existing row is updated: `status` transitions back to `open`, `occurrence_count` increments, `last_seen_at` is updated, `resolved_at` is set to NULL (the finding reappeared after being resolved).
+6. If `replace=true` (the default), any previously-active finding (status: open, acknowledged, or in_progress) from this `source` (same `source` value) that does not appear in the current push is automatically transitioned to `resolved` with `resolved_at` set to now. This implements "complete scan" semantics: if you were tracking 5 findings and push a new scan with only 3, the 2 absent ones are resolved.
+7. If `replace=false`, no auto-resolve happens. Only findings explicitly in the push are upserted.
+8. If a `suppressed` or `ignored` finding recurs in a push, its fields (severity, message, data, last_seen_at, occurrence_count) are updated but the finding does not count toward the `updated` response counter.
 
 **Response**:
 

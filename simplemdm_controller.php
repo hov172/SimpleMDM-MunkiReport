@@ -6910,6 +6910,56 @@ class Simplemdm_controller extends Module_controller
         exit;
     }
 
+    /**
+     * Per-source last-scan summary for MCP findings.
+     * GET /module/simplemdm/get_mcp_scan_status?source=
+     *
+     * @return void
+     **/
+    public function get_mcp_scan_status()
+    {
+        if (! $this->mcp_findings_enabled()) {
+            jsonView(['status' => 'error', 'message' => 'MCP findings are disabled'], 403);
+            return;
+        }
+
+        $sourceFilter = isset($_GET['source']) ? strtolower(trim((string) $_GET['source'])) : '';
+
+        $sourcesQuery = Simplemdm_mcp_finding_model::query();
+        if ($sourceFilter !== '') {
+            $sourcesQuery->where('source', $sourceFilter);
+        }
+        $sources = $sourcesQuery->distinct()->pluck('source');
+
+        $result = [];
+        foreach ($sources as $source) {
+            $last = Simplemdm_mcp_finding_model::where('source', $source)
+                ->orderBy('reported_at', 'desc')
+                ->orderBy('id', 'desc')
+                ->first();
+            if (! $last) {
+                continue;
+            }
+            $lastScanId = $last->scan_id;
+
+            $counts = [
+                'danger'  => (int) Simplemdm_mcp_finding_model::where('source', $source)->where('scan_id', $lastScanId)->where('severity', 'danger')->count(),
+                'warning' => (int) Simplemdm_mcp_finding_model::where('source', $source)->where('scan_id', $lastScanId)->where('severity', 'warning')->count(),
+                'info'    => (int) Simplemdm_mcp_finding_model::where('source', $source)->where('scan_id', $lastScanId)->where('severity', 'info')->count(),
+            ];
+            $counts['total'] = $counts['danger'] + $counts['warning'] + $counts['info'];
+
+            $result[] = [
+                'source'         => $source,
+                'last_scan_id'   => $lastScanId,
+                'last_ingest_at' => $last->reported_at,
+                'counts'         => $counts,
+            ];
+        }
+
+        jsonView(['sources' => $result]);
+    }
+
     private function applyFindingStatusAction($targetStatus)
     {
         $this->connectDB();

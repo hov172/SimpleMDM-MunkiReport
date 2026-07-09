@@ -7,6 +7,13 @@ or route changes without a deprecation period.
 
 ---
 
+## [Unreleased]
+### Changed
+- `ingest_mcp_findings` now upserts findings by a deterministic `(source, serial_number, finding_type)` fingerprint instead of deleting and replacing all findings for a source on every push. Findings persist `status`, `occurrence_count`, `first_seen_at`, `last_seen_at`, and `resolved_at`. A complete scan (`replace: true`, the default) auto-resolves findings from that source that were not present in the push; a resolved finding reopens if it reappears later.
+- `get_mcp_findings` gains `status`, `since`, `offset`, and `scan_id` filters, and a new `status_totals` response field. Without an explicit `status` filter it now returns only active (`open`/`acknowledged`/`in_progress`) findings, matching what the dashboard widget always displayed.
+
+---
+
 ## [1.1.0] — 2026-07-08
 
 ### SimpleMDM-MCP integration

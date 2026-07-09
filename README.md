@@ -101,6 +101,8 @@ The MCP tools map to these routes (16 tools as of SimpleMDM-MCP v0.33.0):
 
 Ingest, read, and admin-action behavior for MCP findings can be tuned via three admin settings (`mcp_findings_enabled`, `mcp_findings_metadata_max_bytes`, `mcp_findings_auto_resolve`) — see the "MCP Findings Settings" panel in the module's admin UI, or `docs/API_REFERENCE.md` for the full effect of each.
 
+Three analytics routes — `get_mcp_finding_stats` (count breakdowns), `export_mcp_findings` (CSV/JSON export), and `get_mcp_scan_status` (per-source last-scan summary) — also accept the same sync token auth, enabling analytics dashboards and bulk exports via the same headless auth mechanism.
+
 - **Actions** (write-gated on the MCP side): `request_sync`, `refresh_supplemental_summary[/serial]`.
 
 Note: as of 2026-07-08, sixteen read-only routes accept the sync token header

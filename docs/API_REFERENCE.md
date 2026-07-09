@@ -1034,3 +1034,187 @@ Exactly one of `id` (positive integer) or `ids` (non-empty array of positive int
 - `400` with `{"status":"error","message":"id or non-empty ids array is required (positive integers)"}` if the body is missing both `id` and `ids`, `ids` is empty, or no value is a positive integer.
 - `400` with `{"status":"error","message":"Invalid JSON data"}` if the request body is not valid JSON.
 - `403` (framework-level authentication gate) if the sync token is missing or invalid.
+
+## 13) MCP Findings Analytics Routes (added 2026-07-10)
+
+Three read-only routes to support analytics dashboards and bulk export workflows. All three are token-readable via `X-SIMPLEMDM-API-KEY`, using the same auth mechanism as `get_mcp_findings` — no session required, matching the existing iOS/Android client apps' auth model.
+
+### get_mcp_finding_stats — Severity/Status/Category/Source Count Breakdowns
+
+**Purpose**: Return aggregate counts of MCP findings grouped by severity, status, category, and source.
+
+**Endpoint**: `GET /module/simplemdm/get_mcp_finding_stats`
+
+**Auth**: Sync token header (`X-SIMPLEMDM-API-KEY`)
+
+**Query parameters**:
+- `source` (optional): filter to a specific source (e.g., `mcp`, `mcp_scanner_name`). Case-insensitive.
+- `category` (optional): filter by category (comma-separated list, case-sensitive exact match).
+- `scan_id` (optional): filter to a specific `scan_id`.
+- `since` (optional): ISO 8601 timestamp; only count findings with `last_seen_at` >= this value.
+
+**Response**:
+
+```json
+{
+  "by_status": {
+    "open": 25,
+    "acknowledged": 3,
+    "in_progress": 1,
+    "resolved": 5,
+    "ignored": 0,
+    "suppressed": 0
+  },
+  "by_severity": {
+    "danger": 12,
+    "warning": 15,
+    "info": 5
+  },
+  "by_category": {
+    "FileVault": 10,
+    "Compliance": 8
+  },
+  "by_source": {
+    "mcp": 18,
+    "mcp_scanner": 7
+  }
+}
+```
+
+**Response field definitions**:
+- `by_status`: global count of all findings by status (`open`, `acknowledged`, `in_progress`, `resolved`, `ignored`, `suppressed`). Always includes all six keys even if the count is `0`. Not affected by query filters.
+- `by_severity`: count of active findings (`open`, `acknowledged`, `in_progress`) by severity (`danger`, `warning`, `info`). Always includes all three keys even if the count is `0`. Scoped to active statuses only (not affected by resolved/ignored/suppressed findings).
+- `by_category`: count of active findings grouped by distinct `category` values. Only includes keys that have at least one matching active finding. Null/empty categories are omitted (do not appear as a `""` key).
+- `by_source`: count of active findings grouped by distinct `source` values. Only includes keys that have at least one matching active finding.
+
+**Key distinction**: `by_status` and `by_severity` use fixed keys that are always present (even at `0`), mirroring the precedent set by `get_mcp_findings`' `status_totals` and `totals` fields. `by_category` and `by_source` are dynamic breakdowns — keys are only present if they match at least one active finding.
+
+### export_mcp_findings — CSV/JSON Bulk Export
+
+**Purpose**: Bulk export of MCP findings as CSV or JSON, with the same filtering options as `get_mcp_findings`.
+
+**Endpoint**: `GET /module/simplemdm/export_mcp_findings`
+
+**Auth**: Sync token header (`X-SIMPLEMDM-API-KEY`)
+
+**Query parameters**:
+- `format` (optional, default `json`): export format. Valid values: `csv` or `json`. Invalid values return HTTP 400.
+- `severity` (optional): filter by severity (`danger`, `warning`, `info`, or comma-separated list). Case-insensitive.
+- `status` (optional, default active only): filter by status (`open`, `acknowledged`, `in_progress`, `resolved`, `ignored`, `suppressed`, or comma-separated list). Case-insensitive. If omitted, defaults to `open,acknowledged,in_progress` (active statuses only).
+- `source` (optional): filter by source (comma-separated list). Case-insensitive.
+- `category` (optional): filter by category (comma-separated list). Case-sensitive exact match.
+- `scan_id` (optional): filter to a specific `scan_id`.
+- `since` (optional): ISO 8601 timestamp; only export findings with `last_seen_at` >= this value.
+
+**Constraints**:
+- Hard cap of 10,000 rows. No offset pagination. If the result set exceeds 10,000 rows, a `truncated` flag is set (see response details).
+- Results are ordered by `id` descending (most recently inserted/updated first).
+
+**JSON Response**:
+
+```json
+{
+  "count": 42,
+  "truncated": false,
+  "findings": [
+    {
+      "id": 123,
+      "source": "mcp",
+      "serial_number": "C02XXXXXXX",
+      "finding_type": "cve_exposure",
+      "category": "FileVault",
+      "severity": "danger",
+      "message": "CVE-2024-1234 exposure detected",
+      "status": "open",
+      "occurrence_count": 3,
+      "first_seen_at": "2026-03-01T10:00:00Z",
+      "last_seen_at": "2026-03-09T15:30:00Z",
+      "resolved_at": null,
+      "data": {"cve_id": "CVE-2024-1234"},
+      "reported_at": "2026-03-09T15:30:00Z",
+      "scan_id": "scan-uuid"
+    }
+  ]
+}
+```
+
+**JSON Response field definitions**:
+- `count`: number of findings in the export (not the total available, but the count actually returned — capped at 10,000).
+- `truncated`: `true` if the result set exceeded 10,000 rows; `false` otherwise. When `true`, the `findings` array contains only the first 10,000 rows; remaining rows are not included.
+- `findings`: array of finding objects with the same shape as `get_mcp_findings` (including `id`, `source`, `serial_number`, `finding_type`, `category`, `severity`, `message`, `status`, `occurrence_count`, `first_seen_at`, `last_seen_at`, `resolved_at`, `data`, `reported_at`, `scan_id`).
+
+**CSV Response**:
+- Content-Type: `text/csv`
+- Content-Disposition: `attachment; filename="mcp_findings_export_YYYYMMDDTHHMMSSZ.csv"`
+- If truncated: response header `X-Export-Truncated: true` is set
+- Columns: `id, source, serial_number, finding_type, category, severity, status, message, data, scan_id, occurrence_count, reported_at, first_seen_at, last_seen_at, resolved_at`
+- First row is the CSV header; subsequent rows are findings (maximum 10,000 rows)
+- Empty/null values appear as empty fields
+
+**Error responses**:
+- `400` with `{"status":"error","message":"format must be csv or json"}` if `format` is not `csv` or `json`.
+- `403` with `{"status":"error","message":"MCP findings are disabled"}` if `mcp_findings_enabled=0`.
+
+### get_mcp_scan_status — Per-Source Last-Scan Summary
+
+**Purpose**: Return per-source scan summaries showing the most recent scan identifier and current finding counts for each source.
+
+**Endpoint**: `GET /module/simplemdm/get_mcp_scan_status`
+
+**Auth**: Sync token header (`X-SIMPLEMDM-API-KEY`)
+
+**Query parameters**:
+- `source` (optional): filter to a specific source. If omitted, returns all sources. Case-insensitive.
+
+**Response**:
+
+```json
+{
+  "sources": [
+    {
+      "source": "mcp",
+      "last_scan_id": "scan-uuid-123",
+      "last_ingest_at": "2026-03-09T15:30:00Z",
+      "counts": {
+        "danger": 5,
+        "warning": 10,
+        "info": 3,
+        "total": 18
+      }
+    },
+    {
+      "source": "mcp_scanner_name",
+      "last_scan_id": "scan-uuid-456",
+      "last_ingest_at": "2026-03-09T14:00:00Z",
+      "counts": {
+        "danger": 0,
+        "warning": 2,
+        "info": 1,
+        "total": 3
+      }
+    }
+  ]
+}
+```
+
+**Response field definitions**:
+- `sources`: array of per-source summaries, one entry per distinct source value in the findings table
+  - `source`: the source identifier
+  - `last_scan_id`: the `scan_id` of the most recent ingest for this source (determined by the most recent `reported_at` timestamp)
+  - `last_ingest_at`: ISO 8601 timestamp of the most recent ingest for this source (same as the `reported_at` of the most recent row)
+  - `counts`: count breakdown of findings from only the most recent scan (not cumulative across all scans for this source)
+    - `danger`: count of severity=danger findings in the last scan
+    - `warning`: count of severity=warning findings in the last scan
+    - `info`: count of severity=info findings in the last scan
+    - `total`: sum of the above three counts
+
+**Important scope note**: The `counts` field reflects **only the most recent scan for that source**, not all-time totals. If a source has received multiple scans over time, earlier scans' findings are not included in the count totals — only the most recent scan's findings are counted. This allows tracking which issues are current in the latest scan vs. which may have been resolved or are from older scans.
+
+**Scan sequencing example**:
+1. First ingest for source `mcp` with `scan_id=scan_v1` contains 10 findings (danger: 3, warning: 5, info: 2)
+2. Call `get_mcp_scan_status?source=mcp` returns `last_scan_id=scan_v1`, `counts.total=10`
+3. Second ingest for source `mcp` with `scan_id=scan_v2` contains 3 findings (danger: 0, warning: 1, info: 2) and uses `replace:true` (auto-resolving the 7 findings from scan_v1 that didn't reappear)
+4. Call `get_mcp_scan_status?source=mcp` returns `last_scan_id=scan_v2`, `counts.total=3` — NOT 13 (does NOT accumulate scans)
+
+**Error response**:
+- `403` with `{"status":"error","message":"MCP findings are disabled"}` if `mcp_findings_enabled=0`.

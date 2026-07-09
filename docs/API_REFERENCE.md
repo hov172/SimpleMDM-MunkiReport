@@ -835,13 +835,14 @@ Common error payloads:
 - `findings` (array): array of finding objects, each with:
   - `serial_number` (required string): device serial number
   - `finding_type` (required string): type/category of finding (e.g., `cve_exposure`, `audit_delta`, `stale_detection`)
+  - `category` (optional string): categorization dimension for the finding (e.g., `FileVault`, `Compliance`). If provided, is trimmed and capped at 128 characters, with case preserved in storage. Absent/empty `category` is stored as NULL. The dedup fingerprint includes `category` (case-insensitively) — two findings with the same `source`/`serial_number`/`finding_type` but different `category` are distinct findings, not the same finding updated.
   - `severity` (optional string, default `info`): one of `danger`, `warning`, `info`. If omitted or not one of these three values, it is silently coerced to `info`.
   - `message` (required string): human-readable finding description
   - `data` (optional object): arbitrary JSON payload with finding details. If omitted (or empty), stored as an empty value.
 - `replace` (optional boolean, default `true`): if `true`, any previously-active findings (status: open, acknowledged, or in_progress) from this `source` that do not appear in the current push are automatically resolved. If `false`, only explicitly-present findings are upserted; absent findings are left as-is (partial scan mode).
 
 **Lifecycle behavior**:
-1. Each finding is fingerprinted on `(source, serial_number, finding_type)`.
+1. Each finding is fingerprinted on `(source, serial_number, finding_type, category)`.
 2. If the fingerprint is new, a new `open` finding row is created with `occurrence_count=1`, `first_seen_at` and `last_seen_at` set to now, `resolved_at` NULL.
 3. If the fingerprint exists and is already `open`, the existing row is updated: `occurrence_count` increments, `last_seen_at` is updated, `status` remains `open`.
 4. If the fingerprint exists and is `acknowledged` or `in_progress`, the existing row is updated: `occurrence_count` increments, `last_seen_at` is updated, `status` remains unchanged, and the finding counts toward the `updated` response counter.
@@ -891,6 +892,7 @@ Common error payloads:
 - `limit` (optional, legacy): return at most N findings; if omitted, returns all (subject to server limits).
 - `severity` (optional, legacy): filter by severity (`danger`, `warning`, `info`, or comma-separated list).
 - `source` (optional, legacy): filter by source (`mcp`, `mcp_scanner_name`, etc., or comma-separated list).
+- `category` (optional): filter by category (comma-separated list, exact case match — NOT lowercased like `severity`/`status`/`source`).
 - `/serial` (optional path parameter): if present, only return findings for the specified device serial number.
 
 **Response**:
@@ -903,6 +905,7 @@ Common error payloads:
       "source": "mcp",
       "serial_number": "C02XXXXXXX",
       "finding_type": "cve_exposure",
+      "category": "FileVault",
       "severity": "danger",
       "message": "CVE-2024-1234 exposure detected",
       "status": "open",
@@ -940,6 +943,7 @@ Common error payloads:
   - `source`: the source identifier
   - `serial_number`: the device serial
   - `finding_type`: the finding type
+  - `category`: the category (NULL if not set)
   - `severity`: the severity
   - `message`: the human-readable message
   - `status`: current status (`open`, `acknowledged`, `in_progress`, `resolved`, `ignored`, `suppressed`)

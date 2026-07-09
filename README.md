@@ -98,6 +98,9 @@ The MCP tools map to these routes (16 tools as of SimpleMDM-MCP v0.33.0):
   appear, and resolved findings reopen if they recur. See the [CHANGELOG](CHANGELOG.md) for the
   full field list and new query parameters.
   Findings can also be transitioned manually via four admin action routes (`acknowledge_mcp_finding`, `resolve_mcp_finding`, `ignore_mcp_finding`, `suppress_mcp_finding`), independent of the automatic ingest lifecycle — see the CHANGELOG and `docs/API_REFERENCE.md` for the request/response shape.
+
+Ingest, read, and admin-action behavior for MCP findings can be tuned via three admin settings (`mcp_findings_enabled`, `mcp_findings_metadata_max_bytes`, `mcp_findings_auto_resolve`) — see the "MCP Findings Settings" panel in the module's admin UI, or `docs/API_REFERENCE.md` for the full effect of each.
+
 - **Actions** (write-gated on the MCP side): `request_sync`, `refresh_supplemental_summary[/serial]`.
 
 Note: as of 2026-07-08, sixteen read-only routes accept the sync token header

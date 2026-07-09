@@ -986,6 +986,16 @@ Manual status changes via these admin routes interact with the automatic ingest 
 - **`acknowledged` status**: An acknowledged finding is in `ACTIVE_STATUSES`. If a complete scan (`replace=true`, the default) no longer includes that fingerprint, it is auto-resolved during that scan's processing, regardless of prior manual acknowledgment.
 - **`ignored` and `suppressed` statuses**: These statuses are durable. They are excluded from `ACTIVE_STATUSES`, so they are never auto-resolved by a complete scan, and the ingest reopen logic does not affect them. A manual ignore or suppress survives rescans of the same fingerprint (only metadata like `last_seen_at` and `occurrence_count` update).
 
+### Admin settings
+
+Three settings control MCP findings behavior, managed via the module's `save_config`/`get_config` routes (same mechanism as all other module settings) or the "MCP Findings Settings" panel in the admin UI:
+
+| Setting | Default | Effect |
+|---|---|---|
+| `mcp_findings_enabled` | `1` | When `0`: `ingest_mcp_findings`, `get_mcp_findings`, and the four admin action routes (`acknowledge_mcp_finding`, `resolve_mcp_finding`, `ignore_mcp_finding`, `suppress_mcp_finding`) all return `403 {"status":"error","message":"MCP findings are disabled"}`. The dashboard widget keeps rendering and shows its existing "Failed to load MCP findings." fallback. |
+| `mcp_findings_metadata_max_bytes` | `65536` | Maximum size (characters) of each finding's `data` field in `ingest_mcp_findings`; larger payloads are truncated. Replaces a previously-hardcoded 4096-char cap. Has a minimum floor of 1024 bytes — any value saved below 1024 is automatically clamped up to 1024. |
+| `mcp_findings_auto_resolve` | `1` | Global kill-switch on `ingest_mcp_findings`' complete-scan auto-resolve sweep. When `0`, the sweep never runs — even if the request sends `replace: true` — overriding the per-request flag. When `1` (default), the existing `replace`-flag-driven behavior is unchanged. |
+
 ### Request
 
 ```json

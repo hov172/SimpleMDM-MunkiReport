@@ -263,9 +263,16 @@ Expected: `5000` (NOT truncated to 4096 — confirms the new 65536 default is in
 
 ```bash
 curl -s -X POST "$BASE/save_config" -H "X-SIMPLEMDM-API-KEY: $TOKEN" -d "mcp_findings_metadata_max_bytes=100"
-PAYLOAD_200="$(python3 -c "print('y' * 200)")"
+sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite \
+  "SELECT value FROM simplemdm_config WHERE name='mcp_findings_metadata_max_bytes';"
+```
+
+Expected: `1024` (the save-time floor from Step 8 clamps `100` up to `1024` — this confirms the floor is enforced, not a bug).
+
+```bash
+PAYLOAD_2000="$(python3 -c "print('y' * 2000)")"
 curl -s -X POST "$BASE/ingest_mcp_findings" -H "Content-Type: application/json" -H "X-SIMPLEMDM-API-KEY: $TOKEN" \
-  -d "{\"source\":\"settings_test3\",\"replace\":false,\"findings\":[{\"serial_number\":\"C02SETTINGS3\",\"finding_type\":\"metadata_check2\",\"severity\":\"info\",\"message\":\"m\",\"data\":\"$PAYLOAD_200\"}]}"
+  -d "{\"source\":\"settings_test3\",\"replace\":false,\"findings\":[{\"serial_number\":\"C02SETTINGS3\",\"finding_type\":\"metadata_check2\",\"severity\":\"info\",\"message\":\"m\",\"data\":\"$PAYLOAD_2000\"}]}"
 ```
 
 ```bash
@@ -273,7 +280,7 @@ sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite \
   "SELECT length(data) FROM simplemdm_mcp_finding WHERE source='settings_test3';"
 ```
 
-Expected: `100` (truncated to the configured cap).
+Expected: `1024` (truncated to the floor-clamped cap — a value below `1024` cannot be set, by design, so this is the smallest cap reachable via `save_config`).
 
 Restore default:
 

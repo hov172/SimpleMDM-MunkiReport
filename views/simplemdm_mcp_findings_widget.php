@@ -195,6 +195,24 @@ $(document).on('appReady', function() {
                     ev.preventDefault();
                 }
             }, { passive: false });
+
+            // Safari can ignore wheel preventDefault() once a trackpad gesture has
+            // entered its momentum/inertial phase, so the wheel listener above only
+            // catches the active-finger-on-trackpad phase. Back it up by clamping
+            // scrollTop back in-bounds on every 'scroll' event -- this fires
+            // continuously through Safari's own bounce animation too, so it
+            // interrupts the bounce by snapping position back rather than
+            // preventing it from starting.
+            scrollEl.addEventListener('scroll', function() {
+                if (scrollEl.scrollTop < 0) {
+                    scrollEl.scrollTop = 0;
+                    return;
+                }
+                var max = scrollEl.scrollHeight - scrollEl.clientHeight;
+                if (scrollEl.scrollTop > max) {
+                    scrollEl.scrollTop = max;
+                }
+            }, { passive: true });
         }
     }
 

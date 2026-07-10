@@ -7,3 +7,4 @@ __pycache__/
 .phpunit.result.cache
 .mcp-widget-shot.png
 docs/superpowers/.scratch/
+.scratch_video/

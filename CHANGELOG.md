@@ -7,7 +7,7 @@ or route changes without a deprecation period.
 
 ---
 
-## [Unreleased]
+## [1.2.0] — 2026-07-11
 ### Added
 - Documentation for the automated push sources arriving from SimpleMDM-MCP v0.34.0's findings auto-publish middleware: `ingest_mcp_findings` now also receives machine-triggered pushes under per-tool source namespaces — `mcp_auto_<tool>` (compliance/health-check and allowlisted inventory reads), `mcp_auto_action_<tool>` (action-tool failures, category `Action Failure`, severity `danger`), and `sofa_audit` (fleet-audit `--publish`) — each with `replace: true` scoped to its own source. No module code changes were needed; the existing caps and validation (2000 findings/push, 2 MB payload, `^[a-z0-9_\-]{1,64}$` source slug, 128-char `scan_id`/`category`) already accommodate them. Documented in `docs/API_REFERENCE.md` §11, README, `docs/DEVELOPER_GUIDE.md`, and `docs/SECURITY.md` (new write-path entry, auth-matrix rows, and monitoring guidance).
 - Three read-only findings analytics routes: `get_mcp_finding_stats` (severity/status/category/source count breakdowns), `export_mcp_findings` (CSV/JSON bulk export, 10,000-row cap), `get_mcp_scan_status` (per-source last-scan summary). All three are token-readable via `X-SIMPLEMDM-API-KEY`, the same mechanism `get_mcp_findings` already uses — no changes needed for existing client apps.

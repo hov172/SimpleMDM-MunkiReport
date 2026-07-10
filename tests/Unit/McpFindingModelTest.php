@@ -183,4 +183,48 @@ final class McpFindingModelTest extends TestCase
         $this->assertSame('scan_2', $result['update']['scan_id']);
         $this->assertSame('2026-07-10T00:00:00+00:00', $result['update']['last_seen_at']);
     }
+
+    public function testParseFindingIdsFromIdsArray(): void
+    {
+        $result = Simplemdm_mcp_finding_model::parseFindingIds(['ids' => [1, 2, 3]]);
+        $this->assertSame([1, 2, 3], $result);
+    }
+
+    public function testParseFindingIdsFromSingleId(): void
+    {
+        $result = Simplemdm_mcp_finding_model::parseFindingIds(['id' => 5]);
+        $this->assertSame([5], $result);
+    }
+
+    public function testParseFindingIdsDedupes(): void
+    {
+        $result = Simplemdm_mcp_finding_model::parseFindingIds(['ids' => [1, 1, 2, 2, 3]]);
+        $this->assertSame([1, 2, 3], $result);
+    }
+
+    public function testParseFindingIdsDropsNonPositiveAndNonNumeric(): void
+    {
+        $result = Simplemdm_mcp_finding_model::parseFindingIds(['ids' => [0, -1, 'abc', 4]]);
+        $this->assertSame([4], $result);
+    }
+
+    public function testParseFindingIdsEmptyWhenNeitherIdNorIdsPresent(): void
+    {
+        $result = Simplemdm_mcp_finding_model::parseFindingIds([]);
+        $this->assertSame([], $result);
+    }
+
+    public function testBuildStatusUpdateResolvedSetsResolvedAt(): void
+    {
+        $result = Simplemdm_mcp_finding_model::buildStatusUpdate(Simplemdm_mcp_finding_model::STATUS_RESOLVED);
+        $this->assertSame(Simplemdm_mcp_finding_model::STATUS_RESOLVED, $result['status']);
+        $this->assertNotNull($result['resolved_at']);
+    }
+
+    public function testBuildStatusUpdateNonResolvedClearsResolvedAt(): void
+    {
+        $result = Simplemdm_mcp_finding_model::buildStatusUpdate(Simplemdm_mcp_finding_model::STATUS_ACKNOWLEDGED);
+        $this->assertSame(Simplemdm_mcp_finding_model::STATUS_ACKNOWLEDGED, $result['status']);
+        $this->assertNull($result['resolved_at']);
+    }
 }

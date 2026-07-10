@@ -6947,20 +6947,7 @@ class Simplemdm_controller extends Module_controller
             return;
         }
 
-        $rawIds = [];
-        if (isset($data['ids']) && is_array($data['ids'])) {
-            $rawIds = $data['ids'];
-        } elseif (isset($data['id'])) {
-            $rawIds = [$data['id']];
-        }
-
-        $ids = [];
-        foreach ($rawIds as $rawId) {
-            if (is_numeric($rawId) && (int) $rawId > 0) {
-                $ids[] = (int) $rawId;
-            }
-        }
-        $ids = array_values(array_unique($ids));
+        $ids = Simplemdm_mcp_finding_model::parseFindingIds($data);
 
         if (empty($ids)) {
             jsonView(['status' => 'error', 'message' => 'id or non-empty ids array is required (positive integers)'], 400);
@@ -6971,12 +6958,7 @@ class Simplemdm_controller extends Module_controller
         $existingIds = array_map('intval', $existingIds);
         $notFound = array_values(array_diff($ids, $existingIds));
 
-        $update = ['status' => $targetStatus];
-        if ($targetStatus === Simplemdm_mcp_finding_model::STATUS_RESOLVED) {
-            $update['resolved_at'] = gmdate('c');
-        } else {
-            $update['resolved_at'] = null;
-        }
+        $update = Simplemdm_mcp_finding_model::buildStatusUpdate($targetStatus);
 
         $updated = 0;
         if (! empty($existingIds)) {

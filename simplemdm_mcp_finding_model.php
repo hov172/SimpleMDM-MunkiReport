@@ -137,4 +137,35 @@ class Simplemdm_mcp_finding_model extends Eloquent
 
         return ['update' => $update, 'kind' => $kind];
     }
+
+    /**
+     * Parses the id/ids field from an admin-action request body into a
+     * deduped list of positive integer ids. Mirrors applyFindingStatusAction's
+     * original inline parsing byte-for-byte.
+     */
+    public static function parseFindingIds($data)
+    {
+        $rawIds = [];
+        if (isset($data['ids']) && is_array($data['ids'])) {
+            $rawIds = $data['ids'];
+        } elseif (isset($data['id'])) {
+            $rawIds = [$data['id']];
+        }
+
+        $ids = [];
+        foreach ($rawIds as $rawId) {
+            if (is_numeric($rawId) && (int) $rawId > 0) {
+                $ids[] = (int) $rawId;
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    public static function buildStatusUpdate($targetStatus)
+    {
+        $update = ['status' => $targetStatus];
+        $update['resolved_at'] = $targetStatus === self::STATUS_RESOLVED ? gmdate('c') : null;
+        return $update;
+    }
 }

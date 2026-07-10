@@ -2713,6 +2713,11 @@ function resizeChartsForMode(mode) {
                 w.classList.remove('simplemdm-list-scroll');
                 continue;
             }
+            if (w.id === 'simplemdm-mcp-findings-widget') {
+                // Statically opted into scrolling (fixed-height category groups, not a
+                // flat list) -- leave it alone rather than toggling based on item count.
+                continue;
+            }
             var count = w.querySelectorAll('.list-group-item').length;
             if (count > 12) {
                 w.classList.add('simplemdm-list-scroll');

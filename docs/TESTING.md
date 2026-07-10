@@ -16,6 +16,7 @@ Recommended minimum scope before merge/release:
 5. Supplemental Option A checks
 6. Option B client-reporter checks
 7. Security/auth negative tests
+8. MCP Findings lifecycle, admin-action, and analytics checks (Section 14)
 
 ## 2) Environment Prerequisites
 
@@ -272,6 +273,21 @@ Expected:
 - HTTP 401
 - message about invalid/missing action secret
 
+## save_config should reject sync-token-only auth
+
+```bash
+curl -i -X POST "http://localhost:8888/index.php?/module/simplemdm/save_config" \
+  -H "Content-Type: application/json" \
+  -H "X-SIMPLEMDM-API-KEY: YOUR_SIMPLEMDM_API_KEY" \
+  -d '{"api_key":"should-not-save"}'
+```
+
+Expected:
+- HTTP 401 (no session) or a global-admin-required rejection if called from a
+  non-global authenticated session that also carries the sync token
+- config values are unchanged (fixed 2026-07-10 — this previously succeeded
+  for a non-global session carrying a valid sync token; see `docs/SECURITY.md`)
+
 ## 8) Functional Test Matrix
 
 | Area | Test | Expected |
@@ -317,6 +333,19 @@ When changing views/assets:
 1. Check report page and dashboard page behavior separately.
 2. Verify widget ordering/collapse behavior on refresh.
 3. Validate listing tables on both narrow and wide viewport widths.
+   - MCP Findings widget specifically:
+     - confirm findings render grouped by `category`, sorted with any group
+       containing a `danger`-severity finding first
+     - confirm a group with a `danger`-severity finding starts expanded and
+       other groups start collapsed
+     - click a group's toggle button and confirm it expands/collapses and the
+       button label switches between `+ Expand` / `- Collapse`
+     - confirm the widget body scrolls internally once findings overflow the
+       panel instead of growing the dashboard grid, and that it keeps the
+       shared `simplemdm-list-scroll` behavior (it is exempted from the
+       dynamic scroll-class removal that applies to other list widgets)
+     - confirm the "Showing X of Y findings" note reflects the fetched count
+       (up to 100) against total findings
 4. Validate device detail sections:
    - overview
    - attributes
@@ -426,6 +455,7 @@ After migration/sync:
    - `simplemdm_supplemental_summary`
    - `simplemdm_client_fact`
    - `simplemdm_client_fact_history`
+   - `simplemdm_mcp_finding`
 2. Confirm indexes/uniqueness work as expected for resource lookup patterns.
 3. Confirm no migration errors in logs.
 
@@ -438,3 +468,119 @@ After migration/sync:
 5. Auth negative tests passed.
 6. No blocking UI regressions.
 7. README/docs updated for new options/routes/widgets/events.
+8. PHPUnit suite passes locally (`vendor/bin/phpunit`) — see Section 13.
+
+## 13) Unit Tests (PHPUnit)
+
+The module ships a PHPUnit suite (`tests/Unit/`) that runs against a real
+in-memory SQLite database with the module's actual migrations applied, not
+mocks. This is intentional: it catches schema/logic mismatches that mocked
+tests would miss.
+
+Setup (once):
+
+```bash
+cd local/modules/simplemdm
+composer install
+```
+
+Run the suite:
+
+```bash
+vendor/bin/phpunit
+```
+
+Current coverage:
+
+| Test file | Covers |
+|---|---|
+| `tests/Unit/McpFindingModelTest.php` | Pure static helpers on `simplemdm_mcp_finding_model.php` — `normalizeFinding()`, `computeUpsertUpdate()`, `parseFindingIds()`, `buildStatusUpdate()`, `parseMultiValueParam()`. No DB required. |
+| `tests/Unit/McpFindingUpsertDbTest.php` | `simplemdm_mcp_finding_model.php` upsert/dedup/reopen/auto-resolve behavior against a real (in-memory) `simplemdm_mcp_finding` table |
+| `tests/bootstrap.php` | Shared bootstrap: spins up an in-memory SQLite DB and applies real migrations before the suite runs |
+
+`phpunit.xml` at the module root points the `Unit` test suite at `./tests/Unit`
+and boots through `tests/bootstrap.php`.
+
+When adding a new finding-lifecycle behavior (new status transition, new
+filter, new fingerprint field), add or extend a test in this suite before
+relying on manual QA alone — manual QA in Sections 1-12 should stay focused on
+things PHPUnit can't reach (real HTTP routes, session/token auth, browser
+rendering).
+
+## 14) MCP Findings Lifecycle, Admin-Action, and Analytics Checks
+
+Covers the ingest-lifecycle/category/admin-action/analytics surface added to
+`op=ingest_mcp_findings` and the related routes. See `docs/API_REFERENCE.md`
+for full request/response shapes.
+
+### Ingest lifecycle (upsert/dedup/reopen/auto-resolve)
+
+1. Push a finding with a given `(source, serial_number, finding_type,
+   category)` combination twice; confirm the second push updates the same row
+   (`occurrence_count` increments, `last_seen_at` advances) rather than
+   creating a duplicate.
+2. Push the same finding again with a different `category` (including
+   omitted/empty `category`); confirm it creates a distinct row rather than
+   colliding with the first.
+3. Push a complete scan (`replace: true`, the default) for a source that omits
+   a previously-active finding; confirm that finding auto-resolves
+   (`status = resolved`, `resolved_at` set).
+4. Push the same fingerprint again after auto-resolve; confirm it reopens
+   (`status` returns to `open`, `resolved_at` clears).
+5. Push with `replace: false`; confirm untouched findings from that source do
+   NOT auto-resolve.
+6. Confirm `mcp_findings_auto_resolve = 0` in admin settings prevents the
+   auto-resolve sweep even when a push sends `replace: true`.
+
+### Read filters
+
+1. `get_mcp_findings` with no `status` filter returns only
+   `open`/`acknowledged`/`in_progress` findings.
+2. `get_mcp_findings?status=resolved` (or any explicit status) returns
+   findings in that status, including ones the default view hides.
+3. `get_mcp_findings?category=FileVault` returns only that category
+   (comma-separated multi-category also works).
+4. `get_mcp_findings?since=<ISO8601>` returns only findings updated at/after
+   that timestamp.
+5. `get_mcp_findings?scan_id=<id>` returns only findings from that ingest.
+6. Confirm `status_totals` and the legacy `totals` field are unaffected by
+   every filter above — both always reflect the whole table (`status_totals`)
+   or all-active rows (`totals`), never the filtered result set.
+
+### Admin action routes
+
+1. `acknowledge_mcp_finding`, `resolve_mcp_finding`, `ignore_mcp_finding`,
+   `suppress_mcp_finding` each accept a single `id` or a batch `ids` array and
+   set the finding(s) to the expected status (see `docs/API_REFERENCE.md`
+   Section 12 for the exact status/side-effect table).
+2. Confirm an unconditional transition works — e.g. move a `resolved` finding
+   straight to `acknowledged` without error.
+3. Confirm a request naming a mix of existing and non-existent ids returns
+   `not_found` for the missing ones and still updates the existing ones.
+4. Confirm all four routes reject requests without a valid sync token (401).
+5. Confirm all four routes (plus `ingest_mcp_findings`/`get_mcp_findings`)
+   return `403 {"status":"error","message":"MCP findings are disabled"}` when
+   `mcp_findings_enabled = 0`, and that the dashboard widget keeps rendering
+   with its existing "Failed to load MCP findings." fallback rather than
+   erroring.
+
+### Analytics/export routes
+
+1. `get_mcp_finding_stats` returns severity/status/category/source count
+   breakdowns.
+2. `export_mcp_findings` returns CSV and JSON output on request and enforces
+   the 10,000-row export cap.
+3. `get_mcp_scan_status` returns a per-source last-scan summary.
+4. Confirm all three are readable via `X-SIMPLEMDM-API-KEY` without a browser
+   session, same as `get_mcp_findings`.
+
+### Admin settings panel
+
+1. Open `Admin -> SimpleMDM Settings` and confirm the "MCP Findings Settings"
+   panel shows `mcp_findings_enabled`, `mcp_findings_metadata_max_bytes`, and
+   `mcp_findings_auto_resolve`.
+2. Save a `mcp_findings_metadata_max_bytes` value below 1024 and confirm it is
+   clamped up to the 1024-byte floor rather than saved as-is.
+3. Confirm these settings save/read through the normal `save_config`/
+   `get_config` routes — `save_config` requires a global-admin session (see
+   Section 7 and `docs/SECURITY.md`).

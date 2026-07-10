@@ -149,6 +149,50 @@ Conflict guidance:
   - The resulting values render as the `Client Reporter` supplemental source on device views.
   - This path writes into the MunkiReport SimpleMDM module, not into the external SimpleMDM service.
 
+### MCP Findings (Widget + Lifecycle)
+
+- What:
+  - A findings inbox for audit/compliance/health signals pushed by the companion
+    SimpleMDM-MCP server, stored in `simplemdm_mcp_finding` and surfaced on the
+    dashboard and via read/analytics/admin-action routes.
+- Why:
+  - Lets MCP-side analysis (stale devices, CVE exposure, audit deltas, compliance
+    detections) show up in MunkiReport without duplicating that logic here.
+- How:
+  - Ingest: `op=ingest_mcp_findings` upserts by a deterministic
+    `(source, serial_number, finding_type, category)` fingerprint
+    (`simplemdm_mcp_finding_model::computeFingerprint()`) instead of
+    delete-and-replace. A complete scan (`replace: true`, the default)
+    auto-resolves findings from that source absent from the push; a resolved
+    finding reopens if it reappears.
+  - Normalization/validation of pushed findings happens in
+    `simplemdm_mcp_finding_model::normalizeFinding()` (severity taxonomy,
+    length caps, `data` truncated to `mcp_findings_metadata_max_bytes`).
+  - Read: `get_mcp_findings[/serial]` supports `status`, `since`, `category`,
+    `offset`, `scan_id` filters and returns `status_totals`; without an
+    explicit `status` filter it returns only active
+    (`open`/`acknowledged`/`in_progress`) findings.
+  - Manual lifecycle transitions: `acknowledge_mcp_finding`,
+    `resolve_mcp_finding`, `ignore_mcp_finding`, `suppress_mcp_finding` (single
+    or batch by id), independent of the automatic ingest lifecycle.
+    `suppress_mcp_finding` only changes the named finding's status — it is not
+    a persistent suppression rule for future pushes.
+  - Analytics/export: `get_mcp_finding_stats`, `export_mcp_findings` (CSV/JSON,
+    10,000-row cap), `get_mcp_scan_status` (per-source last-scan summary).
+  - Admin settings (via `save_config`/`get_config`, exposed in the "MCP
+    Findings Settings" admin panel): `mcp_findings_enabled` (kill switch for
+    ingest/read/admin-action routes), `mcp_findings_metadata_max_bytes`
+    (default 65536, 1024-byte floor), `mcp_findings_auto_resolve` (global
+    override for the per-request `replace` auto-resolve behavior).
+  - Dashboard widget (`views/simplemdm_mcp_findings_widget.php`) groups
+    findings by `category` into collapsible sections (danger-severity groups
+    expand by default) — see the File-Level Quick Reference and
+    `docs/TESTING.md` Section 9 for widget-specific QA steps.
+  - Auth: ingest/read/analytics routes use sync-token (`X-SIMPLEMDM-API-KEY`)
+    or session; admin-action routes use the same sync-token auth as
+    ingest/read; only `save_config` (settings) requires a global-admin
+    session — see Section 9 below.
+
 ### Admin Settings Page
 
 - What:
@@ -669,6 +713,9 @@ Rule of thumb:
   - global admin session
   - valid action secret
 - Secret values are masked in non-global config responses.
+- Config write (`save_config`) requires a global-admin session only; sync-token
+  (`X-SIMPLEMDM-API-KEY`) auth is not accepted for this route (fixed 2026-07-10 —
+  it previously was, see `docs/SECURITY.md`).
 
 ## 10) Dev Checklist Before Commit
 
@@ -685,6 +732,10 @@ Rule of thumb:
 5. For UI changes, verify both:
    - dashboard/report widget pages
    - standalone listing/admin/device pages
+6. If you touched `simplemdm_mcp_finding_model.php` or the MCP findings routes in
+   `simplemdm_controller.php`, run the PHPUnit suite:
+   - `composer install` (once), then `vendor/bin/phpunit`
+   - see `docs/TESTING.md` for what each test file covers
 
 ## 11) File-Level Quick Reference
 
@@ -693,6 +744,9 @@ Rule of thumb:
 - Device table model: `simplemdm_model.php`
 - Resource table model: `simplemdm_resource_model.php`
 - Command table model: `simplemdm_command_model.php`
+- MCP findings model: `simplemdm_mcp_finding_model.php`
 - Registration map: `provides.yml`
 - Shared widget assets: `views/simplemdm_widget_modern_assets.php`
 - Device actions UI: `views/simplemdm_device.php`
+- MCP findings dashboard widget: `views/simplemdm_mcp_findings_widget.php`
+- PHPUnit tests: `tests/Unit/`, bootstrap in `tests/bootstrap.php`, config in `phpunit.xml`

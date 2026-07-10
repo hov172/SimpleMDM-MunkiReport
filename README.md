@@ -2030,12 +2030,18 @@ When custom rules are worth using:
 
 `simplemdm_mcp_findings`
 - Purpose: surface findings pushed by the SimpleMDM-MCP server (stale devices, CVE exposure, audit deltas, compliance detections).
-- Endpoint: `GET /module/simplemdm/get_mcp_findings?limit=5`.
+- Endpoint: `GET /module/simplemdm/get_mcp_findings?limit=100`.
 - Data shown:
   - severity totals (danger/warning/info badges)
-  - the 5 most recent findings, each with severity badge, finding type, device serial (linked to the device detail page), message, source, and reported time
+  - up to the 100 most recent findings, grouped into collapsible sections by
+    `category` (a group auto-expands only if it contains a `danger`-severity
+    finding; others start collapsed), sorted danger-groups-first
+  - each finding row: severity badge, finding type, device serial (linked to
+    the device detail page), message, source, and reported time
   - pushed `data` JSON as a hover tooltip per finding
-  - "Showing N of M findings" note when more findings exist than displayed
+  - "Showing N of M findings" note when more findings exist than fetched
+  - the panel body scrolls internally once findings overflow it, rather than
+    growing the dashboard grid
 - Empty state: "No MCP findings pushed yet." until `ingest_mcp_findings` has stored findings.
 - Use case: bring MCP-computed insights onto the dashboard without leaving MunkiReport; the full set remains queryable via `get_mcp_findings`.
 

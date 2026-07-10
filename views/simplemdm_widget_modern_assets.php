@@ -316,6 +316,18 @@ body.simplemdm-theme-dark.simplemdm-layout-compact {
     border-color: var(--simplemdm-hover-border);
 }
 
+/* Inside a scrolling list, :hover fires transiently on whatever row is under
+   a stationary cursor as the list scrolls past it -- the lift/shadow transition
+   above then replays on every row in sequence, reading as the list "shaking".
+   Hover-lift is only meaningful as a deliberate-interaction cue on short,
+   non-scrolling lists, so drop it here. */
+.simplemdm-modern-widget.simplemdm-list-scroll .list-group-item,
+.simplemdm-modern-widget.simplemdm-list-scroll .list-group-item:hover {
+    transition: border-color 0.18s ease;
+    transform: none;
+    box-shadow: none;
+}
+
 .simplemdm-modern-widget .list-group-item:last-child {
     margin-bottom: 0;
 }

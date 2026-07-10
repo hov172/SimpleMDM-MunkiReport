@@ -177,6 +177,25 @@ $(document).on('appReady', function() {
                     setTimeout(window.simplemdmReflowDashboardGrid, 420);
                 }
             });
+
+        // Safari applies its own elastic bounce to any overflow:auto element on
+        // trackpad input; CSS (overscroll-behavior) doesn't suppress that bounce
+        // in Safari, only chaining to an ancestor. Clamp scroll at the boundary
+        // ourselves and preventDefault only the wheel deltas that would overscroll,
+        // so Safari never starts the bounce animation. Scoped to this widget's own
+        // list only (not the shared .simplemdm-list-scroll rule) to avoid affecting
+        // other widgets' scroll/click behavior.
+        var scrollEl = document.getElementById('simplemdm-mcp-findings-groups');
+        if (scrollEl && !scrollEl.getAttribute('data-simplemdm-wheel-bound')) {
+            scrollEl.setAttribute('data-simplemdm-wheel-bound', '1');
+            scrollEl.addEventListener('wheel', function(ev) {
+                var atTop = scrollEl.scrollTop <= 0;
+                var atBottom = Math.ceil(scrollEl.scrollTop + scrollEl.clientHeight) >= scrollEl.scrollHeight;
+                if ((atTop && ev.deltaY < 0) || (atBottom && ev.deltaY > 0)) {
+                    ev.preventDefault();
+                }
+            }, { passive: false });
+        }
     }
 
     $.getJSON(window.simplemdmModuleUrl('get_mcp_findings') + '?limit=' + fetchLimit, function(data) {

@@ -7,7 +7,7 @@ or route changes without a deprecation period.
 
 ---
 
-## [Unreleased]
+## [1.2.1] — 2026-07-11
 ### Changed
 - MCP Findings dashboard widget scales to auto-publish volume (200+ findings from SimpleMDM-MCP v0.34.0's middleware): each category section now sub-groups findings by `finding_type` with a per-type count, renders at most 25 rows per type with a "+N more not shown" note pointing at `export_mcp_findings`/`get_mcp_findings`, and fetches up to 500 findings (the server cap; was 100 — which previously hid findings entirely, e.g. 2 `info` findings counted in the totals badges but unreachable in the list). When the fetch is still truncated, category headers show the true total from `get_mcp_finding_stats` as a separate "N total" badge alongside the per-severity badges (which reflect fetched rows only).
 

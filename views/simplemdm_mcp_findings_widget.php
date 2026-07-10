@@ -17,10 +17,40 @@
 #simplemdm-mcp-findings-widget .simplemdm-mcp-totals .badge {
     margin-right: 6px;
 }
+
+#simplemdm-mcp-findings-widget .simplemdm-mcp-category-group {
+    border: 1px solid var(--simplemdm-border);
+    border-radius: 10px;
+    margin-bottom: 8px;
+    overflow: hidden;
+}
+
+#simplemdm-mcp-findings-widget .simplemdm-mcp-category-group .simplemdm-section-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    cursor: pointer;
+}
+
+#simplemdm-mcp-findings-widget .simplemdm-mcp-category-name {
+    font-weight: 800;
+    color: var(--simplemdm-ink);
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+#simplemdm-mcp-findings-widget .simplemdm-mcp-category-badges .badge {
+    margin-right: 4px;
+}
+
+#simplemdm-mcp-findings-widget .simplemdm-section-body .list-group-item:last-child {
+    border-bottom: 0;
+}
 </style>
 
 <div class="col-lg-4 col-md-6">
-    <div class="panel panel-default simplemdm-modern-widget" id="simplemdm-mcp-findings-widget">
+    <div class="panel panel-default simplemdm-modern-widget simplemdm-list-scroll" id="simplemdm-mcp-findings-widget">
         <div class="panel-heading" data-widget="simplemdm_mcp_findings">
             <h3 class="panel-title">
                 <i class="fa fa-flag"></i>
@@ -29,7 +59,7 @@
         </div>
         <div class="panel-body">
             <div class="simplemdm-mcp-totals"></div>
-            <div class="list-group simplemdm-mini-list"></div>
+            <div class="list-group simplemdm-mini-list" id="simplemdm-mcp-findings-groups"></div>
             <p class="text-muted text-center simplemdm-mcp-more" style="display:none;"></p>
         </div>
     </div>
@@ -37,10 +67,15 @@
 
 <script>
 $(document).on('appReady', function() {
-    var maxRows = 5;
+    var fetchLimit = 100;
+    var $widget = $('#simplemdm-mcp-findings-widget');
 
     function esc(v) {
         return $('<div>').text(String(v === null || v === undefined ? '' : v)).html();
+    }
+
+    function slugify(v) {
+        return String(v || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'uncategorized';
     }
 
     function severityBadge(severity) {
@@ -51,13 +86,106 @@ $(document).on('appReady', function() {
         return '<span class="badge alert-' + s + '">' + esc(s) + '</span>';
     }
 
-    $.getJSON(window.simplemdmModuleUrl('get_mcp_findings') + '?limit=' + maxRows, function(data) {
-        var panelBody = $('#simplemdm-mcp-findings-widget .panel-body');
+    function renderFindingItem(finding) {
+        var serial = String(finding.serial_number || '');
+        var serialHtml = '';
+        if (serial) {
+            var deviceUrl = appUrl + '/module/simplemdm/device/' + encodeURIComponent(serial);
+            serialHtml = ' <a href="' + deviceUrl + '">' + esc(serial) + '</a>';
+        }
+        var meta = [];
+        if (finding.source) { meta.push(esc(finding.source)); }
+        if (finding.reported_at) { meta.push(esc(String(finding.reported_at).replace('T', ' ').replace(/\+.*$/, ' UTC'))); }
+
+        var item = $('<span class="list-group-item">')
+            .append(severityBadge(finding.severity))
+            .append(' <strong>' + esc(finding.finding_type || '-') + '</strong>')
+            .append(serialHtml)
+            .append('<span class="simplemdm-mcp-finding-message">' + esc(finding.message || '') + '</span>')
+            .append('<span class="simplemdm-mcp-finding-meta text-muted">' + meta.join(' &middot; ') + '</span>');
+        if (finding.data) {
+            item.attr('title', String(finding.data));
+        }
+        return item;
+    }
+
+    function groupByCategory(findings) {
+        var groups = {};
+        findings.forEach(function(finding) {
+            var name = (finding.category && String(finding.category).trim()) ? String(finding.category).trim() : 'Uncategorized';
+            if (!groups[name]) {
+                groups[name] = { name: name, findings: [], counts: { danger: 0, warning: 0, info: 0 } };
+            }
+            groups[name].findings.push(finding);
+            var sev = String(finding.severity || 'info').toLowerCase();
+            if (sev !== 'danger' && sev !== 'warning' && sev !== 'info') { sev = 'info'; }
+            groups[name].counts[sev]++;
+        });
+        return Object.keys(groups).map(function(k) { return groups[k]; });
+    }
+
+    function sortGroups(groups) {
+        return groups.sort(function(a, b) {
+            var aDanger = a.counts.danger > 0 ? 1 : 0;
+            var bDanger = b.counts.danger > 0 ? 1 : 0;
+            if (aDanger !== bDanger) { return bDanger - aDanger; }
+            if (a.findings.length !== b.findings.length) { return b.findings.length - a.findings.length; }
+            return a.name.localeCompare(b.name);
+        });
+    }
+
+    function renderCategoryGroup(group) {
+        var sectionId = slugify(group.name);
+        var expanded = group.counts.danger > 0;
+        var badges = '';
+        ['danger', 'warning', 'info'].forEach(function(sev) {
+            if (group.counts[sev]) {
+                badges += '<span class="badge alert-' + sev + '">' + group.counts[sev] + '</span>';
+            }
+        });
+
+        var $card = $('<div class="simplemdm-mcp-category-group">');
+        var $head = $('<div class="simplemdm-section-head" data-section-toggle="' + sectionId + '">')
+            .append('<span class="simplemdm-mcp-category-name">' + esc(group.name) + '</span>')
+            .append('<span class="simplemdm-mcp-category-badges">' + badges + '</span>')
+            .append('<button type="button" class="btn btn-xs btn-default simplemdm-section-toggle">' + (expanded ? '- Collapse' : '+ Expand') + '</button>');
+        var $body = $('<div class="simplemdm-section-body" id="simplemdm-section-' + sectionId + '" style="display:' + (expanded ? 'block' : 'none') + ';">');
+
+        group.findings.forEach(function(finding) {
+            $body.append(renderFindingItem(finding));
+        });
+
+        $card.append($head).append($body);
+        return $card;
+    }
+
+    if (! $widget.data('simplemdmMcpFindingsBound')) {
+        $widget.data('simplemdmMcpFindingsBound', 1);
+        $(document).off('click.simplemdmMcpFindingsToggle', '#simplemdm-mcp-findings-widget [data-section-toggle]')
+            .on('click.simplemdmMcpFindingsToggle', '#simplemdm-mcp-findings-widget [data-section-toggle]', function(ev) {
+                if (ev && ev.preventDefault) { ev.preventDefault(); }
+                var sectionId = String($(this).attr('data-section-toggle') || '');
+                if (!sectionId) { return; }
+                var $body = $('#simplemdm-section-' + sectionId);
+                var $btn = $(this).find('.simplemdm-section-toggle');
+                var expand = !$body.is(':visible');
+                $body.stop(true, true).slideToggle(160);
+                $btn.text(expand ? '- Collapse' : '+ Expand');
+                if (typeof window.simplemdmReflowDashboardGrid === 'function') {
+                    window.simplemdmReflowDashboardGrid();
+                    setTimeout(window.simplemdmReflowDashboardGrid, 120);
+                    setTimeout(window.simplemdmReflowDashboardGrid, 420);
+                }
+            });
+    }
+
+    $.getJSON(window.simplemdmModuleUrl('get_mcp_findings') + '?limit=' + fetchLimit, function(data) {
+        var panelBody = $widget.find('.panel-body');
         var totalsRow = panelBody.find('.simplemdm-mcp-totals');
-        var listGroup = panelBody.find('.list-group');
+        var groupsWrap = panelBody.find('#simplemdm-mcp-findings-groups');
         var moreNote = panelBody.find('.simplemdm-mcp-more');
         totalsRow.empty();
-        listGroup.empty();
+        groupsWrap.empty();
 
         var totals = (data && data.totals) ? data.totals : {};
         var total = Number(totals.danger || 0) + Number(totals.warning || 0) + Number(totals.info || 0);
@@ -78,36 +206,18 @@ $(document).on('appReady', function() {
         });
 
         var findings = (data && data.findings) ? data.findings : [];
-        findings.slice(0, maxRows).forEach(function(finding) {
-            var serial = String(finding.serial_number || '');
-            var serialHtml = '';
-            if (serial) {
-                var deviceUrl = appUrl + '/module/simplemdm/device/' + encodeURIComponent(serial);
-                serialHtml = ' <a href="' + deviceUrl + '">' + esc(serial) + '</a>';
-            }
-            var meta = [];
-            if (finding.source) { meta.push(esc(finding.source)); }
-            if (finding.reported_at) { meta.push(esc(String(finding.reported_at).replace('T', ' ').replace(/\+.*$/, ' UTC'))); }
-
-            var item = $('<span class="list-group-item">')
-                .append(severityBadge(finding.severity))
-                .append(' <strong>' + esc(finding.finding_type || '-') + '</strong>')
-                .append(serialHtml)
-                .append('<span class="simplemdm-mcp-finding-message">' + esc(finding.message || '') + '</span>')
-                .append('<span class="simplemdm-mcp-finding-meta text-muted">' + meta.join(' &middot; ') + '</span>');
-            if (finding.data) {
-                item.attr('title', String(finding.data));
-            }
-            listGroup.append(item);
+        var groups = sortGroups(groupByCategory(findings));
+        groups.forEach(function(group) {
+            groupsWrap.append(renderCategoryGroup(group));
         });
 
         if (total > findings.length) {
-            moreNote.text('Showing ' + Math.min(findings.length, maxRows) + ' of ' + total + ' findings.').show();
+            moreNote.text('Showing ' + findings.length + ' of ' + total + ' findings.').show();
         } else {
             moreNote.hide();
         }
     }).fail(function() {
-        $('#simplemdm-mcp-findings-widget .panel-body').html('<p class="text-danger text-center">Failed to load MCP findings.</p>');
+        $widget.find('.panel-body').html('<p class="text-danger text-center">Failed to load MCP findings.</p>');
     });
 });
 </script>

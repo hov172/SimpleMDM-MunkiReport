@@ -134,8 +134,8 @@ $(document).on('appReady', function() {
         });
     }
 
-    function renderCategoryGroup(group) {
-        var sectionId = slugify(group.name);
+    function renderCategoryGroup(group, index) {
+        var sectionId = slugify(group.name) + '-' + index;
         var expanded = group.counts.danger > 0;
         var badges = '';
         ['danger', 'warning', 'info'].forEach(function(sev) {
@@ -207,8 +207,8 @@ $(document).on('appReady', function() {
 
         var findings = (data && data.findings) ? data.findings : [];
         var groups = sortGroups(groupByCategory(findings));
-        groups.forEach(function(group) {
-            groupsWrap.append(renderCategoryGroup(group));
+        groups.forEach(function(group, index) {
+            groupsWrap.append(renderCategoryGroup(group, index));
         });
 
         if (total > findings.length) {

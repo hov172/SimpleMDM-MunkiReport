@@ -17,7 +17,7 @@ This is a real, worthwhile fix (removing a redundant OR-branch that only ever ma
 ## Investigation (why this is safe to fix, not a deliberate design choice worth preserving)
 
 Traced every real caller of `save_config`:
-- `views/simplemdm_admin.php`'s six `$.post(... 'save_config' ...)` call sites all run inside the authenticated admin UI — session auth, never a sync-token header.
+- `views/simplemdm_admin.php`'s eight `$.post(... 'save_config' ...)` call sites all run inside the authenticated admin UI — session auth, never a sync-token header.
 - `scripts/simplemdm_sync.py` and `scripts/simplemdm_client_reporter_hardened.py` — grepped for `save_config` across both: zero matches. The sync worker never calls this route.
 - The `sync_last_*`/`last_sync_cursor` telemetry keys that DO appear in `save_config`'s `$config_keys` array are a red herring: `scripts/simplemdm_sync.py` actually posts those fields to `update_sync_status` (`simplemdm_controller.php:4758`), a **separate**, already-correctly-sync-token-scoped endpoint with its own narrow field-list — not to `save_config` at all.
 

@@ -346,20 +346,22 @@ When changing views/assets:
        dynamic scroll-class removal that applies to other list widgets)
      - confirm the "Showing X of Y findings" note reflects the fetched count
        (up to 100) against total findings
-     - test scrolling in **both Chrome and Safari** — Safari applies its own
-       elastic bounce to `overflow: auto` elements on trackpad input that
-       Chrome does not, so a fix that looks correct in Chrome can still be
-       broken in Safari (see `docs/DEVELOPER_GUIDE.md` MCP Findings section
-       for why `overscroll-behavior` alone isn't a safe fix here)
-     - in Safari, confirm scrolling the list past its top/bottom does not
-       "shake" (rows should not visibly bounce/oscillate), and confirm rows
-       do not lift/shadow-animate on hover while scrolling with a stationary
-       cursor
+     - test scrolling in **both Chrome and Safari**, and if possible with a
+       plain mouse wheel or remote-control session as well as a trackpad —
+       wheel scrolling of this list (and the Devices Table rows) is
+       JS-driven (`bindWheelScroll` in the shared widget assets) because
+       Safari does not natively scroll `overflow: auto` sub-scrollers from
+       phase-less wheel input; a fix that looks correct in Chrome or with a
+       trackpad can still be broken for other input paths (see the Safari
+       sub-scroller wheel postmortem in `docs/DEVELOPER_GUIDE.md`)
+     - confirm the list scrolls 1:1 with wheel input, stops hard at its
+       top/bottom without visible bounce/shake, and hands the scroll off to
+       the page when wheeled past a boundary
+     - confirm rows do not lift/shadow-animate on hover while scrolling with
+       a stationary cursor
      - after scrolling, confirm both the per-category `+Expand`/`-Collapse`
        toggle and the whole-widget minimize button (panel heading, requires
-       selecting the widget first) still respond to clicks — a prior attempt
-       to fix the Safari bounce via `overscroll-behavior: contain` silently
-       broke both of these in Safari only
+       selecting the widget first) still respond to clicks
 4. Validate device detail sections:
    - overview
    - attributes
@@ -584,7 +586,11 @@ for full request/response shapes.
    breakdowns.
 2. `export_mcp_findings` returns CSV and JSON output on request and enforces
    the 10,000-row export cap.
-3. `get_mcp_scan_status` returns a per-source last-scan summary.
+3. `get_mcp_scan_status` returns a per-source last-scan summary. With
+   SimpleMDM-MCP v0.34.0+ auto-publish enabled, expect one row per
+   publishing tool (`mcp_auto_<tool>`, `mcp_auto_action_<tool>`,
+   `sofa_audit`), not a single `mcp` source — see `docs/API_REFERENCE.md`
+   §11 for the source-namespace conventions.
 4. Confirm all three are readable via `X-SIMPLEMDM-API-KEY` without a browser
    session, same as `get_mcp_findings`.
 

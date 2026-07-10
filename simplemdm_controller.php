@@ -3744,8 +3744,7 @@ class Simplemdm_controller extends Module_controller
     public function save_config()
     {
         $this->connectDB();
-        $is_sync_auth = $this->is_valid_sync_token();
-        if (! $is_sync_auth && ! $this->authorized('global')) {
+        if (! $this->authorized('global')) {
             jsonView(['status' => 'error', 'message' => 'Unauthorized']);
             return;
         }

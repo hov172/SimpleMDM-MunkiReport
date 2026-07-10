@@ -2978,13 +2978,29 @@ function resizeChartsForMode(mode) {
         ensureDashboardResetControl();
         resizeChartsForMode(nextLayout);
 
-        if (window.dispatchEvent) {
-            if (typeof Event === 'function') {
-                window.dispatchEvent(new Event('resize'));
-            } else if (document.createEvent) {
-                var evt = document.createEvent('Event');
-                evt.initEvent('resize', true, true);
-                window.dispatchEvent(evt);
+        // Nudge charts/other widgets with a synthetic resize ONLY when the
+        // layout/theme actually changed. Dispatching it unconditionally fed
+        // back through the window resize listener below (resize ->
+        // scheduleApply -> applyLayoutMode -> resize ...), re-running this
+        // function ~every animation frame forever. That permanent relayout
+        // loop visibly shook scrollable widgets in Safari (oscillating
+        // measurements while its overlay scrollbar/elastic bounce is active)
+        // and broke clicks on widget controls there (an element that moves
+        // between mousedown and mouseup never receives the click). The
+        // selfResizeDispatch flag keeps even the changed-case dispatch from
+        // re-entering scheduleApply, while still reaching other listeners.
+        if (changed && window.dispatchEvent) {
+            selfResizeDispatch = true;
+            try {
+                if (typeof Event === 'function') {
+                    window.dispatchEvent(new Event('resize'));
+                } else if (document.createEvent) {
+                    var evt = document.createEvent('Event');
+                    evt.initEvent('resize', true, true);
+                    window.dispatchEvent(evt);
+                }
+            } finally {
+                selfResizeDispatch = false;
             }
         }
 
@@ -3001,8 +3017,9 @@ function resizeChartsForMode(mode) {
     }
 
     var applyScheduled = false;
+    var selfResizeDispatch = false;
     function scheduleApply() {
-        if (applyScheduled) {
+        if (applyScheduled || selfResizeDispatch) {
             return;
         }
         applyScheduled = true;

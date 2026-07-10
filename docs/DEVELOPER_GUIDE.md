@@ -188,27 +188,30 @@ Conflict guidance:
     findings by `category` into collapsible sections (danger-severity groups
     expand by default) — see the File-Level Quick Reference and
     `docs/TESTING.md` Section 9 for widget-specific QA steps.
-  - Safari-specific scroll handling: Safari applies its own elastic bounce to
-    `overflow: auto` elements on trackpad input, and this bounce is not fully
-    suppressible without breaking other behavior. Two approaches were tried
-    and reverted, in order:
-    1. CSS `overscroll-behavior: contain` on `.simplemdm-list-scroll
-       .list-group` — silently broke click events on the widget's
-       expand/collapse controls in Safari (both the per-category toggle and
-       the whole-widget minimize button).
-    2. A `wheel` listener calling `preventDefault()` on boundary-exceeding
-       deltas — same click-breaking symptom in Safari, even though it's a
-       different mechanism than `overscroll-behavior`. The common factor
-       across both: calling `preventDefault()` on a gesture-related event
-       near the scroll container breaks Safari click-through nearby.
-    Do not reintroduce either approach. The current state (both
-    `#simplemdm-mcp-findings-groups` and `.simplemdm-devices-table-scroll` in
-    `simplemdm_devices_table_widget.php`) is a passive `scroll` listener that
-    clamps `scrollTop` back in-bounds after the fact — it never calls
-    `preventDefault()`, so it should not break clicks, but it also does not
-    fully prevent the visible bounce, only corrects position after Safari's
-    animation has already started. Full suppression of the bounce without
-    breaking click-through in Safari is an open problem.
+  - Safari scroll-shake postmortem (2026-07-10): scrollable widgets (MCP
+    Findings, Devices Table) visibly shook while scrolling in Safari, and
+    their expand/collapse controls were intermittently unclickable there.
+    The root cause was NOT Safari's elastic bounce: `applyLayoutMode()` in
+    `simplemdm_widget_modern_assets.php` dispatched a synthetic `window`
+    `resize` event unconditionally on every run, and the module's own
+    `resize` listener re-scheduled `applyLayoutMode` on the next animation
+    frame — a permanent feedback loop re-running full grid layout ~120x/sec
+    from page load (measured 377 synthetic resize events in 3s; 0 after the
+    fix). Chrome recomputed identical positions so nothing visibly moved;
+    Safari's measurements oscillate while its overlay scrollbar/bounce is
+    active, so the layout writes visibly shook the scrolled widget — and
+    since Safari only delivers `click` when the element doesn't move between
+    mousedown and mouseup, the thrash also ate clicks on widget controls.
+    The dispatch is now gated on the layout/theme mode actually changing,
+    with a `selfResizeDispatch` re-entrancy flag so our own dispatch never
+    re-enters `scheduleApply`. If you add a synthetic resize dispatch
+    anywhere in this file, gate it the same way — never dispatch
+    unconditionally from a code path that a resize listener re-schedules.
+    Historical note: CSS `overscroll-behavior: contain` and a
+    `preventDefault()` `wheel` listener were each tried for this and
+    reverted; the click breakage attributed to them was actually this loop.
+    A passive `scroll` clamp (never `preventDefault()`) remains on both
+    widgets' scroll containers as a backstop against genuine overscroll.
   - Auth: ingest/read/analytics routes use sync-token (`X-SIMPLEMDM-API-KEY`)
     or session; admin-action routes use the same sync-token auth as
     ingest/read; only `save_config` (settings) requires a global-admin

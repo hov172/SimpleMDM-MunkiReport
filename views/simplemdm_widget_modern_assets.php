@@ -3073,4 +3073,50 @@ function resizeChartsForMode(mode) {
         });
     }
 })();
+
+/* JS-driven wheel scrolling for the module's inner scroll containers.
+   In Safari, wheel input without trackpad gesture phases (plain mice, KVMs,
+   remote-control sessions, synthesized events) dispatches wheel DOM events
+   over these sub-scrollers but native scrolling moves NOTHING -- verified
+   live with native synthesized scroll events 2026-07-11: page scrolls,
+   sub-scroller pinned at scrollTop 0 across every CSS variant tried
+   (overflow un-hidden, layer promotion, overflow re-registration).
+   Scrolling the container ourselves works for every input path and engine;
+   preventDefault stops engines with working native scroll from
+   double-scrolling. At a boundary the event is left alone so it chains to
+   the page normally, and clamping inherently prevents Safari's elastic
+   bounce inside the widget. */
+(function () {
+    function bindWheelScroll(el) {
+        if (!el || el.getAttribute('data-simplemdm-wheel-scroll')) {
+            return;
+        }
+        el.setAttribute('data-simplemdm-wheel-scroll', '1');
+        el.addEventListener('wheel', function (e) {
+            if (e.ctrlKey) { return; }
+            if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) { return; }
+            var max = el.scrollHeight - el.clientHeight;
+            if (max <= 0) { return; }
+            var dy = e.deltaY;
+            if (e.deltaMode === 1) { dy *= 16; }
+            else if (e.deltaMode === 2) { dy *= el.clientHeight; }
+            var before = el.scrollTop;
+            var next = Math.max(0, Math.min(max, before + dy));
+            if (next === before) { return; }
+            el.scrollTop = next;
+            e.preventDefault();
+        }, { passive: false });
+    }
+    function bindKnownScrollers() {
+        bindWheelScroll(document.getElementById('simplemdm-mcp-findings-groups'));
+        var tableScroll = document.querySelector('#simplemdm-devices-table-widget .simplemdm-devices-table-scroll');
+        bindWheelScroll(tableScroll);
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bindKnownScrollers);
+    } else {
+        bindKnownScrollers();
+    }
+})();
+
 </script>

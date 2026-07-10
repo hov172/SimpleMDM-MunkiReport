@@ -214,11 +214,26 @@ Conflict guidance:
     re-enters `scheduleApply`. If you add a synthetic resize dispatch
     anywhere in this file, gate it the same way — never dispatch
     unconditionally from a code path that a resize listener re-schedules.
-    Historical note: CSS `overscroll-behavior: contain` and a
-    `preventDefault()` `wheel` listener were each tried for this and
-    reverted; the click breakage attributed to them was actually this loop.
-    A passive `scroll` clamp (never `preventDefault()`) remains on both
-    widgets' scroll containers as a backstop against genuine overscroll.
+  - Safari sub-scroller wheel postmortem (2026-07-11): separately from the
+    loop above, Safari refuses to natively wheel-scroll `overflow: auto`
+    sub-scrollers when the wheel input lacks trackpad gesture phases (plain
+    mice, KVMs, remote-control sessions, synthesized events): the wheel DOM
+    events dispatch to the right target, nothing preventDefaults them, JS
+    `scrollTop` works, the page scrolls — but the sub-scroller stays pinned
+    at 0. Verified by synthesizing native OS-level scroll events
+    (CGEventCreateScrollWheelEvent) against a live Safari session. CSS
+    counter-theories each tested and disproven the same way: un-nesting an
+    `overflow: hidden` wrapper, compositing-layer promotion
+    (`translateZ(0)`/`will-change`), toggling overflow to force scrolling-tree
+    re-registration, and `overscroll-behavior` variants — note that
+    `overscroll-behavior: none` on a sub-scroller freezes Safari
+    wheel-scrolling entirely (do not add it to these containers). The fix
+    that works everywhere: the `bindWheelScroll` block at the bottom of
+    `simplemdm_widget_modern_assets.php` handles vertical `wheel` events on
+    `#simplemdm-mcp-findings-groups` and `.simplemdm-devices-table-scroll`
+    directly, scrolls the container in JS, `preventDefault()`s applied
+    deltas, and lets boundary events chain to the page. If you add a new
+    scrollable container to a widget, bind it there too.
   - Auth: ingest/read/analytics routes use sync-token (`X-SIMPLEMDM-API-KEY`)
     or session; admin-action routes use the same sync-token auth as
     ingest/read; only `save_config` (settings) requires a global-admin

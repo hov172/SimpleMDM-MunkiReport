@@ -178,30 +178,6 @@ $(document).on('appReady', function() {
                 }
             });
 
-        // Safari applies its own elastic bounce to any overflow:auto element on
-        // trackpad input. A wheel-listener + preventDefault() approach was tried
-        // and reverted: calling preventDefault() on a gesture-related event here
-        // (matching what overscroll-behavior: contain also did) reliably broke
-        // click-through on this widget's expand/collapse controls in Safari, even
-        // though it's a separate mechanism from the CSS property. Only the
-        // passive scroll-position clamp remains -- it never calls
-        // preventDefault() or otherwise consumes the gesture, so it should not
-        // trigger that click-suppression, at the cost of not fully preventing
-        // the bounce (it corrects position after the fact instead).
-        var scrollEl = document.getElementById('simplemdm-mcp-findings-groups');
-        if (scrollEl && !scrollEl.getAttribute('data-simplemdm-wheel-bound')) {
-            scrollEl.setAttribute('data-simplemdm-wheel-bound', '1');
-            scrollEl.addEventListener('scroll', function() {
-                if (scrollEl.scrollTop < 0) {
-                    scrollEl.scrollTop = 0;
-                    return;
-                }
-                var max = scrollEl.scrollHeight - scrollEl.clientHeight;
-                if (scrollEl.scrollTop > max) {
-                    scrollEl.scrollTop = max;
-                }
-            }, { passive: true });
-        }
     }
 
     $.getJSON(window.simplemdmModuleUrl('get_mcp_findings') + '?limit=' + fetchLimit, function(data) {

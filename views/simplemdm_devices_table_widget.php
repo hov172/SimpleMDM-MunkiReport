@@ -5,6 +5,8 @@
     overflow-y: auto;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    /* Vertical wheel scrolling for this container is JS-driven -- see the
+       bindWheelScroll block in simplemdm_widget_modern_assets.php. */
     border: 1px solid var(--simplemdm-border);
     border-radius: 11px;
     background: var(--simplemdm-surface);
@@ -201,33 +203,6 @@ $(document).on('appReady', function() {
                 window.dispatchEvent(new Event('resize'));
             }
         });
-
-    // Safari applies its own elastic bounce to overflow:auto elements on
-    // trackpad input. A wheel-listener + preventDefault() approach was tried
-    // and reverted: calling preventDefault() on a gesture-related event here
-    // (matching what overscroll-behavior: contain also did on the MCP
-    // Findings widget) reliably broke click-through on nearby controls in
-    // Safari. Only the passive scroll-position clamp remains -- it never
-    // calls preventDefault() or otherwise consumes the gesture, so it should
-    // not trigger that click-suppression, at the cost of not fully
-    // preventing the bounce (it corrects position after the fact instead).
-    (function bindDevicesTableScrollFix() {
-        var scrollEl = document.querySelector(widgetId + ' .simplemdm-devices-table-scroll');
-        if (!scrollEl || scrollEl.getAttribute('data-simplemdm-wheel-bound')) {
-            return;
-        }
-        scrollEl.setAttribute('data-simplemdm-wheel-bound', '1');
-        scrollEl.addEventListener('scroll', function() {
-            if (scrollEl.scrollTop < 0) {
-                scrollEl.scrollTop = 0;
-                return;
-            }
-            var max = scrollEl.scrollHeight - scrollEl.clientHeight;
-            if (scrollEl.scrollTop > max) {
-                scrollEl.scrollTop = max;
-            }
-        }, { passive: true });
-    })();
 
     function esc(v) {
         return $('<div>').text(String(v === null || v === undefined ? '' : v)).html();

@@ -52,4 +52,50 @@ class Simplemdm_mcp_finding_model extends Eloquent
             strtolower((string) $source) . '|' . strtolower((string) $serialNumber) . '|' . strtolower((string) $findingType) . '|' . strtolower((string) $category)
         );
     }
+
+    /**
+     * Validates and normalizes one raw finding object from an ingest_mcp_findings
+     * payload. Returns null for anything that should be skipped (missing/empty
+     * finding_type or message) -- mirrors the validation ingest_mcp_findings
+     * performed inline before this extraction, byte-for-byte.
+     */
+    public static function normalizeFinding($finding, $metadataMaxBytes)
+    {
+        $type = isset($finding['finding_type']) ? trim((string) $finding['finding_type']) : '';
+        $message = isset($finding['message']) ? trim((string) $finding['message']) : '';
+        if ($type === '' || $message === '') {
+            return null;
+        }
+
+        $validSeverities = ['danger', 'warning', 'info'];
+        $severity = isset($finding['severity']) ? strtolower(trim((string) $finding['severity'])) : 'info';
+        if (! in_array($severity, $validSeverities, true)) {
+            $severity = 'info';
+        }
+
+        $extra = '';
+        if (isset($finding['data']) && $finding['data'] !== null && $finding['data'] !== '') {
+            $extra = is_string($finding['data']) ? $finding['data'] : json_encode($finding['data']);
+            if ($extra === false) {
+                $extra = '';
+            }
+            if (strlen($extra) > $metadataMaxBytes) {
+                $extra = substr($extra, 0, $metadataMaxBytes);
+            }
+        }
+
+        $serialNumber = isset($finding['serial_number']) ? substr(trim((string) $finding['serial_number']), 0, 64) : null;
+        $findingType = substr($type, 0, 128);
+        $category = isset($finding['category']) ? substr(trim((string) $finding['category']), 0, 128) : null;
+        $category = $category === '' ? null : $category;
+
+        return [
+            'serial_number' => $serialNumber,
+            'category'      => $category,
+            'finding_type'  => $findingType,
+            'message'       => substr($message, 0, 1000),
+            'severity'      => $severity,
+            'data'          => $extra,
+        ];
+    }
 }

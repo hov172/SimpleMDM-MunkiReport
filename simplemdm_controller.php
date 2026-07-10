@@ -6486,7 +6486,6 @@ class Simplemdm_controller extends Module_controller
             $scanId = 'scan_' . gmdate('Ymd\THis\Z') . '_' . bin2hex(random_bytes(4));
         }
 
-        $valid_severities = ['danger', 'warning', 'info'];
         $now = gmdate('c');
         $skipped = 0;
         $inserted = 0;
@@ -6494,37 +6493,23 @@ class Simplemdm_controller extends Module_controller
         $reopened = 0;
         $touchedIds = [];
 
+        $metadataMaxBytes = (int) $this->get_config_value('mcp_findings_metadata_max_bytes', 65536);
         foreach ($findings as $finding) {
             if (! is_array($finding)) {
                 $skipped++;
                 continue;
             }
-            $type = isset($finding['finding_type']) ? trim((string) $finding['finding_type']) : '';
-            $message = isset($finding['message']) ? trim((string) $finding['message']) : '';
-            if ($type === '' || $message === '') {
+            $normalized = Simplemdm_mcp_finding_model::normalizeFinding($finding, $metadataMaxBytes);
+            if ($normalized === null) {
                 $skipped++;
                 continue;
             }
-            $severity = isset($finding['severity']) ? strtolower(trim((string) $finding['severity'])) : 'info';
-            if (! in_array($severity, $valid_severities, true)) {
-                $severity = 'info';
-            }
-            $extra = '';
-            if (isset($finding['data']) && $finding['data'] !== null && $finding['data'] !== '') {
-                $extra = is_string($finding['data']) ? $finding['data'] : json_encode($finding['data']);
-                if ($extra === false) {
-                    $extra = '';
-                }
-                $metadataMaxBytes = (int) $this->get_config_value('mcp_findings_metadata_max_bytes', 65536);
-                if (strlen($extra) > $metadataMaxBytes) {
-                    $extra = substr($extra, 0, $metadataMaxBytes);
-                }
-            }
-
-            $serialNumber = isset($finding['serial_number']) ? substr(trim((string) $finding['serial_number']), 0, 64) : null;
-            $findingType = substr($type, 0, 128);
-            $category = isset($finding['category']) ? substr(trim((string) $finding['category']), 0, 128) : null;
-            $category = $category === '' ? null : $category;
+            $serialNumber = $normalized['serial_number'];
+            $category = $normalized['category'];
+            $findingType = $normalized['finding_type'];
+            $message = $normalized['message'];
+            $severity = $normalized['severity'];
+            $extra = $normalized['data'];
             $fingerprint = Simplemdm_mcp_finding_model::computeFingerprint($source, $serialNumber, $findingType, $category);
 
             $existing = Simplemdm_mcp_finding_model::where('source', $source)

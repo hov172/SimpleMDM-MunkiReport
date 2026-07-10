@@ -336,6 +336,15 @@ When changing views/assets:
    - MCP Findings widget specifically:
      - confirm findings render grouped by `category`, sorted with any group
        containing a `danger`-severity finding first
+     - inside an expanded category with multiple finding types (or more than
+       25 findings), confirm findings are sub-grouped under `finding_type`
+       headers with per-type counts, at most 25 rows render per type, and a
+       "+N more not shown" note appears for capped types
+     - with more findings than the 500-row fetch cap, confirm category
+       headers show an "N total" badge with the true count from
+       `get_mcp_finding_stats`, and every severity counted in the top totals
+       badges is reachable somewhere in the list (e.g. `info` findings are
+       not silently hidden by the fetch limit)
      - confirm a group with a `danger`-severity finding starts expanded and
        other groups start collapsed
      - click a group's toggle button and confirm it expands/collapses and the

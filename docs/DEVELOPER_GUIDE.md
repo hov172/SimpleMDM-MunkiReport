@@ -193,8 +193,13 @@ Conflict guidance:
     override for the per-request `replace` auto-resolve behavior).
   - Dashboard widget (`views/simplemdm_mcp_findings_widget.php`) groups
     findings by `category` into collapsible sections (danger-severity groups
-    expand by default) — see the File-Level Quick Reference and
-    `docs/TESTING.md` Section 9 for widget-specific QA steps.
+    expand by default), sub-grouped by `finding_type` inside each category
+    with a 25-row render cap per type. It fetches up to 500 rows (the
+    `get_mcp_findings` server cap) and pairs them with
+    `get_mcp_finding_stats` so category headers show true totals even when
+    the row fetch is truncated — sized for the auto-publish middleware's
+    volume. See the File-Level Quick Reference and `docs/TESTING.md`
+    Section 9 for widget-specific QA steps.
   - Safari scroll-shake postmortem (2026-07-10): scrollable widgets (MCP
     Findings, Devices Table) visibly shook while scrolling in Safari, and
     their expand/collapse controls were intermittently unclickable there.

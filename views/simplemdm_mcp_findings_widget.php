@@ -47,6 +47,25 @@
 #simplemdm-mcp-findings-widget .simplemdm-section-body .list-group-item:last-child {
     border-bottom: 0;
 }
+
+#simplemdm-mcp-findings-widget .simplemdm-mcp-type-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px 2px;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--simplemdm-muted);
+}
+
+#simplemdm-mcp-findings-widget .simplemdm-mcp-type-more {
+    display: block;
+    padding: 2px 10px 8px;
+    font-size: 11px;
+    color: var(--simplemdm-muted);
+}
 </style>
 
 <div class="col-lg-4 col-md-6">
@@ -67,7 +86,8 @@
 
 <script>
 $(document).on('appReady', function() {
-    var fetchLimit = 100;
+    var fetchLimit = 500;   // server-side cap for get_mcp_findings
+    var typeRowCap = 25;    // rendered rows per finding_type sub-group
     var $widget = $('#simplemdm-mcp-findings-widget');
 
     function esc(v) {
@@ -114,14 +134,27 @@ $(document).on('appReady', function() {
         findings.forEach(function(finding) {
             var name = (finding.category && String(finding.category).trim()) ? String(finding.category).trim() : 'Uncategorized';
             if (!groups[name]) {
-                groups[name] = { name: name, findings: [], counts: { danger: 0, warning: 0, info: 0 } };
+                groups[name] = { name: name, findings: [], counts: { danger: 0, warning: 0, info: 0 }, types: {} };
             }
             groups[name].findings.push(finding);
             var sev = String(finding.severity || 'info').toLowerCase();
             if (sev !== 'danger' && sev !== 'warning' && sev !== 'info') { sev = 'info'; }
             groups[name].counts[sev]++;
+            var type = (finding.finding_type && String(finding.finding_type).trim()) ? String(finding.finding_type).trim() : '-';
+            if (!groups[name].types[type]) {
+                groups[name].types[type] = { name: type, findings: [] };
+            }
+            groups[name].types[type].findings.push(finding);
         });
         return Object.keys(groups).map(function(k) { return groups[k]; });
+    }
+
+    function sortedTypes(group) {
+        return Object.keys(group.types).map(function(k) { return group.types[k]; })
+            .sort(function(a, b) {
+                if (a.findings.length !== b.findings.length) { return b.findings.length - a.findings.length; }
+                return a.name.localeCompare(b.name);
+            });
     }
 
     function sortGroups(groups) {
@@ -134,10 +167,16 @@ $(document).on('appReady', function() {
         });
     }
 
-    function renderCategoryGroup(group, index) {
+    function renderCategoryGroup(group, index, trueCount) {
         var sectionId = slugify(group.name) + '-' + index;
         var expanded = group.counts.danger > 0;
+        // trueCount comes from get_mcp_finding_stats and is accurate even
+        // when the row fetch was truncated at the server's 500 cap; the
+        // per-severity badges are computed from fetched rows only.
         var badges = '';
+        if (trueCount > group.findings.length) {
+            badges += '<span class="badge">' + trueCount + ' total</span>';
+        }
         ['danger', 'warning', 'info'].forEach(function(sev) {
             if (group.counts[sev]) {
                 badges += '<span class="badge alert-' + sev + '">' + group.counts[sev] + '</span>';
@@ -151,8 +190,19 @@ $(document).on('appReady', function() {
             .append('<button type="button" class="btn btn-xs btn-default simplemdm-section-toggle">' + (expanded ? '- Collapse' : '+ Expand') + '</button>');
         var $body = $('<div class="simplemdm-section-body" id="simplemdm-section-' + sectionId + '" style="display:' + (expanded ? 'block' : 'none') + ';">');
 
-        group.findings.forEach(function(finding) {
-            $body.append(renderFindingItem(finding));
+        var types = sortedTypes(group);
+        var showTypeHeads = types.length > 1 || group.findings.length > typeRowCap;
+        types.forEach(function(type) {
+            if (showTypeHeads) {
+                $body.append('<div class="simplemdm-mcp-type-head">' + esc(type.name) + ' (' + type.findings.length + ')</div>');
+            }
+            type.findings.slice(0, typeRowCap).forEach(function(finding) {
+                $body.append(renderFindingItem(finding));
+            });
+            var hidden = type.findings.length - typeRowCap;
+            if (hidden > 0) {
+                $body.append('<span class="simplemdm-mcp-type-more">+' + hidden + ' more ' + esc(type.name) + ' finding' + (hidden === 1 ? '' : 's') + ' not shown &mdash; use <code>export_mcp_findings</code> or <code>get_mcp_findings</code> filters for the full set</span>');
+            }
         });
 
         $card.append($head).append($body);
@@ -180,7 +230,23 @@ $(document).on('appReady', function() {
 
     }
 
-    $.getJSON(window.simplemdmModuleUrl('get_mcp_findings') + '?limit=' + fetchLimit, function(data) {
+    function trueCategoryCount(stats, group, totalActive) {
+        if (!stats || !stats.by_category) {
+            return group.findings.length;
+        }
+        if (group.name !== 'Uncategorized') {
+            var n = Number(stats.by_category[group.name] || 0);
+            return n > 0 ? n : group.findings.length;
+        }
+        // by_category only lists non-empty categories; derive the
+        // uncategorized total as active-total minus the categorized sum.
+        var categorized = 0;
+        Object.keys(stats.by_category).forEach(function(k) { categorized += Number(stats.by_category[k] || 0); });
+        var derived = totalActive - categorized;
+        return derived > 0 ? derived : group.findings.length;
+    }
+
+    function render(data, stats) {
         var panelBody = $widget.find('.panel-body');
         var totalsRow = panelBody.find('.simplemdm-mcp-totals');
         var groupsWrap = panelBody.find('#simplemdm-mcp-findings-groups');
@@ -209,14 +275,22 @@ $(document).on('appReady', function() {
         var findings = (data && data.findings) ? data.findings : [];
         var groups = sortGroups(groupByCategory(findings));
         groups.forEach(function(group, index) {
-            groupsWrap.append(renderCategoryGroup(group, index));
+            groupsWrap.append(renderCategoryGroup(group, index, trueCategoryCount(stats, group, total)));
         });
 
         if (total > findings.length) {
-            moreNote.text('Showing ' + findings.length + ' of ' + total + ' findings.').show();
+            moreNote.text('Fetched the ' + findings.length + ' most recent of ' + total + ' findings.').show();
         } else {
             moreNote.hide();
         }
+    }
+
+    $.getJSON(window.simplemdmModuleUrl('get_mcp_findings') + '?limit=' + fetchLimit, function(data) {
+        // Stats give true per-category counts even when the row fetch was
+        // truncated; render regardless of whether the stats call succeeds.
+        $.getJSON(window.simplemdmModuleUrl('get_mcp_finding_stats'))
+            .done(function(stats) { render(data, stats); })
+            .fail(function() { render(data, null); });
     }).fail(function() {
         $widget.find('.panel-body').html('<p class="text-danger text-center">Failed to load MCP findings.</p>');
     });

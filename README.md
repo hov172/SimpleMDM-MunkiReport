@@ -2037,16 +2037,24 @@ When custom rules are worth using:
 
 `simplemdm_mcp_findings`
 - Purpose: surface findings pushed by the SimpleMDM-MCP server (stale devices, CVE exposure, audit deltas, compliance detections).
-- Endpoint: `GET /module/simplemdm/get_mcp_findings?limit=100`.
+- Endpoints: `GET /module/simplemdm/get_mcp_findings?limit=500` (rows) plus
+  `GET /module/simplemdm/get_mcp_finding_stats` (true per-category counts).
 - Data shown:
   - severity totals (danger/warning/info badges)
-  - up to the 100 most recent findings, grouped into collapsible sections by
-    `category` (a group auto-expands only if it contains a `danger`-severity
-    finding; others start collapsed), sorted danger-groups-first
+  - up to the 500 most recent findings (the server cap), grouped into
+    collapsible sections by `category` (a group auto-expands only if it
+    contains a `danger`-severity finding; others start collapsed), sorted
+    danger-groups-first
+  - inside each category, findings are sub-grouped by `finding_type` with a
+    per-type count; at most 25 rows render per type, with a "+N more not
+    shown" note pointing at `export_mcp_findings`/`get_mcp_findings` filters
+    for the full set
+  - when the row fetch is truncated at the cap, category headers show the
+    true total from `get_mcp_finding_stats` as an "N total" badge alongside
+    the per-severity badges (which count fetched rows only)
   - each finding row: severity badge, finding type, device serial (linked to
     the device detail page), message, source, and reported time
   - pushed `data` JSON as a hover tooltip per finding
-  - "Showing N of M findings" note when more findings exist than fetched
   - the panel body scrolls internally once findings overflow it, rather than
     growing the dashboard grid
 - Empty state: "No MCP findings pushed yet." until `ingest_mcp_findings` has stored findings.

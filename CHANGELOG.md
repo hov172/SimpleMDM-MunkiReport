@@ -7,6 +7,12 @@ or route changes without a deprecation period.
 
 ---
 
+## [Unreleased]
+### Changed
+- MCP Findings dashboard widget scales to auto-publish volume (200+ findings from SimpleMDM-MCP v0.34.0's middleware): each category section now sub-groups findings by `finding_type` with a per-type count, renders at most 25 rows per type with a "+N more not shown" note pointing at `export_mcp_findings`/`get_mcp_findings`, and fetches up to 500 findings (the server cap; was 100 — which previously hid findings entirely, e.g. 2 `info` findings counted in the totals badges but unreachable in the list). When the fetch is still truncated, category headers show the true total from `get_mcp_finding_stats` as a separate "N total" badge alongside the per-severity badges (which reflect fetched rows only).
+
+---
+
 ## [1.2.0] — 2026-07-11
 ### Added
 - Documentation for the automated push sources arriving from SimpleMDM-MCP v0.34.0's findings auto-publish middleware: `ingest_mcp_findings` now also receives machine-triggered pushes under per-tool source namespaces — `mcp_auto_<tool>` (compliance/health-check and allowlisted inventory reads), `mcp_auto_action_<tool>` (action-tool failures, category `Action Failure`, severity `danger`), and `sofa_audit` (fleet-audit `--publish`) — each with `replace: true` scoped to its own source. No module code changes were needed; the existing caps and validation (2000 findings/push, 2 MB payload, `^[a-z0-9_\-]{1,64}$` source slug, 128-char `scan_id`/`category`) already accommodate them. Documented in `docs/API_REFERENCE.md` §11, README, `docs/DEVELOPER_GUIDE.md`, and `docs/SECURITY.md` (new write-path entry, auth-matrix rows, and monitoring guidance).

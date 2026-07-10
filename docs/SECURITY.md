@@ -29,7 +29,7 @@ for headless clients.
 | `index?op=webhook` | Webhook secret OR sync auth | `X-SIMPLEMDM-WEBHOOK-SECRET` or `X-SIMPLEMDM-API-KEY` |
 | `index?op=ingest_client_facts` | Client reporter secret | `X-SIMPLEMDM-CLIENT-SECRET` |
 | Token-readable module data routes | Session auth OR sync auth | Session auth or `X-SIMPLEMDM-API-KEY` |
-| `save_config` | Global admin OR sync auth | Session auth or `X-SIMPLEMDM-API-KEY` |
+| `save_config` | Global admin only | Session auth |
 | `request_sync` | Global admin session | Session auth |
 | `api_devices` `GET` | Global admin session | Session auth |
 | `api_devices` mutating methods (`POST/PATCH/PUT/DELETE`) | Global admin + action secret | `X-SIMPLEMDM-ACTION-SECRET` (or supported aliases/body/query key) |
@@ -44,6 +44,14 @@ Notes:
   endpoint facts (console user, uptime, local FileVault state) are readable by anyone
   holding the SimpleMDM API key. Serve the module over HTTPS only and rotate the key if it
   may have leaked.
+- `save_config` requires a global-admin session; the sync token is no longer accepted
+  as an alternative (fixed 2026-07-10). No legitimate caller ever used the sync-token
+  branch, but it previously let a non-global authenticated session that also carried a
+  valid `X-SIMPLEMDM-API-KEY` header bypass the `authorized('global')` scope check
+  inside `save_config()` and rewrite `client_reporter_secret` and other admin-only
+  secrets/toggles. Requests carrying only the sync token and no session were never
+  reachable — the controller's constructor already blocks those before `save_config()`
+  runs.
 
 ## 3) Secrets and Purpose
 
@@ -187,3 +195,5 @@ These controls improve client submission trust without changing the current supp
 12. If proxy-only or IP allowlist controls are enabled, `ingest_client_facts` rejects requests outside those network rules.
 13. Mutating `api_devices` call fails without valid action secret.
 14. Read-only `api_devices` calls still require global admin session.
+15. `save_config` rejects a non-global authenticated session that carries a valid
+    `X-SIMPLEMDM-API-KEY` header but lacks global-admin scope.

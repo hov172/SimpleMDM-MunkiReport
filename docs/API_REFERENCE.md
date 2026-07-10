@@ -35,7 +35,7 @@ Workflow note:
 | Report/listing/stats/data routes | Authenticated MunkiReport session |
 | Token-readable dashboard routes (see below) | Session OR sync token header |
 | Config read (`get_config`) | Global admin session OR sync token header (non-global/sync-auth responses get masked secret flags) |
-| Config write (`save_config`) | Global admin session OR sync token header |
+| Config write (`save_config`) | Global admin session (session auth only) |
 | Admin sync queue (`request_sync`) | Global admin session |
 | Client reporter ingest (`op=ingest_client_facts`) | Client reporter secret header |
 | Ingest routes (`op=ingest*`, `op=update_sync_status`, `op=begin_sync_run`; direct `/route` form also accepted since 2026-07-08) | Sync token header |
@@ -104,7 +104,7 @@ All are called via:
 | `/module/simplemdm/get_script_catalog` | GET | Read downloadable script metadata and external command templates | Global admin |
 | `/module/simplemdm/get_runner_status` | GET | Read module runtime, cron, and runner readiness state | Global admin session OR sync token header |
 | `/module/simplemdm/get_supplemental_status` | GET | Read supplemental detection, freshness, and summary health | Global admin session OR sync token header |
-| `/module/simplemdm/save_config` | POST | Save module settings | Global admin OR sync token |
+| `/module/simplemdm/save_config` | POST | Save module settings | Global admin session (session auth only) |
 | `/module/simplemdm/request_sync` | POST | Queue a sync run from the admin UI | Global admin |
 | `/module/simplemdm/refresh_supplemental_summary` | POST | Rebuild supplemental summary rows | Global admin |
 | `/module/simplemdm/run_script` | POST | Execute an approved module-side script action | Global admin and script runner enabled |

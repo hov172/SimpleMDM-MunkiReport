@@ -18,6 +18,9 @@ or route changes without a deprecation period.
 - `ingest_mcp_findings` now upserts findings by a deterministic `(source, serial_number, finding_type, category)` fingerprint instead of deleting and replacing all findings for a source on every push. Findings persist `status`, `occurrence_count`, `first_seen_at`, `last_seen_at`, and `resolved_at`. A complete scan (`replace: true`, the default) auto-resolves findings from that source that were not present in the push; a resolved finding reopens if it reappears later.
 - `get_mcp_findings` gains `status`, `since`, `offset`, and `scan_id` filters, and a new `status_totals` response field. Without an explicit `status` filter it now returns only active (`open`/`acknowledged`/`in_progress`) findings, matching what the dashboard widget always displayed.
 
+### Security
+- `save_config` now requires a global-admin session; the sync-token alternative has been removed. No legitimate caller ever used that branch, but it previously let a non-global authenticated session that also held a valid sync token bypass the `authorized('global')` scope check inside `save_config()` and rewrite `client_reporter_secret` and other admin-only secrets/settings. A sync-token-only request with no session was never able to reach `save_config()` at all — the controller already blocked those before this fix.
+
 ---
 
 ## [1.1.0] — 2026-07-08

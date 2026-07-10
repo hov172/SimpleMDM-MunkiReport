@@ -6620,7 +6620,7 @@ class Simplemdm_controller extends Module_controller
 
         $severity = isset($_GET['severity']) ? strtolower(trim((string) $_GET['severity'])) : '';
         if ($severity !== '') {
-            $severities = array_values(array_filter(array_map('trim', explode(',', $severity))));
+            $severities = Simplemdm_mcp_finding_model::parseMultiValueParam($severity);
             if (count($severities) === 1) {
                 $query->where('severity', $severities[0]);
             } elseif (count($severities) > 1) {
@@ -6630,7 +6630,7 @@ class Simplemdm_controller extends Module_controller
 
         $status = isset($_GET['status']) ? strtolower(trim((string) $_GET['status'])) : '';
         if ($status !== '') {
-            $statuses = array_values(array_filter(array_map('trim', explode(',', $status))));
+            $statuses = Simplemdm_mcp_finding_model::parseMultiValueParam($status);
             if (count($statuses) === 1) {
                 $query->where('status', $statuses[0]);
             } elseif (count($statuses) > 1) {
@@ -6647,7 +6647,7 @@ class Simplemdm_controller extends Module_controller
 
         $category = isset($_GET['category']) ? trim((string) $_GET['category']) : '';
         if ($category !== '') {
-            $categories = array_values(array_filter(array_map('trim', explode(',', $category))));
+            $categories = Simplemdm_mcp_finding_model::parseMultiValueParam($category);
             if (count($categories) === 1) {
                 $query->where('category', $categories[0]);
             } elseif (count($categories) > 1) {
@@ -6712,7 +6712,7 @@ class Simplemdm_controller extends Module_controller
             }
             $category = isset($_GET['category']) ? trim((string) $_GET['category']) : '';
             if ($category !== '') {
-                $categories = array_values(array_filter(array_map('trim', explode(',', $category))));
+                $categories = Simplemdm_mcp_finding_model::parseMultiValueParam($category);
                 if (count($categories) === 1) {
                     $query->where('category', $categories[0]);
                 } elseif (count($categories) > 1) {
@@ -6794,7 +6794,7 @@ class Simplemdm_controller extends Module_controller
 
         $severity = isset($_GET['severity']) ? strtolower(trim((string) $_GET['severity'])) : '';
         if ($severity !== '') {
-            $severities = array_values(array_filter(array_map('trim', explode(',', $severity))));
+            $severities = Simplemdm_mcp_finding_model::parseMultiValueParam($severity);
             if (count($severities) === 1) {
                 $query->where('severity', $severities[0]);
             } elseif (count($severities) > 1) {
@@ -6804,7 +6804,7 @@ class Simplemdm_controller extends Module_controller
 
         $status = isset($_GET['status']) ? strtolower(trim((string) $_GET['status'])) : '';
         if ($status !== '') {
-            $statuses = array_values(array_filter(array_map('trim', explode(',', $status))));
+            $statuses = Simplemdm_mcp_finding_model::parseMultiValueParam($status);
             if (count($statuses) === 1) {
                 $query->where('status', $statuses[0]);
             } elseif (count($statuses) > 1) {
@@ -6821,7 +6821,7 @@ class Simplemdm_controller extends Module_controller
 
         $category = isset($_GET['category']) ? trim((string) $_GET['category']) : '';
         if ($category !== '') {
-            $categories = array_values(array_filter(array_map('trim', explode(',', $category))));
+            $categories = Simplemdm_mcp_finding_model::parseMultiValueParam($category);
             if (count($categories) === 1) {
                 $query->where('category', $categories[0]);
             } elseif (count($categories) > 1) {

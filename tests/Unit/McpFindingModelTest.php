@@ -227,4 +227,29 @@ final class McpFindingModelTest extends TestCase
         $this->assertSame(Simplemdm_mcp_finding_model::STATUS_ACKNOWLEDGED, $result['status']);
         $this->assertNull($result['resolved_at']);
     }
+
+    public function testParseMultiValueParamSingleValue(): void
+    {
+        $this->assertSame(['danger'], Simplemdm_mcp_finding_model::parseMultiValueParam('danger'));
+    }
+
+    public function testParseMultiValueParamMultipleValues(): void
+    {
+        $this->assertSame(['danger', 'warning'], Simplemdm_mcp_finding_model::parseMultiValueParam('danger,warning'));
+    }
+
+    public function testParseMultiValueParamTrimsWhitespace(): void
+    {
+        $this->assertSame(['danger', 'warning'], Simplemdm_mcp_finding_model::parseMultiValueParam(' danger , warning '));
+    }
+
+    public function testParseMultiValueParamFiltersEmptyEntries(): void
+    {
+        $this->assertSame(['danger', 'warning'], Simplemdm_mcp_finding_model::parseMultiValueParam('danger,,warning,'));
+    }
+
+    public function testParseMultiValueParamEmptyStringReturnsEmptyArray(): void
+    {
+        $this->assertSame([], Simplemdm_mcp_finding_model::parseMultiValueParam(''));
+    }
 }

@@ -168,4 +168,17 @@ class Simplemdm_mcp_finding_model extends Eloquent
         $update['resolved_at'] = $targetStatus === self::STATUS_RESOLVED ? gmdate('c') : null;
         return $update;
     }
+
+    /**
+     * Splits a comma-separated query-param value (severity/status/category
+     * filters) into a trimmed, empty-filtered list. Was duplicated inline
+     * verbatim across get_mcp_findings/get_mcp_finding_stats/export_mcp_findings.
+     */
+    public static function parseMultiValueParam($raw)
+    {
+        if ($raw === '' || $raw === null) {
+            return [];
+        }
+        return array_values(array_filter(array_map('trim', explode(',', $raw))));
+    }
 }

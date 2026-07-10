@@ -203,26 +203,20 @@ $(document).on('appReady', function() {
         });
 
     // Safari applies its own elastic bounce to overflow:auto elements on
-    // trackpad input, which visibly shakes this table's rows when scrolled
-    // past the top/bottom. preventDefault() on wheel deltas that would
-    // overscroll catches the active-finger phase of the gesture; Safari can
-    // ignore that once a scroll enters momentum/inertial phase, so back it
-    // up by clamping scrollTop back in-bounds on every 'scroll' event too,
-    // which fires continuously through the bounce animation and interrupts
-    // it by snapping position back rather than preventing it from starting.
+    // trackpad input. A wheel-listener + preventDefault() approach was tried
+    // and reverted: calling preventDefault() on a gesture-related event here
+    // (matching what overscroll-behavior: contain also did on the MCP
+    // Findings widget) reliably broke click-through on nearby controls in
+    // Safari. Only the passive scroll-position clamp remains -- it never
+    // calls preventDefault() or otherwise consumes the gesture, so it should
+    // not trigger that click-suppression, at the cost of not fully
+    // preventing the bounce (it corrects position after the fact instead).
     (function bindDevicesTableScrollFix() {
         var scrollEl = document.querySelector(widgetId + ' .simplemdm-devices-table-scroll');
         if (!scrollEl || scrollEl.getAttribute('data-simplemdm-wheel-bound')) {
             return;
         }
         scrollEl.setAttribute('data-simplemdm-wheel-bound', '1');
-        scrollEl.addEventListener('wheel', function(ev) {
-            var atTop = scrollEl.scrollTop <= 0;
-            var atBottom = Math.ceil(scrollEl.scrollTop + scrollEl.clientHeight) >= scrollEl.scrollHeight;
-            if ((atTop && ev.deltaY < 0) || (atBottom && ev.deltaY > 0)) {
-                ev.preventDefault();
-            }
-        }, { passive: false });
         scrollEl.addEventListener('scroll', function() {
             if (scrollEl.scrollTop < 0) {
                 scrollEl.scrollTop = 0;

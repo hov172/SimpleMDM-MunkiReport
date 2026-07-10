@@ -189,14 +189,26 @@ Conflict guidance:
     expand by default) — see the File-Level Quick Reference and
     `docs/TESTING.md` Section 9 for widget-specific QA steps.
   - Safari-specific scroll handling: Safari applies its own elastic bounce to
-    `overflow: auto` elements on trackpad input, which `overscroll-behavior`
-    does not suppress in Safari the way it does in Chrome. Do not add
-    `overscroll-behavior` to `.simplemdm-list-scroll .list-group` to try to
-    fix Safari bounce — it was tried and reverted after it silently broke
-    click events on the widget's expand/collapse controls in Safari (both the
-    per-category toggle and the whole-widget minimize button). The current
-    fix is a `wheel` listener scoped to `#simplemdm-mcp-findings-groups` that
-    `preventDefault()`s only deltas that would scroll past the boundary.
+    `overflow: auto` elements on trackpad input, and this bounce is not fully
+    suppressible without breaking other behavior. Two approaches were tried
+    and reverted, in order:
+    1. CSS `overscroll-behavior: contain` on `.simplemdm-list-scroll
+       .list-group` — silently broke click events on the widget's
+       expand/collapse controls in Safari (both the per-category toggle and
+       the whole-widget minimize button).
+    2. A `wheel` listener calling `preventDefault()` on boundary-exceeding
+       deltas — same click-breaking symptom in Safari, even though it's a
+       different mechanism than `overscroll-behavior`. The common factor
+       across both: calling `preventDefault()` on a gesture-related event
+       near the scroll container breaks Safari click-through nearby.
+    Do not reintroduce either approach. The current state (both
+    `#simplemdm-mcp-findings-groups` and `.simplemdm-devices-table-scroll` in
+    `simplemdm_devices_table_widget.php`) is a passive `scroll` listener that
+    clamps `scrollTop` back in-bounds after the fact — it never calls
+    `preventDefault()`, so it should not break clicks, but it also does not
+    fully prevent the visible bounce, only corrects position after Safari's
+    animation has already started. Full suppression of the bounce without
+    breaking click-through in Safari is an open problem.
   - Auth: ingest/read/analytics routes use sync-token (`X-SIMPLEMDM-API-KEY`)
     or session; admin-action routes use the same sync-token auth as
     ingest/read; only `save_config` (settings) requires a global-admin

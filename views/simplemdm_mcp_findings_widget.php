@@ -179,30 +179,18 @@ $(document).on('appReady', function() {
             });
 
         // Safari applies its own elastic bounce to any overflow:auto element on
-        // trackpad input; CSS (overscroll-behavior) doesn't suppress that bounce
-        // in Safari, only chaining to an ancestor. Clamp scroll at the boundary
-        // ourselves and preventDefault only the wheel deltas that would overscroll,
-        // so Safari never starts the bounce animation. Scoped to this widget's own
-        // list only (not the shared .simplemdm-list-scroll rule) to avoid affecting
-        // other widgets' scroll/click behavior.
+        // trackpad input. A wheel-listener + preventDefault() approach was tried
+        // and reverted: calling preventDefault() on a gesture-related event here
+        // (matching what overscroll-behavior: contain also did) reliably broke
+        // click-through on this widget's expand/collapse controls in Safari, even
+        // though it's a separate mechanism from the CSS property. Only the
+        // passive scroll-position clamp remains -- it never calls
+        // preventDefault() or otherwise consumes the gesture, so it should not
+        // trigger that click-suppression, at the cost of not fully preventing
+        // the bounce (it corrects position after the fact instead).
         var scrollEl = document.getElementById('simplemdm-mcp-findings-groups');
         if (scrollEl && !scrollEl.getAttribute('data-simplemdm-wheel-bound')) {
             scrollEl.setAttribute('data-simplemdm-wheel-bound', '1');
-            scrollEl.addEventListener('wheel', function(ev) {
-                var atTop = scrollEl.scrollTop <= 0;
-                var atBottom = Math.ceil(scrollEl.scrollTop + scrollEl.clientHeight) >= scrollEl.scrollHeight;
-                if ((atTop && ev.deltaY < 0) || (atBottom && ev.deltaY > 0)) {
-                    ev.preventDefault();
-                }
-            }, { passive: false });
-
-            // Safari can ignore wheel preventDefault() once a trackpad gesture has
-            // entered its momentum/inertial phase, so the wheel listener above only
-            // catches the active-finger-on-trackpad phase. Back it up by clamping
-            // scrollTop back in-bounds on every 'scroll' event -- this fires
-            // continuously through Safari's own bounce animation too, so it
-            // interrupts the bounce by snapping position back rather than
-            // preventing it from starting.
             scrollEl.addEventListener('scroll', function() {
                 if (scrollEl.scrollTop < 0) {
                     scrollEl.scrollTop = 0;

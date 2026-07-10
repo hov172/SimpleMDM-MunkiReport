@@ -6517,31 +6517,13 @@ class Simplemdm_controller extends Module_controller
                 ->first();
 
             if ($existing) {
-                $wasResolved = $existing->status === Simplemdm_mcp_finding_model::STATUS_RESOLVED;
-                $isSuppressedOrIgnored = in_array($existing->status, [
-                    Simplemdm_mcp_finding_model::STATUS_SUPPRESSED,
-                    Simplemdm_mcp_finding_model::STATUS_IGNORED,
-                ], true);
-
-                $update = [
-                    'serial_number'    => $serialNumber,
-                    'category'         => $category,
-                    'severity'         => $severity,
-                    'message'          => substr($message, 0, 1000),
-                    'data'             => $extra,
-                    'reported_at'      => $now,
-                    'last_seen_at'     => $now,
-                    'scan_id'          => $scanId,
-                    'occurrence_count' => $existing->occurrence_count + 1,
-                ];
-                if ($wasResolved) {
-                    $update['status'] = Simplemdm_mcp_finding_model::STATUS_OPEN;
-                    $update['resolved_at'] = null;
+                $result = Simplemdm_mcp_finding_model::computeUpsertUpdate($existing, $normalized, $scanId, $now);
+                if ($result['kind'] === 'reopened') {
                     $reopened++;
-                } elseif (! $isSuppressedOrIgnored) {
+                } elseif ($result['kind'] === 'updated') {
                     $updated++;
                 }
-                $existing->fill($update);
+                $existing->fill($result['update']);
                 $existing->save();
                 $touchedIds[] = $existing->id;
             } else {

@@ -120,4 +120,67 @@ final class McpFindingModelTest extends TestCase
         $result = Simplemdm_mcp_finding_model::normalizeFinding(['finding_type' => 'x', 'message' => 'm', 'data' => null], 65536);
         $this->assertSame('', $result['data']);
     }
+
+    private function fakeExisting($status, $occurrenceCount)
+    {
+        $row = new Simplemdm_mcp_finding_model();
+        $row->status = $status;
+        $row->occurrence_count = $occurrenceCount;
+        return $row;
+    }
+
+    private function fakeNormalized(array $overrides = [])
+    {
+        return array_merge([
+            'serial_number' => 'C02ABC123',
+            'category'      => 'OS',
+            'severity'      => 'danger',
+            'message'       => 'OS end-of-life',
+            'data'          => '',
+        ], $overrides);
+    }
+
+    public function testComputeUpsertUpdateOpenFindingCountsAsUpdated(): void
+    {
+        $existing = $this->fakeExisting(Simplemdm_mcp_finding_model::STATUS_OPEN, 3);
+        $result = Simplemdm_mcp_finding_model::computeUpsertUpdate($existing, $this->fakeNormalized(), 'scan_1', '2026-07-10T00:00:00+00:00');
+        $this->assertSame('updated', $result['kind']);
+        $this->assertSame(4, $result['update']['occurrence_count']);
+        $this->assertArrayNotHasKey('status', $result['update']);
+    }
+
+    public function testComputeUpsertUpdateResolvedFindingReopens(): void
+    {
+        $existing = $this->fakeExisting(Simplemdm_mcp_finding_model::STATUS_RESOLVED, 5);
+        $result = Simplemdm_mcp_finding_model::computeUpsertUpdate($existing, $this->fakeNormalized(), 'scan_1', '2026-07-10T00:00:00+00:00');
+        $this->assertSame('reopened', $result['kind']);
+        $this->assertSame(Simplemdm_mcp_finding_model::STATUS_OPEN, $result['update']['status']);
+        $this->assertNull($result['update']['resolved_at']);
+    }
+
+    public function testComputeUpsertUpdateSuppressedFindingDoesNotCountAsUpdated(): void
+    {
+        $existing = $this->fakeExisting(Simplemdm_mcp_finding_model::STATUS_SUPPRESSED, 2);
+        $result = Simplemdm_mcp_finding_model::computeUpsertUpdate($existing, $this->fakeNormalized(), 'scan_1', '2026-07-10T00:00:00+00:00');
+        $this->assertSame('unchanged', $result['kind']);
+        $this->assertArrayNotHasKey('status', $result['update']);
+    }
+
+    public function testComputeUpsertUpdateIgnoredFindingDoesNotCountAsUpdated(): void
+    {
+        $existing = $this->fakeExisting(Simplemdm_mcp_finding_model::STATUS_IGNORED, 1);
+        $result = Simplemdm_mcp_finding_model::computeUpsertUpdate($existing, $this->fakeNormalized(), 'scan_1', '2026-07-10T00:00:00+00:00');
+        $this->assertSame('unchanged', $result['kind']);
+    }
+
+    public function testComputeUpsertUpdateRefreshesFieldsRegardlessOfStatus(): void
+    {
+        $existing = $this->fakeExisting(Simplemdm_mcp_finding_model::STATUS_SUPPRESSED, 2);
+        $normalized = $this->fakeNormalized(['severity' => 'warning', 'message' => 'new message']);
+        $result = Simplemdm_mcp_finding_model::computeUpsertUpdate($existing, $normalized, 'scan_2', '2026-07-10T00:00:00+00:00');
+        $this->assertSame('warning', $result['update']['severity']);
+        $this->assertSame('new message', $result['update']['message']);
+        $this->assertSame('scan_2', $result['update']['scan_id']);
+        $this->assertSame('2026-07-10T00:00:00+00:00', $result['update']['last_seen_at']);
+    }
 }

@@ -98,4 +98,43 @@ class Simplemdm_mcp_finding_model extends Eloquent
             'data'          => $extra,
         ];
     }
+
+    /**
+     * Decides what to write when an ingest push matches an existing row by
+     * fingerprint, and whether it counts as updated/reopened/unchanged for the
+     * ingest_mcp_findings response counters. Does not touch the database --
+     * the caller still performs the actual fill()/save().
+     */
+    public static function computeUpsertUpdate($existing, $normalized, $scanId, $now)
+    {
+        $wasResolved = $existing->status === self::STATUS_RESOLVED;
+        $isSuppressedOrIgnored = in_array($existing->status, [
+            self::STATUS_SUPPRESSED,
+            self::STATUS_IGNORED,
+        ], true);
+
+        $update = [
+            'serial_number'    => $normalized['serial_number'],
+            'category'         => $normalized['category'],
+            'severity'         => $normalized['severity'],
+            'message'          => $normalized['message'],
+            'data'             => $normalized['data'],
+            'reported_at'      => $now,
+            'last_seen_at'     => $now,
+            'scan_id'          => $scanId,
+            'occurrence_count' => $existing->occurrence_count + 1,
+        ];
+
+        if ($wasResolved) {
+            $update['status'] = self::STATUS_OPEN;
+            $update['resolved_at'] = null;
+            $kind = 'reopened';
+        } elseif (! $isSuppressedOrIgnored) {
+            $kind = 'updated';
+        } else {
+            $kind = 'unchanged';
+        }
+
+        return ['update' => $update, 'kind' => $kind];
+    }
 }

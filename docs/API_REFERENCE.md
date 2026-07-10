@@ -801,7 +801,7 @@ Common error payloads:
 
 ### ingest_mcp_findings Request
 
-**Purpose**: Upsert MCP-computed findings into the `simplemdm_mcp_finding` table by a deterministic `(source, serial_number, finding_type)` fingerprint.
+**Purpose**: Upsert MCP-computed findings into the `simplemdm_mcp_finding` table by a deterministic `(source, serial_number, finding_type, category)` fingerprint.
 
 **Endpoint**: `POST /index.php?/module/simplemdm/index?op=ingest_mcp_findings`
 
@@ -831,6 +831,13 @@ Common error payloads:
 
 **Field definitions**:
 - `source` (required string, top-level): identifier for the finding source for this entire push (e.g., `mcp`, `mcp_scanner_name`). Read from `$data['source']` at the top level of the request body — not per-finding. Must match `^[a-z0-9_\-]{1,64}$` (case-insensitive, normalized to lowercase). If missing or invalid, the request fails with `400 source is required`.
+
+  Since SimpleMDM-MCP v0.34.0 the endpoint also receives **automated** pushes from the MCP's findings auto-publish middleware, each under its own per-tool source namespace (so `replace: true` auto-resolve stays scoped to that tool's own findings):
+  - `mcp_auto_<toolName>` — compliance/health-check reads (14 tools) and opted-in inventory reads (up to 8 tools), e.g. `mcp_auto_get_stale_devices`
+  - `mcp_auto_action_<toolName>` — action-tool failure findings, e.g. `mcp_auto_action_lock_device` (see the action-failure shape below)
+  - `sofa_audit` — per-check findings from `run_fleet_audit --publish`
+
+  Expect `get_mcp_scan_status` / source listings to enumerate many distinct sources, not a single `mcp` slug.
 - `scan_id` (optional string): server-provided or client-provided unique identifier for this push. If omitted, the server generates one. Used to track which scan produced which findings and to support partial-scan semantics (see lifecycle behavior below).
 - `findings` (array): array of finding objects, each with:
   - `serial_number` (required string): device serial number
@@ -840,6 +847,8 @@ Common error payloads:
   - `message` (required string): human-readable finding description
   - `data` (optional object): arbitrary JSON payload with finding details. If omitted (or empty), stored as an empty value.
 - `replace` (optional boolean, default `true`): if `true`, any previously-active findings (status: open, acknowledged, or in_progress) from this `source` that do not appear in the current push are automatically resolved. If `false`, only explicitly-present findings are upserted; absent findings are left as-is (partial scan mode).
+
+**Action-failure finding shape** (sent automatically by SimpleMDM-MCP v0.34.0+ when an action tool fails against the SimpleMDM API): `source: mcp_auto_action_<toolName>`, `scan_id: mcp_auto_action_<toolName>_<timestamp>`, `replace: true`, and a single finding with `finding_type: action_failed_<toolName>`, `category: "Action Failure"`, `severity: "danger"`, a message of the form `<EntityLabel> action "<toolName>" failed: <error>`, and (when the failing call carried one) a `data` object holding the tool's entity id field (e.g. `{"device_id": 123}`). All values fit the module's existing caps — no schema or validation changes were needed to receive them.
 
 **Lifecycle behavior**:
 1. Each finding is fingerprinted on `(source, serial_number, finding_type, category)`.

@@ -155,6 +155,13 @@ Conflict guidance:
   - A findings inbox for audit/compliance/health signals pushed by the companion
     SimpleMDM-MCP server, stored in `simplemdm_mcp_finding` and surfaced on the
     dashboard and via read/analytics/admin-action routes.
+  - Pushes arrive both manually (the `push_munkireport_findings` MCP tool, audit
+    `--publish`) and — since SimpleMDM-MCP v0.34.0 — automatically from the MCP's
+    findings auto-publish middleware: compliance/health-check reads publish under
+    `mcp_auto_<tool>`, action-tool failures under `mcp_auto_action_<tool>`
+    (category `Action Failure`, `finding_type action_failed_<tool>`, severity
+    danger), and fleet audits under `sofa_audit`. Expect many distinct `source`
+    values, one per publishing tool.
 - Why:
   - Lets MCP-side analysis (stale devices, CVE exposure, audit deltas, compliance
     detections) show up in MunkiReport without duplicating that logic here.

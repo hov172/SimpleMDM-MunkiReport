@@ -4,13 +4,21 @@ This document explains authentication, secrets, trust boundaries, and hardening 
 
 ## 1) Security Model
 
-The module has five primary write paths:
+The module has six primary write paths:
 
 1. Sync ingest (`ingest`, `ingest_resources`, `ingest_commands`, `update_sync_status`)
 2. Sync queue control (`request_sync`, `begin_sync_run`)
 3. Webhook ingest (`webhook`)
 4. Device API passthrough (`api_devices`, mutating operations)
 5. Client reporter ingest (`ingest_client_facts`)
+6. MCP findings ingest (`ingest_mcp_findings`) plus the four finding admin-action
+   routes (`acknowledge/resolve/ignore/suppress_mcp_finding`) — sync-token
+   authenticated. As of SimpleMDM-MCP v0.34.0 this is a potentially
+   **high-frequency automated** write path (the MCP's auto-publish middleware, when
+   enabled, pushes after eligible tool calls, not just when a human runs a push).
+   `replace: true` auto-resolve is scoped to the pushing `source` namespace, so a
+   misbehaving or compromised publisher can only mass-resolve findings in its own
+   namespace, never another source's.
 
 Most read/report/listing routes require a normal authenticated MunkiReport session.
 A narrow allowlist of read-only module data routes also accepts the sync token header
@@ -28,6 +36,8 @@ for headless clients.
 | `index?op=get_config` | Global admin OR sync auth | Session auth or `X-SIMPLEMDM-API-KEY` |
 | `index?op=webhook` | Webhook secret OR sync auth | `X-SIMPLEMDM-WEBHOOK-SECRET` or `X-SIMPLEMDM-API-KEY` |
 | `index?op=ingest_client_facts` | Client reporter secret | `X-SIMPLEMDM-CLIENT-SECRET` |
+| `index?op=ingest_mcp_findings` | Sync auth required | `X-SIMPLEMDM-API-KEY` |
+| `index?op=acknowledge/resolve/ignore/suppress_mcp_finding` | Sync auth required | `X-SIMPLEMDM-API-KEY` |
 | Token-readable module data routes | Session auth OR sync auth | Session auth or `X-SIMPLEMDM-API-KEY` |
 | `save_config` | Global admin only | Session auth |
 | `request_sync` | Global admin session | Session auth |
@@ -137,6 +147,9 @@ Notes:
    - `request_sync`
    - `index?op=begin_sync_run`
    - `api_devices` mutating calls
+   - `index?op=ingest_mcp_findings` (now an automated write endpoint when the
+     MCP's auto-publish middleware is enabled — a spike from an unexpected
+     `source` slug is a signal worth investigating)
 10. Rotate secrets on staff turnover or suspected exposure.
 
 ## 6) Optional Hardening For Option B

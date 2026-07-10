@@ -79,7 +79,7 @@ server can query it from Claude (or any MCP client):
 4. Test from the MCP side with `get_munkireport_sync_health`. An expired session shows up
    there as a JSON parse error (MunkiReport returns `Authenticate first.` as HTTP 200 text).
 
-The MCP tools map to these routes (16 tools as of SimpleMDM-MCP v0.33.0):
+The MCP tools map to these routes (16 tools as of SimpleMDM-MCP v0.33.0, unchanged in v0.34.0):
 
 - **Alerts**: `get_events[/serial]?limit&type` — the 13 built-in alert/regression events plus
   custom rules (route added 2026-07-07 for the MCP's `get_munkireport_alerts` tool).
@@ -93,6 +93,13 @@ The MCP tools map to these routes (16 tools as of SimpleMDM-MCP v0.33.0):
 - **MCP findings channel**: `ingest_mcp_findings` (sync-token POST — the MCP pushes its
   computed findings: CVE exposure, audit deltas, stale/compliance detections) and
   `get_mcp_findings[/serial]?severity&source&limit` (read-back + the MCP Findings widget).
+  As of SimpleMDM-MCP v0.34.0, pushes are no longer only human-triggered: the MCP's
+  findings auto-publish middleware (opt-in, off by default) automatically pushes
+  compliance/health-check results, allowlisted inventory results, action-tool failures, and
+  fleet-audit findings — each under its own source namespace (`mcp_auto_<tool>`,
+  `mcp_auto_action_<tool>`, `sofa_audit`) so `replace: true` auto-resolve stays scoped
+  per tool. See the MCP repo's `docs/findings-middleware.md` and this module's
+  `docs/API_REFERENCE.md` §11 for the source conventions and the action-failure shape.
   Findings now persist across pushes with lifecycle status and occurrence history instead of being
   wiped on every push; a complete scan auto-resolves previously-active findings (open, acknowledged, in_progress) that no longer
   appear, and resolved findings reopen if they recur. See the [CHANGELOG](CHANGELOG.md) for the

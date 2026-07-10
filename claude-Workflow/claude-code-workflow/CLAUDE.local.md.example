@@ -1,0 +1,29 @@
+# CLAUDE.local.md — Personal Overrides
+> GITIGNORED — never commit this file. Rename: mv CLAUDE.local.md.example CLAUDE.local.md
+> For universal personal preferences across ALL projects → ~/.claude/CLAUDE.md instead.
+
+## My Preferences
+- I prefer verbose commit messages with context
+- Always explain your reasoning before making changes
+- When in doubt, ask rather than guess
+
+## My Environment
+- Test database port: _fill in_ (not default)
+- Package manager: _fill in_
+- Local dev URL: http://localhost:_fill in_
+- Staging URL: _fill in_
+
+## My Shortcuts
+- "ship it" → `/ship`
+- "review" → `/pr-review`
+- "fix it" → `/debug-fix`
+- "test it" → `/test-writer`
+- "audit" → `/app-store-audit`
+
+## Current Sprint
+- Working on: _fill in_
+- Current ticket: _fill in_
+- Feature flags: _fill in_
+
+## Personal Notes Directory
+- .claude/memory/ (auto-managed by Claude — use /memory to browse)

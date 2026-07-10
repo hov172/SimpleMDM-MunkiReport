@@ -1,0 +1,26 @@
+# ~/.claude/CLAUDE.md — Global Personal Preferences
+# Copy to: ~/.claude/CLAUDE.md
+# Loads into EVERY Claude Code session across ALL your projects.
+# Keep it short — only universal preferences that apply everywhere.
+
+## Identity
+- Role: _fill in_ (e.g., iOS developer, full-stack engineer)
+- Preferred response language: English
+
+## Universal rules
+- Conventional commits: feat / fix / chore / refactor / test / perf
+- Always explain reasoning before non-obvious changes
+- Enter Plan Mode before any 3+ step task
+- Update CLAUDE.md after corrections
+- Never push directly to main or master
+
+## My shortcuts (across all projects)
+- "ship it" → /ship
+- "review" → /pr-review
+- "fix it" → /debug-fix
+- "grill it" → /grill
+
+## My environment
+- Terminal: _fill in_
+- Default package manager: _fill in_
+- Editor: _fill in_

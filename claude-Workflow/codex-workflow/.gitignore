@@ -1,0 +1,28 @@
+# Codex overrides — personal, never commit
+AGENTS.override.md
+.codex/config.local.toml
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+
+# Codex logs and handoffs
+.codex/logs/
+.codex/handoffs/
+
+# Build output
+node_modules/
+dist/
+build/
+.next/
+__pycache__/
+*.pyc
+.venv/
+
+# OS
+.DS_Store
+Thumbs.db

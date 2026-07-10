@@ -4,3 +4,6 @@ composer.lock
 *.pyc
 __pycache__/
 .gstack/
+.phpunit.result.cache
+.mcp-widget-shot.png
+docs/superpowers/.scratch/

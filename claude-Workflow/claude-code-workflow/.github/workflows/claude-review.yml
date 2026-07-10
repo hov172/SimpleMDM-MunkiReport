@@ -1,0 +1,39 @@
+# Claude Code GitHub Action — Compounding Engineering
+# When you tag @claude in a PR comment, Claude:
+#   - Reads the comment
+#   - Makes the requested change (often updating CLAUDE.md)
+#   - Commits and pushes automatically
+#
+# Setup:
+#   1. Add ANTHROPIC_API_KEY to your repo secrets (Settings → Secrets → Actions)
+#   2. Commit this file to .github/workflows/
+#   3. Tag @claude on any PR comment to invoke it
+#
+# Docs: https://docs.anthropic.com/en/docs/claude-code/github-actions
+
+name: Claude Code Review
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  claude:
+    if: |
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}

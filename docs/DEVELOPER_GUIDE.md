@@ -188,6 +188,15 @@ Conflict guidance:
     findings by `category` into collapsible sections (danger-severity groups
     expand by default) — see the File-Level Quick Reference and
     `docs/TESTING.md` Section 9 for widget-specific QA steps.
+  - Safari-specific scroll handling: Safari applies its own elastic bounce to
+    `overflow: auto` elements on trackpad input, which `overscroll-behavior`
+    does not suppress in Safari the way it does in Chrome. Do not add
+    `overscroll-behavior` to `.simplemdm-list-scroll .list-group` to try to
+    fix Safari bounce — it was tried and reverted after it silently broke
+    click events on the widget's expand/collapse controls in Safari (both the
+    per-category toggle and the whole-widget minimize button). The current
+    fix is a `wheel` listener scoped to `#simplemdm-mcp-findings-groups` that
+    `preventDefault()`s only deltas that would scroll past the boundary.
   - Auth: ingest/read/analytics routes use sync-token (`X-SIMPLEMDM-API-KEY`)
     or session; admin-action routes use the same sync-token auth as
     ingest/read; only `save_config` (settings) requires a global-admin

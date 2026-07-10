@@ -346,6 +346,20 @@ When changing views/assets:
        dynamic scroll-class removal that applies to other list widgets)
      - confirm the "Showing X of Y findings" note reflects the fetched count
        (up to 100) against total findings
+     - test scrolling in **both Chrome and Safari** — Safari applies its own
+       elastic bounce to `overflow: auto` elements on trackpad input that
+       Chrome does not, so a fix that looks correct in Chrome can still be
+       broken in Safari (see `docs/DEVELOPER_GUIDE.md` MCP Findings section
+       for why `overscroll-behavior` alone isn't a safe fix here)
+     - in Safari, confirm scrolling the list past its top/bottom does not
+       "shake" (rows should not visibly bounce/oscillate), and confirm rows
+       do not lift/shadow-animate on hover while scrolling with a stationary
+       cursor
+     - after scrolling, confirm both the per-category `+Expand`/`-Collapse`
+       toggle and the whole-widget minimize button (panel heading, requires
+       selecting the widget first) still respond to clicks — a prior attempt
+       to fix the Safari bounce via `overscroll-behavior: contain` silently
+       broke both of these in Safari only
 4. Validate device detail sections:
    - overview
    - attributes

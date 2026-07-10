@@ -1,0 +1,39 @@
+# ~/.codex/AGENTS.md
+# Global Codex preferences — applies to every project on this machine.
+# Copy this file to ~/.codex/AGENTS.md and fill in your details.
+# Project-specific rules go in ./AGENTS.md (committed to git).
+# Personal project overrides go in ./AGENTS.override.md (gitignored).
+
+## My Preferences
+
+**Name:** _fill in_
+**Role:** _fill in_ (e.g. "Full-stack developer", "iOS developer", "Non-technical founder")
+
+**Default package manager:** _fill in_ (bun / npm / pnpm / yarn)
+
+**Commit style:** Conventional Commits — `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`
+
+**My shortcuts:**
+- When I say "ship it" → run $ship
+- When I say "check everything" → run $grill then $techdebt
+- When I say "review it" → run $pr-review
+- When I say "research this first" → run $research-first
+
+**Communication style:**
+- Keep explanations concise — I prefer code over prose
+- Warn me before making large changes
+- Always show what you're about to do before doing it
+
+## Universal Rules (all projects)
+
+- Always run tests before PRing
+- Never hardcode secrets — use .env
+- Never push to main — always use feature branches
+- If something goes sideways: STOP. Ask before continuing.
+- Prefer simple, readable solutions over clever ones
+
+## Universal Lessons Learned
+
+| Date | Lesson |
+|---|---|
+| — | _Add project-agnostic lessons here_ |

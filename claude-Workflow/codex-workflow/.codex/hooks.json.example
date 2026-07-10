@@ -1,0 +1,27 @@
+{
+  "_comment": "Codex hooks — EXPERIMENTAL. Enable with features.hooks = true in config.toml.",
+  "_codex_version_note": "Hook events under active development. userpromptsubmit and agent-turn-complete are currently supported. PreToolUse/PostToolUse/Stop equivalents are not yet available.",
+  "_gaps_vs_claude_code": [
+    "protect-files.sh (PreToolUse) — no equivalent yet",
+    "scan-secrets.sh (PreToolUse) — no equivalent yet",
+    "block-dangerous-commands.sh (PreToolUse) — no equivalent yet",
+    "format-on-save.sh (PostToolUse) — no equivalent yet",
+    "anti-rationalization.sh (Stop) — agent-turn-complete cannot block, only notify",
+    "pre-compact.sh (PreCompact) — no compact event yet"
+  ],
+
+  "hooks": [
+    {
+      "_comment": "Session context injection — fires on every prompt submission. Equivalent to session-start.sh but runs more often.",
+      "event": "userpromptsubmit",
+      "command": ["bash", ".codex/hooks/session-context.sh"],
+      "timeout_ms": 5000
+    },
+    {
+      "_comment": "Turn complete notification — fires after each agent turn. Cannot block like Claude Code Stop hook, but can notify and log.",
+      "event": "agent-turn-complete",
+      "command": ["bash", ".codex/hooks/turn-complete.sh"],
+      "timeout_ms": 10000
+    }
+  ]
+}

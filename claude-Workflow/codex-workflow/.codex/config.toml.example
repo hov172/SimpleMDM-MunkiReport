@@ -1,0 +1,73 @@
+# ~/.codex/config.toml
+# Global Codex configuration — copy this file to ~/.codex/config.toml
+# Project-level overrides: .codex/config.local.toml (gitignored)
+#
+# After editing, restart Codex for changes to take effect.
+
+# ── Model ─────────────────────────────────────────────────────
+model = "codex-1"
+# model = "gpt-5-codex"  # alternative
+
+# ── Features ──────────────────────────────────────────────────
+[features]
+# Multi-agent: enables subagent skills ($pr-review dispatches specialist agents)
+# On by default in recent Codex versions — include explicitly for clarity
+multi_agent = true
+
+# Hooks: lifecycle hooks from hooks.json (experimental — see .codex/hooks.json.example)
+# Enable once you've copied and verified hooks.json is correct for your project
+hooks = true
+
+# ── Sandbox ───────────────────────────────────────────────────
+# workspace-write: read/write project files, no outbound network (safe default)
+# workspace-write-network: adds outbound network access (needed for npm install etc.)
+sandbox_mode = "workspace-write"
+
+# ── TUI settings ─────────────────────────────────────────────
+[tui]
+notifications = true
+# notification_method = "auto"  # auto | osc9 | bel
+
+# ── Project instructions ───────────────────────────────────────
+# How much of AGENTS.md to load (default 32 KiB — raise if needed)
+# project_doc_max_bytes = 65536
+
+# Additional filenames to check if AGENTS.md is missing in a directory
+# project_doc_fallback_filenames = ["TEAM_GUIDE.md"]
+
+# ── MCP Servers ───────────────────────────────────────────────
+# Uncomment and fill in the servers you use.
+# Codex launches these automatically at session start.
+
+# [[mcp_servers]]
+# name = "github"
+# type = "http"
+# url = "https://api.githubcopilot.com/mcp/"
+# # Codex will prompt for browser auth on first use
+
+# [[mcp_servers]]
+# name = "slack"
+# type = "http"
+# url = "https://slack.mcp.anthropic.com/mcp"
+# # Codex will prompt for browser auth on first use
+
+# [[mcp_servers]]
+# name = "sentry"
+# type = "stdio"
+# command = "npx"
+# args = ["-y", "@sentry/mcp-server@latest"]
+# env = { SENTRY_AUTH_TOKEN = "${SENTRY_AUTH_TOKEN}" }
+
+# [[mcp_servers]]
+# name = "linear"
+# type = "stdio"
+# command = "npx"
+# args = ["-y", "@linear/mcp-server@latest"]
+# env = { LINEAR_API_KEY = "${LINEAR_API_KEY}" }
+
+# ── Subagents ─────────────────────────────────────────────────
+# Define specialist agents invoked by $pr-review and $dispatching-parallel-agents
+[agents]
+# code_reviewer = { instructions = "You are a code reviewer. Focus on correctness, not style." }
+# security_reviewer = { instructions = "You are a security reviewer. Check for OWASP vulnerabilities." }
+# performance_reviewer = { instructions = "You are a performance reviewer. Find N+1 queries, memory leaks, blocking calls." }

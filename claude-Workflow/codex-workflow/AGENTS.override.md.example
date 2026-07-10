@@ -1,0 +1,26 @@
+# AGENTS.override.md
+# Personal overrides for THIS project on THIS machine.
+# Gitignored — never committed. Use for local env, sandbox URLs, personal shortcuts.
+# Codex reads AGENTS.override.md instead of AGENTS.md at the same directory level.
+# Your overrides here MERGE with (not replace) the project AGENTS.md.
+
+## My Local Environment
+
+**Local dev server:** http://localhost:3000
+**Local database:** postgresql://localhost:5433/myapp_dev
+**Staging URL:** https://staging.myapp.railway.app
+
+## My API Keys (reference only — actual keys in .env)
+# OPENROUTER_API_KEY — in .env
+# SENTRY_AUTH_TOKEN — in .env
+# LINEAR_API_KEY — in .env
+
+## Current Sprint Context
+_What I'm working on right now:_
+- [ ] _Add current task here_
+
+## Personal Shortcuts
+- "do the thing" → _describe your shortcut here_
+
+## Notes to Codex About My Preferences on This Project
+_Any project-specific personal preferences here_

@@ -1,0 +1,9 @@
+{
+  "_comment": "Copy to settings.local.json — gitignored, never committed. Personal permission overrides only.",
+  "permissions": {
+    "allow": [
+      "Bash(your-personal-script.sh)",
+      "Bash(custom-local-command *)"
+    ]
+  }
+}

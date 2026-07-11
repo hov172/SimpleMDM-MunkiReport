@@ -20,7 +20,13 @@ The module has six primary write paths:
    misbehaving or compromised publisher can only mass-resolve findings in its own
    namespace, never another source's. As of 2026-07-11, the four admin-action routes also
    accept a global-admin session, so the module's own device page and findings list page
-   can drive the lifecycle without exposing the sync token to the browser.
+   can drive the lifecycle without exposing the sync token to the browser. Also as of
+   2026-07-11, both `ingest_mcp_findings` and the four admin-action routes conditionally
+   write one deduplicated fleet findings summary event — the write is gated by the
+   `mcp_findings_event_enabled` setting, which is **off by default** (existing installs'
+   Events UI does not change without explicit opt-in), and when on, the write is confined
+   to a single module key, `simplemdm_mcp_findings_summary` — it never writes to any
+   built-in or custom `simplemdm_*` event key.
 
 Most read/report/listing routes require a normal authenticated MunkiReport session.
 A narrow allowlist of read-only module data routes also accepts the sync token header

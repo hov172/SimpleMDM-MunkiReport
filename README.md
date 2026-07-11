@@ -106,7 +106,7 @@ The MCP tools map to these routes (16 tools as of SimpleMDM-MCP v0.33.0, unchang
   full field list and new query parameters.
   Findings can also be transitioned manually via four admin action routes (`acknowledge_mcp_finding`, `resolve_mcp_finding`, `ignore_mcp_finding`, `suppress_mcp_finding`), independent of the automatic ingest lifecycle — see the CHANGELOG and `docs/API_REFERENCE.md` for the request/response shape.
 
-Ingest, read, and admin-action behavior for MCP findings can be tuned via three admin settings (`mcp_findings_enabled`, `mcp_findings_metadata_max_bytes`, `mcp_findings_auto_resolve`) — see the "MCP Findings Settings" panel in the module's admin UI, or `docs/API_REFERENCE.md` for the full effect of each.
+Ingest, read, and admin-action behavior for MCP findings can be tuned via five admin settings (`mcp_findings_enabled`, `mcp_findings_metadata_max_bytes`, `mcp_findings_auto_resolve`, `mcp_findings_event_enabled`, `mcp_findings_event_warning_threshold`) — see the "MCP Findings Settings" panel in the module's admin UI, or `docs/API_REFERENCE.md` for the full effect of each. The last two settings gate an optional, deduplicated fleet findings summary event (PRD section 13): off by default, so existing installs' Events UI does not change without opt-in; when enabled, it writes under module key `simplemdm_mcp_findings_summary`, anchored to the worst-affected device.
 
 Three analytics routes — `get_mcp_finding_stats` (count breakdowns), `export_mcp_findings` (CSV/JSON export), and `get_mcp_scan_status` (per-source last-scan summary) — also accept the same sync token auth, enabling analytics dashboards and bulk exports via the same headless auth mechanism.
 

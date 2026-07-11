@@ -1002,13 +1002,17 @@ Manual status changes via these admin routes interact with the automatic ingest 
 
 ### Admin settings
 
-Three settings control MCP findings behavior, managed via the module's `save_config`/`get_config` routes (same mechanism as all other module settings) or the "MCP Findings Settings" panel in the admin UI:
+Five settings control MCP findings behavior, managed via the module's `save_config`/`get_config` routes (same mechanism as all other module settings) or the "MCP Findings Settings" panel in the admin UI:
 
 | Setting | Default | Effect |
 |---|---|---|
 | `mcp_findings_enabled` | `1` | When `0`: `ingest_mcp_findings`, `get_mcp_findings`, and the four admin action routes (`acknowledge_mcp_finding`, `resolve_mcp_finding`, `ignore_mcp_finding`, `suppress_mcp_finding`) all return `403 {"status":"error","message":"MCP findings are disabled"}`. The dashboard widget keeps rendering and shows its existing "Failed to load MCP findings." fallback. |
 | `mcp_findings_metadata_max_bytes` | `65536` | Maximum size (characters) of each finding's `data` field in `ingest_mcp_findings`; larger payloads are truncated. Replaces a previously-hardcoded 4096-char cap. Has a minimum floor of 1024 bytes — any value saved below 1024 is automatically clamped up to 1024. |
 | `mcp_findings_auto_resolve` | `1` | Global kill-switch on `ingest_mcp_findings`' complete-scan auto-resolve sweep. When `0`, the sweep never runs — even if the request sends `replace: true` — overriding the per-request flag. When `1` (default), the existing `replace`-flag-driven behavior is unchanged. |
+| `mcp_findings_event_enabled` | `0` | Off by default so existing installs' Events UI is unchanged without opt-in. When `1`, `ingest_mcp_findings` and the four admin action routes upsert/clear a single deduplicated fleet findings summary event under module key `simplemdm_mcp_findings_summary` (PRD section 13), anchored to the worst-affected device (see design note below). |
+| `mcp_findings_event_warning_threshold` | `1` | Minimum fleet-wide active warning-severity finding count before the summary event escalates from `info` to `warning`. Has a minimum floor of 1 — any value saved below 1 is clamped up to 1 (`max(1, (int) $value)`), mirroring the `mcp_findings_metadata_max_bytes` floor pattern. |
+
+**Fleet findings summary event design note (PRD deviation, documented):** MunkiReport events are machine-scoped — the Events UI joins `event` to `machine`/`reportdata` by serial, so a fleet-level row with no serial would never render (see `docs/TESTING.md` "Important UI note"). The summary event is therefore anchored to the *worst* device: highest-severity active finding count, tie-broken by most active findings, then lowest serial number for determinism. Clicking the event thus leads to a device page with real findings. The previous anchor's row is always deleted first and only re-written if a summary still applies, so the anchor moves cleanly when the worst device changes between scans, and the row disappears entirely once no active findings meet `Simplemdm_mcp_finding_model::summarizeFindingsForEvent()`'s criteria. The event's `data` payload is the raw fleet severity counts JSON (`{"danger":N,"warning":N,"info":N}`); its `type`/`msg` come verbatim from `summarizeFindingsForEvent()` — see `simplemdm_mcp_finding_model.php` for the exact message strings.
 
 ### Request
 

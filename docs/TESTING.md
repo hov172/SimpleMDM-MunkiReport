@@ -610,13 +610,50 @@ for full request/response shapes.
 ### Admin settings panel
 
 1. Open `Admin -> SimpleMDM Settings` and confirm the "MCP Findings Settings"
-   panel shows `mcp_findings_enabled`, `mcp_findings_metadata_max_bytes`, and
-   `mcp_findings_auto_resolve`.
+   panel shows `mcp_findings_enabled`, `mcp_findings_metadata_max_bytes`,
+   `mcp_findings_auto_resolve`, `mcp_findings_event_enabled`, and
+   `mcp_findings_event_warning_threshold`.
 2. Save a `mcp_findings_metadata_max_bytes` value below 1024 and confirm it is
    clamped up to the 1024-byte floor rather than saved as-is.
-3. Confirm these settings save/read through the normal `save_config`/
+3. Save a `mcp_findings_event_warning_threshold` value below 1 (e.g. `0` or a
+   negative number) and confirm it is clamped up to `1` rather than saved
+   as-is.
+4. Confirm these settings save/read through the normal `save_config`/
    `get_config` routes — `save_config` requires a global-admin session (see
    Section 7 and `docs/SECURITY.md`).
+
+### Fleet findings summary event (PRD section 13)
+
+1. With `mcp_findings_event_enabled = 0` (the default), push a finding via
+   `ingest_mcp_findings` and confirm no row is written under module
+   `simplemdm_mcp_findings_summary` in the `event` table — built-in
+   `simplemdm_*` events are untouched either way.
+2. Enable `mcp_findings_event_enabled` (via the admin panel `save_config`, or
+   directly through the module's settings mechanism). Push one danger-severity
+   finding for a real device serial (one present in `machine`) and confirm a
+   single event row appears under module `simplemdm_mcp_findings_summary`,
+   `serial_number` equal to that device, `type = 'danger'`, and `msg` matching
+   `Simplemdm_mcp_finding_model::summarizeFindingsForEvent()`'s exact wording
+   for a danger count of 1: `SimpleMDM MCP: 1 danger finding requires
+   immediate attention.`
+3. Resolve that finding via `resolve_mcp_finding` and confirm the event row
+   updates or clears per `summarizeFindingsForEvent()`'s logic (e.g. it drops
+   to a `warning`/`info` message, or disappears entirely, depending on what
+   other active findings remain fleet-wide) — the sync always deletes the
+   previous row before conditionally rewriting it, so no stale row is ever
+   left on the old anchor serial.
+4. With findings on two or more devices, confirm the event's `serial_number`
+   anchors to the worst device (highest-severity active-finding count, tie
+   broken by most active findings, then lowest serial), and that the anchor
+   moves to a different device's serial if that device's findings become
+   worse than the current anchor's on a later push.
+5. Confirm the event renders at `/show/listing/event/event` for an anchor
+   serial that has corresponding rows in both `machine` and `reportdata` (see
+   the "Important UI note" above — a serial missing from either table will
+   not render even though the `event` row is correct).
+6. Confirm the built-in `simplemdm_*` per-device events (Section 14 above)
+   are unaffected by any of the above — the summary event only ever writes to
+   its own `simplemdm_mcp_findings_summary` module key.
 
 ## 15) Findings Browser Page (`module/simplemdm/findings`)
 

@@ -881,6 +881,18 @@ foreach ($required_simplemdm_widgets as $id => $label) {
                             </label>
                             <p class="help-block">When off, a complete scan (<code>replace: true</code>) never auto-resolves findings absent from the scan, regardless of what the push request sends.</p>
                         </div>
+                        <div class="checkbox">
+                            <label>
+                                <input type="checkbox" id="mcp_findings_event_enabled" name="mcp_findings_event_enabled" value="1">
+                                Publish a fleet findings summary event
+                            </label>
+                            <p class="help-block">Off by default. When on, ingest and admin-action routes write/clear a single deduplicated event (module <code>simplemdm_mcp_findings_summary</code>) anchored to the worst-affected device. Existing installs' Events UI is unchanged unless this is explicitly enabled.</p>
+                        </div>
+                        <div class="form-group">
+                            <label for="mcp_findings_event_warning_threshold">Summary Event Warning Threshold</label>
+                            <input type="number" min="1" step="1" class="form-control" id="mcp_findings_event_warning_threshold" name="mcp_findings_event_warning_threshold" placeholder="1">
+                            <p class="help-block">Minimum active warning-severity finding count (fleet-wide) before the summary event escalates to "warning". Values below 1 are clamped up to 1.</p>
+                        </div>
                         <button type="submit" class="btn btn-primary">Save MCP Findings Settings</button>
                         <span id="mcpfindings-save-status" style="margin-left: 10px;"></span>
                     </form>
@@ -1852,6 +1864,8 @@ $(document).on('appReady', function() {
         $('#mcp_findings_enabled').prop('checked', String(data.mcp_findings_enabled || '1') === '1');
         $('#mcp_findings_metadata_max_bytes').val(pickValue(data.mcp_findings_metadata_max_bytes, '65536'));
         $('#mcp_findings_auto_resolve').prop('checked', String(data.mcp_findings_auto_resolve || '1') === '1');
+        $('#mcp_findings_event_enabled').prop('checked', String(data.mcp_findings_event_enabled || '0') === '1');
+        $('#mcp_findings_event_warning_threshold').val(pickValue(data.mcp_findings_event_warning_threshold, '1'));
         $('#client_reporter_hmac_enabled').prop('checked', String(data.client_reporter_hmac_enabled || '0') === '1');
         $('#client_reporter_replay_protection_enabled').prop('checked', String(data.client_reporter_replay_protection_enabled || '0') === '1');
         $('#client_reporter_per_device_tokens_enabled').prop('checked', String(data.client_reporter_per_device_tokens_enabled || '0') === '1');
@@ -2865,7 +2879,9 @@ $(document).on('appReady', function() {
         var payload = {
             mcp_findings_enabled: $('#mcp_findings_enabled').is(':checked') ? '1' : '0',
             mcp_findings_metadata_max_bytes: String($('#mcp_findings_metadata_max_bytes').val() || '65536'),
-            mcp_findings_auto_resolve: $('#mcp_findings_auto_resolve').is(':checked') ? '1' : '0'
+            mcp_findings_auto_resolve: $('#mcp_findings_auto_resolve').is(':checked') ? '1' : '0',
+            mcp_findings_event_enabled: $('#mcp_findings_event_enabled').is(':checked') ? '1' : '0',
+            mcp_findings_event_warning_threshold: String($('#mcp_findings_event_warning_threshold').val() || '1')
         };
 
         $.post(appUrl + '/module/simplemdm/save_config', payload, function(data) {

@@ -3717,6 +3717,12 @@ class Simplemdm_controller extends Module_controller
         if (! isset($config['mcp_findings_auto_resolve'])) {
             $config['mcp_findings_auto_resolve'] = '1';
         }
+        if (! isset($config['mcp_findings_event_enabled'])) {
+            $config['mcp_findings_event_enabled'] = '0';
+        }
+        if (! isset($config['mcp_findings_event_warning_threshold'])) {
+            $config['mcp_findings_event_warning_threshold'] = '1';
+        }
 
         $run_state = $this->derive_sync_state_from_runs();
         foreach ($run_state as $key => $value) {
@@ -3822,6 +3828,8 @@ class Simplemdm_controller extends Module_controller
             'mcp_findings_enabled',
             'mcp_findings_metadata_max_bytes',
             'mcp_findings_auto_resolve',
+            'mcp_findings_event_enabled',
+            'mcp_findings_event_warning_threshold',
         ];
         foreach ($config_keys as $key) {
             if (array_key_exists($key, $post)) {
@@ -3842,6 +3850,7 @@ class Simplemdm_controller extends Module_controller
                     || $key === 'client_reporter_proxy_only_enabled'
                     || $key === 'mcp_findings_enabled'
                     || $key === 'mcp_findings_auto_resolve'
+                    || $key === 'mcp_findings_event_enabled'
                 ) {
                     $value = $value === '1' ? '1' : '0';
                 } elseif ($key === 'device_subresource_limit') {
@@ -3906,6 +3915,9 @@ class Simplemdm_controller extends Module_controller
                     if ($v < 1024) {
                         $v = 1024;
                     }
+                    $value = (string) $v;
+                } elseif ($key === 'mcp_findings_event_warning_threshold') {
+                    $v = max(1, (int) $value);
                     $value = (string) $v;
                 } elseif ($key === 'client_reporter_max_time_skew_seconds') {
                     $v = (int) $value;
@@ -6456,6 +6468,66 @@ class Simplemdm_controller extends Module_controller
         return $this->get_config_value('mcp_findings_enabled', '1') !== '0';
     }
 
+    /**
+     * Upsert/clear the single fleet-summary event (PRD section 13), anchored
+     * to the worst affected device because host events are machine-scoped.
+     *
+     * @return void
+     **/
+    private function sync_mcp_findings_summary_event()
+    {
+        if ($this->get_config_value('mcp_findings_event_enabled', '0') !== '1') {
+            return;
+        }
+
+        $active = Simplemdm_mcp_finding_model::whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES)
+            ->get(['serial_number', 'severity']);
+        $counts = ['danger' => 0, 'warning' => 0, 'info' => 0];
+        $perDevice = [];
+        foreach ($active as $row) {
+            $sev = in_array($row->severity, ['danger', 'warning', 'info'], true) ? $row->severity : 'info';
+            $counts[$sev]++;
+            $serial = (string) $row->serial_number;
+            if ($serial === '') { continue; }
+            if (! isset($perDevice[$serial])) { $perDevice[$serial] = ['danger' => 0, 'warning' => 0, 'info' => 0, 'total' => 0]; }
+            $perDevice[$serial][$sev]++;
+            $perDevice[$serial]['total']++;
+        }
+
+        $threshold = max(1, (int) $this->get_config_value('mcp_findings_event_warning_threshold', '1'));
+        $summary = Simplemdm_mcp_finding_model::summarizeFindingsForEvent($counts, $threshold);
+
+        // Always clear the previous row first: the anchor device can change
+        // between scans and stale rows must not linger on the old serial.
+        Event_model::where('module', $this->simplemdm_event_module('mcp_findings_summary'))->delete();
+        if ($summary === null || empty($perDevice)) {
+            return;
+        }
+
+        uasort($perDevice, function ($a, $b) {
+            if ($a['danger'] !== $b['danger']) { return $b['danger'] - $a['danger']; }
+            if ($a['warning'] !== $b['warning']) { return $b['warning'] - $a['warning']; }
+            return $b['total'] - $a['total'];
+        });
+        $serials = array_keys($perDevice);
+        $anchor = $serials[0];
+        // Deterministic tie-break: among equal-worst devices pick lowest serial.
+        foreach ($serials as $s) {
+            $t = $perDevice[$s]; $w = $perDevice[$anchor];
+            if ($t['danger'] === $w['danger'] && $t['warning'] === $w['warning'] && $t['total'] === $w['total'] && strcmp($s, $anchor) < 0) {
+                $anchor = $s;
+            }
+        }
+
+        store_event(
+            $anchor,
+            $this->simplemdm_event_module('mcp_findings_summary'),
+            $summary['type'],
+            $summary['message'],
+            json_encode($counts)
+        );
+    }
+
     public function ingest_mcp_findings()
     {
         $this->connectDB();
@@ -6589,6 +6661,8 @@ class Simplemdm_controller extends Module_controller
                 'resolved_at' => $now,
             ]);
         }
+
+        $this->sync_mcp_findings_summary_event();
 
         jsonView([
             'status'   => 'success',
@@ -7003,6 +7077,8 @@ class Simplemdm_controller extends Module_controller
         if (! empty($existingIds)) {
             $updated = Simplemdm_mcp_finding_model::whereIn('id', $existingIds)->update($update);
         }
+
+        $this->sync_mcp_findings_summary_event();
 
         jsonView([
             'status'    => 'success',

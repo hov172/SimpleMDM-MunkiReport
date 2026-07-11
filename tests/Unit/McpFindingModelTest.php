@@ -252,4 +252,36 @@ final class McpFindingModelTest extends TestCase
     {
         $this->assertSame([], Simplemdm_mcp_finding_model::parseMultiValueParam(''));
     }
+
+    public function testSummarizeFindingsDangerWins(): void
+    {
+        $s = Simplemdm_mcp_finding_model::summarizeFindingsForEvent(['danger' => 2, 'warning' => 9, 'info' => 1], 1);
+        $this->assertSame('danger', $s['type']);
+        $this->assertSame('SimpleMDM MCP: 2 danger findings require immediate attention.', $s['message']);
+    }
+
+    public function testSummarizeFindingsWarningsAtThreshold(): void
+    {
+        $s = Simplemdm_mcp_finding_model::summarizeFindingsForEvent(['danger' => 0, 'warning' => 18, 'info' => 0], 10);
+        $this->assertSame('warning', $s['type']);
+        $this->assertSame('SimpleMDM MCP: 18 warnings detected across the fleet.', $s['message']);
+    }
+
+    public function testSummarizeFindingsWarningsBelowThresholdFallsToInfo(): void
+    {
+        $s = Simplemdm_mcp_finding_model::summarizeFindingsForEvent(['danger' => 0, 'warning' => 3, 'info' => 2], 10);
+        $this->assertSame('info', $s['type']);
+        $this->assertSame('SimpleMDM MCP: informational findings available (3 warnings below threshold, 2 info).', $s['message']);
+    }
+
+    public function testSummarizeFindingsNothingOpenReturnsNull(): void
+    {
+        $this->assertNull(Simplemdm_mcp_finding_model::summarizeFindingsForEvent(['danger' => 0, 'warning' => 0, 'info' => 0], 1));
+    }
+
+    public function testSummarizeFindingsSingularDanger(): void
+    {
+        $s = Simplemdm_mcp_finding_model::summarizeFindingsForEvent(['danger' => 1, 'warning' => 0, 'info' => 0], 1);
+        $this->assertSame('SimpleMDM MCP: 1 danger finding requires immediate attention.', $s['message']);
+    }
 }

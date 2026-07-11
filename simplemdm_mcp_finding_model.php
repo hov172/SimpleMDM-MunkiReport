@@ -181,4 +181,47 @@ class Simplemdm_mcp_finding_model extends Eloquent
         }
         return array_values(array_filter(array_map('trim', explode(',', $raw))));
     }
+
+    /**
+     * Map active-finding severity counts to a single MunkiReport Events
+     * summary (PRD section 13.1). Returns null when there is nothing worth an
+     * event (clear it). Severity model is the module's 3-value taxonomy.
+     *
+     * @param array $sevCounts   ['danger'=>int,'warning'=>int,'info'=>int]
+     * @param int   $warnThreshold warnings needed before a warning-level event
+     * @return array|null ['type'=>string,'message'=>string]
+     **/
+    public static function summarizeFindingsForEvent($sevCounts, $warnThreshold)
+    {
+        $danger  = max(0, (int) ($sevCounts['danger'] ?? 0));
+        $warning = max(0, (int) ($sevCounts['warning'] ?? 0));
+        $info    = max(0, (int) ($sevCounts['info'] ?? 0));
+        $warnThreshold = max(1, (int) $warnThreshold);
+
+        if ($danger > 0) {
+            return [
+                'type'    => 'danger',
+                'message' => sprintf(
+                    'SimpleMDM MCP: %d danger finding%s require%s immediate attention.',
+                    $danger, $danger === 1 ? '' : 's', $danger === 1 ? 's' : ''
+                ),
+            ];
+        }
+        if ($warning >= $warnThreshold) {
+            return [
+                'type'    => 'warning',
+                'message' => sprintf('SimpleMDM MCP: %d warnings detected across the fleet.', $warning),
+            ];
+        }
+        if ($warning > 0 || $info > 0) {
+            return [
+                'type'    => 'info',
+                'message' => sprintf(
+                    'SimpleMDM MCP: informational findings available (%d warnings below threshold, %d info).',
+                    $warning, $info
+                ),
+            ];
+        }
+        return null;
+    }
 }

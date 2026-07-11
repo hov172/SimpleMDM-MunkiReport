@@ -7,6 +7,12 @@ or route changes without a deprecation period.
 
 ---
 
+## [Unreleased]
+### Fixed
+- Findings browser page: the filter controls (status multi-select, severity/category/source dropdowns, finding-type input) were unstyled native form elements — in dark mode they rendered as light UA-default boxes with washed-out text. They now use the module's theme variables (same pipeline as the admin page's `.form-control` styling), following the host MunkiReport theme in both light and dark modes.
+
+---
+
 ## [1.3.1] — 2026-07-11
 ### Fixed
 - Safari: restored the passive elastic-bounce clamp on widget sub-scrollers. The clamp (part of the 2026-07-10 scroll-shake fix) was dropped when wheel handling was centralized into `bindWheelScroll` (shipped in 1.2.1–1.3.0): mouse-wheel input stayed fixed, but trackpad-gesture scrolling rode Safari's native path where elastic bounce rubber-bands `overflow: auto` containers past their bounds — visible as widgets shaking at scroll edges. The clamp now lives inside `bindWheelScroll`, so every bound scroller gets it.

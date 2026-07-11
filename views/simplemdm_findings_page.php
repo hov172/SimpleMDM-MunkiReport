@@ -3,6 +3,24 @@
 <style>
 #simplemdm-findings-page .simplemdm-findings-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; align-items: center; }
 #simplemdm-findings-page select, #simplemdm-findings-page input[type="text"] { max-width: 180px; }
+/* Theme the native form controls like the admin page's .form-control rules:
+   without these, dark mode falls back to the browser's light UA styling
+   (light-gray boxes with washed-out text on the dark page). */
+#simplemdm-findings-page select, #simplemdm-findings-page input[type="text"] {
+    border-radius: 10px;
+    border: 1px solid var(--simplemdm-border);
+    background: var(--simplemdm-surface);
+    color: var(--simplemdm-ink);
+    padding: 4px 8px;
+}
+#simplemdm-findings-page select option {
+    background: var(--simplemdm-surface);
+    color: var(--simplemdm-ink);
+}
+#simplemdm-findings-page input[type="text"]::placeholder {
+    color: var(--simplemdm-muted);
+    opacity: 1;
+}
 #simplemdm-findings-page table { width: 100%; }
 #simplemdm-findings-page td, #simplemdm-findings-page th { padding: 6px 8px; border-bottom: 1px solid var(--simplemdm-border); vertical-align: top; }
 #simplemdm-findings-page .simplemdm-findings-pager { margin: 12px 0; display: flex; gap: 8px; align-items: center; }

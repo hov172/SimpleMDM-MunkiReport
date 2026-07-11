@@ -4386,9 +4386,53 @@ class Simplemdm_controller extends Module_controller
             $this->upsert_device_edges_from_payload($payload);
             $this->record_device_daily_history();
             $this->emit_device_regression_events_from_records($records);
+            $this->backfill_machine_desc_from_model_names($records);
             jsonView(['status' => 'success']);
         } catch (\Throwable $e) {
             jsonView(['status' => 'error', 'message' => $e->getMessage()], 400);
+        }
+    }
+
+    /**
+     * Fill machine.machine_desc from SimpleMDM model_name when Apple's
+     * serial lookup failed. Apple retired the km.support.apple.com endpoint
+     * the core machine module uses, so every modern Mac registers with the
+     * 'model_lookup_failed' sentinel. Only sentinel/empty values are
+     * replaced, so manual entries and any successful lookups are preserved.
+     *
+     * @param array $records Ingested device records (used to scope by serial)
+     * @return void
+     **/
+    private function backfill_machine_desc_from_model_names($records = [])
+    {
+        try {
+            $serials = [];
+            foreach ((array)$records as $record) {
+                if (is_array($record) && ! empty($record['serial_number'])) {
+                    $serials[] = (string)$record['serial_number'];
+                }
+            }
+
+            $query = \Illuminate\Database\Capsule\Manager::table('machine')
+                ->join('simplemdm', 'simplemdm.serial_number', '=', 'machine.serial_number')
+                ->where('simplemdm.model_name', '!=', '')
+                ->whereNotNull('simplemdm.model_name')
+                ->where(function ($q) {
+                    $q->whereNull('machine.machine_desc')
+                        ->orWhereIn('machine.machine_desc', ['', 'model_lookup_failed', 'unknown_model']);
+                });
+            if ($serials) {
+                $query->whereIn('machine.serial_number', $serials);
+            }
+
+            $rows = $query->get(['machine.serial_number', 'simplemdm.model_name']);
+            foreach ($rows as $row) {
+                \Illuminate\Database\Capsule\Manager::table('machine')
+                    ->where('serial_number', $row->serial_number)
+                    ->update(['machine_desc' => $row->model_name]);
+            }
+        } catch (\Throwable $e) {
+            // Backfill is cosmetic; never let it fail an ingest.
         }
     }
 

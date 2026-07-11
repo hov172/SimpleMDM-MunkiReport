@@ -37,10 +37,15 @@
     border-color: var(--simplemdm-hover-border);
     color: var(--simplemdm-ink);
 }
+/* Active state inverts ink/surface rather than using the accent pair: the
+   host-theme sync derives --simplemdm-accent-soft/-strong per MunkiReport
+   theme and some themes produce near-identical values (text disappears
+   into the pill). Ink-on-surface inversion contrasts in every theme by
+   construction. */
 #simplemdm-findings-page .simplemdm-status-chip.active {
-    background: var(--simplemdm-accent-soft);
-    border-color: var(--simplemdm-accent-strong);
-    color: var(--simplemdm-accent-strong);
+    background: var(--simplemdm-ink);
+    border-color: var(--simplemdm-ink);
+    color: var(--simplemdm-surface);
     font-weight: 700;
 }
 #simplemdm-findings-page table { width: 100%; }

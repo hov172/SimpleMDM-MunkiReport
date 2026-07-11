@@ -26,6 +26,8 @@ widgets:
         view: simplemdm_mcp_severity_widget
     simplemdm_mcp_source:
         view: simplemdm_mcp_source_widget
+    simplemdm_mcp_timeline:
+        view: simplemdm_mcp_timeline_widget
     simplemdm_enrollment:
         view: simplemdm_enrollment_widget
     simplemdm_dep:

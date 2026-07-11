@@ -7,7 +7,7 @@ or route changes without a deprecation period.
 
 ---
 
-## [Unreleased]
+## [1.3.0] — 2026-07-11
 ### Added
 - MCP findings browser page `module/simplemdm/findings` — the full-set companion to the MCP Findings dashboard widget, reachable directly, via the widget's "+N more" links, and via its truncation-note "Open findings browser" link. Filters (`status`, `severity`, `category`, `source`, `finding_type`, comma-separated), pagination (50 rows/page), CSV/JSON export carrying the active filters, and deep-link support (`?status=&severity=&category=&finding_type=&source=`). Bulk Acknowledge/Resolve/Ignore/Suppress actions are global-admin-only.
 - MCP findings section on the standalone device page (`module/simplemdm/device/{serial}`): severity badges, a `<details>` disclosure for the raw pushed `data`, and admin lifecycle action buttons (Acknowledge/Resolve/Ignore/Suppress); the section is hidden entirely when a device has no findings.

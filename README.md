@@ -2076,13 +2076,13 @@ When custom rules are worth using:
 `simplemdm_mcp_severity`
 - Purpose: at-a-glance severity mix of active MCP findings.
 - Endpoint: `GET /module/simplemdm/get_mcp_finding_stats`.
-- Data shown: donut chart (danger/warning/info) plus a matching list of counts; clicking a segment/row links into the findings browser page pre-filtered to that severity.
+- Data shown: donut chart (danger/warning/info) plus a matching list of counts; clicking a list row (the chart segments themselves are not clickable) links into the findings browser page pre-filtered to that severity.
 - Use case: fastest read on fleet-wide finding severity without opening the full findings widget.
 
 `simplemdm_mcp_source`
 - Purpose: which sources (`mcp`, `mcp_auto_<tool>`, `sofa_audit`, etc.) are producing active findings.
 - Endpoint: `GET /module/simplemdm/get_mcp_finding_stats`.
-- Data shown: donut chart of the top 8 sources by active-finding count plus an "other" bucket for the remainder; links into the findings browser page pre-filtered to that source.
+- Data shown: donut chart of the top 8 sources by active-finding count plus an "other" bucket for the remainder; each list row (not the chart segments) links into the findings browser page pre-filtered to that source.
 - Use case: spot a noisy or newly-onboarded MCP tool/source at a glance.
 
 `simplemdm_mcp_critical`

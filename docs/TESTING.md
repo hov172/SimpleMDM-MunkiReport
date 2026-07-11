@@ -331,7 +331,7 @@ Expected:
 | Widgets | `simplemdm_mcp_critical` | Open danger findings list renders from `get_mcp_findings?severity=danger`, wheel-scroll works |
 | Widgets | `simplemdm_mcp_timeline` | New/Resolved 30-day lines render from `get_mcp_finding_timeline?days=30` |
 | Widgets | `simplemdm_mcp_top_devices` | Ranked device list renders from `get_mcp_finding_stats` `top_devices` |
-| Routes | `get_mcp_finding_timeline` | Returns daily New/Resolved counts, `days` clamped to 1-90 |
+| Routes | `get_mcp_finding_timeline` | Returns daily New/Resolved counts, `days` defaults to 30 (values below 1 fall back to 30, values above 90 cap at 90) |
 | Routes | `finding_type` filter | `get_mcp_findings`/`get_mcp_finding_stats?finding_type=` narrows results, comma-separated, case-sensitive — see Section 14 |
 | Events | Fleet findings summary opt-in | `mcp_findings_event_enabled=0` (default) writes no `simplemdm_mcp_findings_summary` row; enabled, one deduplicated row appears anchored to the worst device — see Section 14 |
 
@@ -652,8 +652,8 @@ for full request/response shapes.
    previous row before conditionally rewriting it, so no stale row is ever
    left on the old anchor serial.
 4. With findings on two or more devices, confirm the event's `serial_number`
-   anchors to the worst device (highest-severity active-finding count, tie
-   broken by most active findings, then lowest serial), and that the anchor
+   anchors to the worst device (highest danger count, then warning count,
+   then total active findings, then lowest serial), and that the anchor
    moves to a different device's serial if that device's findings become
    worse than the current anchor's on a later push.
 5. Confirm the event renders at `/show/listing/event/event` for an anchor

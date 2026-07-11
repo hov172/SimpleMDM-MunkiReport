@@ -120,6 +120,7 @@ final class SafariScrollFixGuardTest extends TestCase
             [
                 'simplemdm_group_widget.php',
                 'simplemdm_resource_types_widget.php',
+                'simplemdm_group_apps_widget.php',
             ] as $view
         ) {
             $src = (string) file_get_contents(__DIR__ . '/../../views/' . $view);

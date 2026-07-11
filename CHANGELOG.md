@@ -13,8 +13,11 @@ or route changes without a deprecation period.
 - Safari: widget lists auto-marked scrollable by the >12-item threshold (`markScrollableSimplemdmLists`) now receive the wheel + bounce-clamp binding automatically — previously only three hardcoded scrollers were bound, so long lists in other widgets (device listing, resources, etc.) neither wheel-scrolled with plain mice nor got bounce correction in Safari.
 - Safari: the SimpleMDM Groups and Resource Types widgets' collapsed bodies (self-managed sub-scrollers, deliberately excluded from the auto-scroll threshold) now bind the shared wheel + bounce-clamp fix at render time — they previously had no Safari wheel handling at all.
 
+### Changed
+- Assignment Group Apps: the collapsed group list now scrolls within its 520px cap (Safari wheel + bounce-clamp bound) instead of clipping — matching the Groups, Resource Types, Devices Table, and MCP Findings collapsed-scroll pattern. The "+ Expand (N more groups)" button is unchanged.
+
 ### Added
-- `tests/Unit/SafariScrollFixGuardTest.php` — tripwire test that fails the suite if any component of the Safari scroll fixes (wheel handler, passive bounce clamp, auto-marked-list binding, resize-loop gate, hover-lift suppression, `overscroll-behavior` budget) is removed or renamed. Both Safari postmortems in `docs/DEVELOPER_GUIDE.md` now document the full multi-part fix inventory.
+- `tests/Unit/SafariScrollFixGuardTest.php` — tripwire test that fails the suite if any component of the Safari scroll fixes (wheel handler, passive bounce clamp, auto-marked-list binding, collapsible-widget self-binding, resize-loop gate, hover-lift suppression, `overscroll-behavior` budget, synthetic-resize dispatch budget) is removed or renamed. Both Safari postmortems in `docs/DEVELOPER_GUIDE.md` now document the full multi-part fix inventory.
 
 ---
 

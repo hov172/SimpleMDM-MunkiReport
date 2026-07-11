@@ -80,7 +80,8 @@
 
 #simplemdm-group-apps-widget #simplemdm-group-apps-groups-wrap.simplemdm-collapsed {
     max-height: 520px;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 </style>
 
@@ -223,6 +224,13 @@ $(document).on('appReady', function() {
 
         var shouldCollapse = groupsCollapsed && $cards.length > defaultVisibleGroups;
         $wrap.toggleClass('simplemdm-collapsed', shouldCollapse);
+        if (window.simplemdmBindWheelScroll) {
+            // Collapsed state makes this a Safari sub-scroller: it needs the
+            // shared wheel + elastic-bounce-clamp fix (see the Safari
+            // postmortems in docs/DEVELOPER_GUIDE.md). Idempotent; the handler
+            // no-ops while the wrap is expanded (no overflow).
+            window.simplemdmBindWheelScroll($wrap[0]);
+        }
 
         if (!shouldCollapse) {
             $btn.text('- Collapse');

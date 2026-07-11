@@ -902,6 +902,7 @@ Common error payloads:
 - `severity` (optional, legacy): filter by severity (`danger`, `warning`, `info`, or comma-separated list).
 - `source` (optional, legacy): filter by source (`mcp`, `mcp_scanner_name`, etc., or comma-separated list).
 - `category` (optional): filter by category (comma-separated list, exact case match — NOT lowercased like `severity`/`status`/`source`).
+- `finding_type` (optional): filter by finding type (comma-separated list, exact case match, case-sensitive — same semantics as category).
 - `/serial` (optional path parameter): if present, only return findings for the specified device serial number.
 
 **Response**:
@@ -1059,6 +1060,7 @@ Three read-only routes to support analytics dashboards and bulk export workflows
 **Query parameters**:
 - `source` (optional): filter to a specific source (e.g., `mcp`, `mcp_scanner_name`). Case-insensitive.
 - `category` (optional): filter by category (comma-separated list, case-sensitive exact match).
+- `finding_type` (optional): filter by finding type (comma-separated list, exact case match, case-sensitive — same semantics as category).
 - `scan_id` (optional): filter to a specific `scan_id`.
 - `since` (optional): ISO 8601 timestamp; only count findings with `last_seen_at` >= this value.
 

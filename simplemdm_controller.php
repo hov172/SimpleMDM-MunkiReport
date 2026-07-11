@@ -6654,6 +6654,16 @@ class Simplemdm_controller extends Module_controller
             }
         }
 
+        $findingType = isset($_GET['finding_type']) ? trim((string) $_GET['finding_type']) : '';
+        if ($findingType !== '') {
+            $types = Simplemdm_mcp_finding_model::parseMultiValueParam($findingType);
+            if (count($types) === 1) {
+                $query->where('finding_type', $types[0]);
+            } elseif (count($types) > 1) {
+                $query->whereIn('finding_type', $types);
+            }
+        }
+
         $scanId = isset($_GET['scan_id']) ? trim((string) $_GET['scan_id']) : '';
         if ($scanId !== '') {
             $query->where('scan_id', $scanId);
@@ -6716,6 +6726,15 @@ class Simplemdm_controller extends Module_controller
                     $query->where('category', $categories[0]);
                 } elseif (count($categories) > 1) {
                     $query->whereIn('category', $categories);
+                }
+            }
+            $findingType = isset($_GET['finding_type']) ? trim((string) $_GET['finding_type']) : '';
+            if ($findingType !== '') {
+                $types = Simplemdm_mcp_finding_model::parseMultiValueParam($findingType);
+                if (count($types) === 1) {
+                    $query->where('finding_type', $types[0]);
+                } elseif (count($types) > 1) {
+                    $query->whereIn('finding_type', $types);
                 }
             }
             $scanId = isset($_GET['scan_id']) ? trim((string) $_GET['scan_id']) : '';

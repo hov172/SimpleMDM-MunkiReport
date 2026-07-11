@@ -200,6 +200,14 @@ Conflict guidance:
     the row fetch is truncated — sized for the auto-publish middleware's
     volume. See the File-Level Quick Reference and `docs/TESTING.md`
     Section 9 for widget-specific QA steps.
+  - Findings browser page (`views/simplemdm_findings_page.php`, route
+    `module/simplemdm/findings`): the full-set companion to the widget —
+    status/severity/category/source/`finding_type` filters, 50-row
+    pagination, CSV/JSON export links that carry the active filters, and
+    `?status=&severity=&category=&finding_type=&source=` deep-link support so
+    the widget's "+N more" links and truncation note land pre-filtered. Bulk
+    Acknowledge/Resolve/Ignore/Suppress (multi-select) requires a
+    global-admin session, same as Task 1's batch endpoints.
   - Safari scroll-shake postmortem (2026-07-10): scrollable widgets (MCP
     Findings, Devices Table) visibly shook while scrolling in Safari, and
     their expand/collapse controls were intermittently unclickable there.
@@ -665,6 +673,7 @@ Primary file: `provides.yml`
 - `views/simplemdm_admin.php`: admin settings page
   - includes schedule UX, queue-based and immediate `Run Sync Now`, schedule config/readiness, last run/source, next expected run, and manual access/downloads
 - `views/simplemdm_device.php`: standalone device details and action runner
+- `views/simplemdm_findings_page.php`: MCP findings browser page (`module/simplemdm/findings`) — filters, pagination, bulk status actions (global-admin), CSV/JSON export
 - `views/simplemdm_widget_modern_assets.php`: shared JS/CSS behavior for widget layout/interactions
 
 ### Visual References

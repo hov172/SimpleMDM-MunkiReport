@@ -428,6 +428,7 @@ Operational guidance:
    - `reports/simplemdm` renders widgets
    - `show/listing/simplemdm/simplemdm` has devices
    - `module/simplemdm/device/{serial}` shows attributes, connected resources, subresources, and actions
+   - `module/simplemdm/findings` opens the MCP findings browser (filters, pagination, bulk actions, export)
 
 ## Prerequisites
 
@@ -976,6 +977,9 @@ Typical use cases:
 - Connected Resources on device pages:
   - Shows linked apps/groups/profiles/resources.
   - Links into filtered API resources listing.
+- MCP findings browser: `module/simplemdm/findings`
+  - Filters (status, severity, category, source, `finding_type`), pagination (50/page), CSV/JSON export carrying the active filters, and deep-link support (`?status=&severity=&category=&finding_type=&source=`) from the dashboard widget.
+  - Global-admin only: multi-select bulk Acknowledge/Resolve/Ignore/Suppress.
 
 ![SimpleMDM Report Widgets](docs/images/dashboard_resources.png)
 ![Dashboard KPIs](docs/images/dashboard_kpis.png)
@@ -2046,9 +2050,10 @@ When custom rules are worth using:
     contains a `danger`-severity finding; others start collapsed), sorted
     danger-groups-first
   - inside each category, findings are sub-grouped by `finding_type` with a
-    per-type count; at most 25 rows render per type, with a "+N more not
-    shown" note pointing at `export_mcp_findings`/`get_mcp_findings` filters
-    for the full set
+    per-type count; at most 25 rows render per type, with a "+N more" note
+    that links into the findings browser page (`/module/simplemdm/findings`),
+    pre-filtered to that `finding_type` (and `category`, when not
+    "Uncategorized")
   - when the row fetch is truncated at the cap, category headers show the
     true total from `get_mcp_finding_stats` as an "N total" badge alongside
     the per-severity badges (which count fetched rows only)
@@ -2057,8 +2062,10 @@ When custom rules are worth using:
   - pushed `data` JSON as a hover tooltip per finding
   - the panel body scrolls internally once findings overflow it, rather than
     growing the dashboard grid
+  - when the widget's own 500-row fetch is truncated, a note below the groups
+    links to the findings browser page too ("Open findings browser")
 - Empty state: "No MCP findings pushed yet." until `ingest_mcp_findings` has stored findings.
-- Use case: bring MCP-computed insights onto the dashboard without leaving MunkiReport; the full set remains queryable via `get_mcp_findings`.
+- Use case: bring MCP-computed insights onto the dashboard without leaving MunkiReport; the full findings set is browsable at `/module/simplemdm/findings` (filters, pagination, bulk status actions, CSV/JSON export) or queryable via `get_mcp_findings`.
 
 Per-resource-type widget family (`simplemdm_rt_*`):
 - Shared renderer: `views/simplemdm_resource_type_base_widget.php`.

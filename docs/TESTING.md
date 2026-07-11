@@ -339,7 +339,9 @@ When changing views/assets:
      - inside an expanded category with multiple finding types (or more than
        25 findings), confirm findings are sub-grouped under `finding_type`
        headers with per-type counts, at most 25 rows render per type, and a
-       "+N more not shown" note appears for capped types
+       "+N more — view all ... findings" link appears for capped types and
+       navigates to `module/simplemdm/findings` pre-filtered by `finding_type`
+       (and `category`, unless "Uncategorized")
      - with more findings than the 500-row fetch cap, confirm category
        headers show an "N total" badge with the true count from
        `get_mcp_finding_stats`, and every severity counted in the top totals
@@ -353,8 +355,9 @@ When changing views/assets:
        panel instead of growing the dashboard grid, and that it keeps the
        shared `simplemdm-list-scroll` behavior (it is exempted from the
        dynamic scroll-class removal that applies to other list widgets)
-     - confirm the "Showing X of Y findings" note reflects the fetched count
-       (up to 100) against total findings
+     - confirm the "Fetched the N most recent of M findings" note reflects the
+       fetched count (up to 500) against total findings when truncated, and
+       includes an "Open findings browser" link to `module/simplemdm/findings`
      - test scrolling in **both Chrome and Safari**, and if possible with a
        plain mouse wheel or remote-control session as well as a trackpad —
        wheel scrolling of this list (and the Devices Table rows) is
@@ -614,3 +617,49 @@ for full request/response shapes.
 3. Confirm these settings save/read through the normal `save_config`/
    `get_config` routes — `save_config` requires a global-admin session (see
    Section 7 and `docs/SECURITY.md`).
+
+## 15) Findings Browser Page (`module/simplemdm/findings`)
+
+`views/simplemdm_findings_page.php` is the full-set companion to the MCP
+Findings widget — reachable directly, via the widget's "+N more" links, and
+via its truncation-note "Open findings browser" link.
+
+1. **Load and default state**: open `module/simplemdm/findings` directly.
+   Confirm it renders inside the normal MunkiReport page chrome (nav header,
+   footer — it is a standalone page, not an ajax fragment) and the table
+   populates with up to 50 rows using the default status filter
+   (`open,acknowledged,in_progress`).
+2. **Filters narrow results**: set `severity` to `info`, click `Apply`, and
+   confirm every visible row's severity column reads `info`. Repeat spot
+   checks for `category`, `source`, and `finding_type` (comma-separated is
+   accepted, matching Task 2's `get_mcp_findings`/`get_mcp_finding_stats`
+   filter). Category/source dropdown options are populated from
+   `get_mcp_finding_stats` (`by_category`/`by_source`).
+3. **Pagination**: with more than 50 matching findings, confirm `Next`
+   advances the row range (e.g. "rows 51-100") and is disabled once a page
+   returns fewer than 50 rows; confirm `Prev` returns to the previous page
+   and is disabled at offset 0.
+4. **Bulk actions require admin**: as a global-admin session, select two or
+   more checkboxes, confirm the bulk action bar appears with a selection
+   count, click `Acknowledge`, and confirm both rows' `Status` column update
+   in place (the batch POST hits `acknowledge_mcp_finding` with
+   `{"ids":[...]}`, per Task 1). Repeat spot checks for `Resolve`, `Ignore`,
+   `Suppress` as needed. As a non-admin session, confirm the select-all
+   checkbox and bulk action bar are hidden entirely (`data-admin="0"` on the
+   page root).
+5. **Export links carry filters**: with a non-default filter set (e.g.
+   `severity=info`), confirm the `Export CSV` and `Export JSON` link hrefs
+   are `export_mcp_findings?format=csv&...`/`format=json&...` with the same
+   filter values, URL-encoded, appended as query params — not just the
+   default filters.
+6. **Deep links arrive pre-filtered**: open
+   `module/simplemdm/findings?finding_type=stale_device` directly and confirm
+   the `finding_type` input is pre-filled and every rendered row's `Type`
+   column reads `stale_device` without an extra `Apply` click. Repeat for
+   `?severity=`, `?category=`, `?source=`, and `?status=` (comma-separated).
+7. **Widget integration**: from the dashboard, expand an MCP Findings widget
+   category with a capped `finding_type` sub-group (>25 findings of one
+   type), click its "+N more — view all ... findings" link, and confirm it
+   navigates to `module/simplemdm/findings` with `finding_type` (and
+   `category`, when not "Uncategorized") pre-filled and matching rows.
+8. **No console errors** in any of the above states.

@@ -201,7 +201,8 @@ $(document).on('appReady', function() {
             });
             var hidden = type.findings.length - typeRowCap;
             if (hidden > 0) {
-                $body.append('<span class="simplemdm-mcp-type-more">+' + hidden + ' more ' + esc(type.name) + ' finding' + (hidden === 1 ? '' : 's') + ' not shown &mdash; use <code>export_mcp_findings</code> or <code>get_mcp_findings</code> filters for the full set</span>');
+                var pageUrl = appUrl + '/module/simplemdm/findings?finding_type=' + encodeURIComponent(type.name) + (group.name !== 'Uncategorized' ? '&category=' + encodeURIComponent(group.name) : '');
+                $body.append('<span class="simplemdm-mcp-type-more">+' + hidden + ' more &mdash; <a href="' + pageUrl + '">view all ' + esc(type.name) + ' findings</a></span>');
             }
         });
 
@@ -279,7 +280,7 @@ $(document).on('appReady', function() {
         });
 
         if (total > findings.length) {
-            moreNote.text('Fetched the ' + findings.length + ' most recent of ' + total + ' findings.').show();
+            moreNote.html('Fetched the ' + findings.length + ' most recent of ' + total + ' findings. <a href="' + appUrl + '/module/simplemdm/findings">Open findings browser</a>').show();
         } else {
             moreNote.hide();
         }

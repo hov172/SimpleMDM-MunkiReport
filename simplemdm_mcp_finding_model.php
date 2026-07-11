@@ -139,6 +139,32 @@ class Simplemdm_mcp_finding_model extends Eloquent
     }
 
     /**
+     * Deletes non-active findings not seen within the retention window.
+     * Rows in ACTIVE_STATUSES are never deleted regardless of age.
+     * Staleness is judged by last_seen_at, falling back to reported_at for
+     * pre-lifecycle rows where last_seen_at is NULL.
+     * Returns the number of rows deleted. $retentionDays <= 0 is a no-op.
+     */
+    public static function purgeExpired($retentionDays, $now)
+    {
+        $retentionDays = (int) $retentionDays;
+        if ($retentionDays <= 0) {
+            return 0;
+        }
+        $cutoff = gmdate('c', strtotime($now) - $retentionDays * 86400);
+
+        return self::whereNotIn('status', self::ACTIVE_STATUSES)
+            ->where(function ($query) use ($cutoff) {
+                $query->where('last_seen_at', '<', $cutoff)
+                    ->orWhere(function ($fallback) use ($cutoff) {
+                        $fallback->whereNull('last_seen_at')
+                            ->where('reported_at', '<', $cutoff);
+                    });
+            })
+            ->delete();
+    }
+
+    /**
      * Parses the id/ids field from an admin-action request body into a
      * deduped list of positive integer ids. Mirrors applyFindingStatusAction's
      * original inline parsing byte-for-byte.

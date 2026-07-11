@@ -7,7 +7,7 @@ or route changes without a deprecation period.
 
 ---
 
-## [Unreleased]
+## [1.3.1] — 2026-07-11
 ### Fixed
 - Safari: restored the passive elastic-bounce clamp on widget sub-scrollers. The clamp (part of the 2026-07-10 scroll-shake fix) was dropped when wheel handling was centralized into `bindWheelScroll` (shipped in 1.2.1–1.3.0): mouse-wheel input stayed fixed, but trackpad-gesture scrolling rode Safari's native path where elastic bounce rubber-bands `overflow: auto` containers past their bounds — visible as widgets shaking at scroll edges. The clamp now lives inside `bindWheelScroll`, so every bound scroller gets it.
 - Safari: widget lists auto-marked scrollable by the >12-item threshold (`markScrollableSimplemdmLists`) now receive the wheel + bounce-clamp binding automatically — previously only three hardcoded scrollers were bound, so long lists in other widgets (device listing, resources, etc.) neither wheel-scrolled with plain mice nor got bounce correction in Safari.

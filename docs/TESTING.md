@@ -383,6 +383,13 @@ When changing views/assets:
      - after scrolling, confirm both the per-category `+Expand`/`-Collapse`
        toggle and the whole-widget minimize button (panel heading, requires
        selecting the widget first) still respond to clicks
+     - repeat the wheel/trackpad checks on every other sub-scroller: the
+       collapsed bodies of the Groups, Resource Types, and Assignment Group
+       Apps widgets (each self-binds the shared fix at render), any widget
+       list auto-marked scrollable past 12 items, and the device page's
+       finding `data` disclosures. `tests/Unit/SafariScrollFixGuardTest.php`
+       mechanically guards the full fix inventory — if it fails after a
+       change, read both Safari postmortems before weakening it
 4. Validate device detail sections:
    - overview
    - attributes

@@ -3602,6 +3602,19 @@ class Simplemdm_controller extends Module_controller
     }
 
     /**
+     * Full-page MCP findings browser (PRD 14.3).
+     *
+     * @return void
+     **/
+    public function findings()
+    {
+        $obj = new View();
+        $obj->view('simplemdm_findings_page', [
+            'is_global_admin' => (bool) $this->authorized('global'),
+        ], $this->module_path . '/views/');
+    }
+
+    /**
      * Retrieve configuration in JSON format.
      *
      * @return void

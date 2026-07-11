@@ -7,6 +7,16 @@ or route changes without a deprecation period.
 
 ---
 
+## [Unreleased]
+### Fixed
+- Safari: restored the passive elastic-bounce clamp on widget sub-scrollers. The clamp (part of the 2026-07-10 scroll-shake fix) was dropped when wheel handling was centralized into `bindWheelScroll` (shipped in 1.2.1–1.3.0): mouse-wheel input stayed fixed, but trackpad-gesture scrolling rode Safari's native path where elastic bounce rubber-bands `overflow: auto` containers past their bounds — visible as widgets shaking at scroll edges. The clamp now lives inside `bindWheelScroll`, so every bound scroller gets it.
+- Safari: widget lists auto-marked scrollable by the >12-item threshold (`markScrollableSimplemdmLists`) now receive the wheel + bounce-clamp binding automatically — previously only three hardcoded scrollers were bound, so long lists in other widgets (device listing, resources, etc.) neither wheel-scrolled with plain mice nor got bounce correction in Safari.
+
+### Added
+- `tests/Unit/SafariScrollFixGuardTest.php` — tripwire test that fails the suite if any component of the Safari scroll fixes (wheel handler, passive bounce clamp, auto-marked-list binding, resize-loop gate, hover-lift suppression, `overscroll-behavior` budget) is removed or renamed. Both Safari postmortems in `docs/DEVELOPER_GUIDE.md` now document the full multi-part fix inventory.
+
+---
+
 ## [1.3.0] — 2026-07-11
 ### Added
 - MCP findings browser page `module/simplemdm/findings` — the full-set companion to the MCP Findings dashboard widget, reachable directly, via the widget's "+N more" links, and via its truncation-note "Open findings browser" link. Filters (`status`, `severity`, `category`, `source`, `finding_type`, comma-separated), pagination (50 rows/page), CSV/JSON export carrying the active filters, and deep-link support (`?status=&severity=&category=&finding_type=&source=`). Bulk Acknowledge/Resolve/Ignore/Suppress actions are global-admin-only.

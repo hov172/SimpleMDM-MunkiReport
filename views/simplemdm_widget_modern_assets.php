@@ -2738,6 +2738,15 @@ function resizeChartsForMode(mode) {
             } else {
                 w.classList.remove('simplemdm-list-scroll');
             }
+            if (w.classList.contains('simplemdm-list-scroll') && window.simplemdmBindWheelScroll) {
+                // Any list this function marks scrollable becomes a Safari
+                // sub-scroller and needs the wheel+bounce-clamp fix (see the
+                // Safari postmortems in docs/DEVELOPER_GUIDE.md). Binding is
+                // idempotent (marker attribute), so calling it every layout
+                // pass is safe and re-covers .list-group nodes recreated by
+                // widget re-renders.
+                window.simplemdmBindWheelScroll(w.querySelector('.list-group'));
+            }
         }
     }
 
@@ -3136,6 +3145,14 @@ function resizeChartsForMode(mode) {
         bindWheelScroll(document.getElementById('simplemdm-mcp-critical-list'));
         var tableScroll = document.querySelector('#simplemdm-devices-table-widget .simplemdm-devices-table-scroll');
         bindWheelScroll(tableScroll);
+        // Sweep every auto-marked scrollable widget list too (the >12-item
+        // lists markScrollableSimplemdmLists() opts into scrolling). The
+        // layout pass also binds these as it marks them; this sweep covers
+        // widgets already marked before this script block runs.
+        var autoLists = document.querySelectorAll('.simplemdm-modern-widget.simplemdm-list-scroll .list-group');
+        for (var i = 0; i < autoLists.length; i++) {
+            bindWheelScroll(autoLists[i]);
+        }
     }
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', bindKnownScrollers);

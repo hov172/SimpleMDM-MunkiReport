@@ -247,6 +247,23 @@ Conflict guidance:
     directly, scrolls the container in JS, `preventDefault()`s applied
     deltas, and lets boundary events chain to the page. If you add a new
     scrollable container to a widget, bind it there too.
+    **The fix is TWO-part, and both parts live in `bindWheelScroll`** —
+    regression history proves the second part is easy to lose: alongside the
+    wheel handler, every bound scroller gets a `{ passive: true }` `scroll`
+    listener that clamps `scrollTop` back into bounds. Trackpad GESTURE input
+    bypasses the wheel handler entirely (Safari drives it natively), and
+    Safari rubber-bands `overflow: auto` elements past their bounds — widgets
+    visibly "shake" at scroll edges without the clamp. The clamp must stay
+    passive and must never `preventDefault()`: consuming gesture events
+    reliably breaks Safari click-through on widget controls (tested and
+    reverted in the original fix round). This clamp was silently dropped once
+    when wheel handling was centralized (commit `b36af45`, shipped in
+    v1.2.1–v1.3.0) and restored in `c647ffa`.
+    `tests/Unit/SafariScrollFixGuardTest.php` is a tripwire that fails the
+    suite if any component of either Safari fix (wheel handler, bounce clamp,
+    resize-loop gate, hover-lift suppression, overscroll-behavior budget) is
+    removed or renamed — if it fails on your change, read these postmortems
+    before weakening the test.
   - Auth: ingest/read/analytics routes use sync-token (`X-SIMPLEMDM-API-KEY`)
     or session; admin-action routes use the same sync-token auth as
     ingest/read; only `save_config` (settings) requires a global-admin

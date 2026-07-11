@@ -284,4 +284,56 @@ final class McpFindingModelTest extends TestCase
         $s = Simplemdm_mcp_finding_model::summarizeFindingsForEvent(['danger' => 1, 'warning' => 0, 'info' => 0], 1);
         $this->assertSame('SimpleMDM MCP: 1 danger finding requires immediate attention.', $s['message']);
     }
+
+    public function testComputeDeviceRiskRowsWeightsAndSorts(): void
+    {
+        $rows = [
+            ['serial_number' => 'AAA', 'severity' => 'warning'],
+            ['serial_number' => 'BBB', 'severity' => 'danger'],
+            ['serial_number' => 'AAA', 'severity' => 'info'],
+            ['serial_number' => 'BBB', 'severity' => 'danger'],
+        ];
+        $out = Simplemdm_mcp_finding_model::computeDeviceRiskRows($rows, 10);
+        $this->assertSame('BBB', $out[0]['serial_number']); // 3+3=6 beats 2+1=3
+        $this->assertSame(6, $out[0]['score']);
+        $this->assertCount(2, $out);
+    }
+
+    public function testComputeDeviceRiskRowsDangerBreaksScoreTie(): void
+    {
+        $rows = [
+            ['serial_number' => 'AAA', 'severity' => 'warning'],
+            ['serial_number' => 'AAA', 'severity' => 'warning'],
+            ['serial_number' => 'BBB', 'severity' => 'danger'],
+            ['serial_number' => 'BBB', 'severity' => 'info'],
+        ];
+        $out = Simplemdm_mcp_finding_model::computeDeviceRiskRows($rows, 10);
+        $this->assertSame(4, $out[0]['score']);
+        $this->assertSame('BBB', $out[0]['serial_number']); // equal score 4, BBB has a danger
+    }
+
+    public function testComputeDeviceRiskRowsHonorsLimitAndSkipsEmptySerial(): void
+    {
+        $rows = [
+            ['serial_number' => '', 'severity' => 'danger'],
+            ['serial_number' => 'AAA', 'severity' => 'info'],
+            ['serial_number' => 'BBB', 'severity' => 'warning'],
+        ];
+        $out = Simplemdm_mcp_finding_model::computeDeviceRiskRows($rows, 1);
+        $this->assertCount(1, $out);
+        $this->assertSame('BBB', $out[0]['serial_number']);
+    }
+
+    public function testBucketFindingDatesCountsNewAndResolvedPerDay(): void
+    {
+        $rows = [
+            ['first_seen_at' => '2026-07-09T10:00:00+00:00', 'resolved_at' => '2026-07-10T09:00:00+00:00'],
+            ['first_seen_at' => '2026-07-10T02:00:00+00:00', 'resolved_at' => null],
+            ['first_seen_at' => '2026-06-01T00:00:00+00:00', 'resolved_at' => null], // outside window: ignored for 'new'
+        ];
+        $out = Simplemdm_mcp_finding_model::bucketFindingDates($rows, 3, '2026-07-11');
+        $this->assertSame(['2026-07-09', '2026-07-10', '2026-07-11'], $out['labels']);
+        $this->assertSame([1, 1, 0], $out['new']);
+        $this->assertSame([0, 1, 0], $out['resolved']);
+    }
 }

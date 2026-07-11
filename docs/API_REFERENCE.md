@@ -1051,7 +1051,7 @@ Exactly one of `id` (positive integer) or `ids` (non-empty array of positive int
 
 ## 13) MCP Findings Analytics Routes (added 2026-07-10)
 
-Three read-only routes to support analytics dashboards and bulk export workflows. All three are token-readable via `X-SIMPLEMDM-API-KEY`, using the same auth mechanism as `get_mcp_findings` — no session required, matching the existing iOS/Android client apps' auth model.
+Four read-only routes to support analytics dashboards and bulk export workflows. All four are token-readable via `X-SIMPLEMDM-API-KEY`, using the same auth mechanism as `get_mcp_findings` — no session required, matching the existing iOS/Android client apps' auth model.
 
 ### get_mcp_finding_stats — Severity/Status/Category/Source Count Breakdowns
 
@@ -1092,7 +1092,16 @@ Three read-only routes to support analytics dashboards and bulk export workflows
   "by_source": {
     "mcp": 18,
     "mcp_scanner": 7
-  }
+  },
+  "top_devices": [
+    {
+      "serial_number": "C02XXXXXXX",
+      "score": 6,
+      "danger": 0,
+      "warning": 3,
+      "info": 0
+    }
+  ]
 }
 ```
 
@@ -1101,6 +1110,7 @@ Three read-only routes to support analytics dashboards and bulk export workflows
 - `by_severity`: count of active findings (`open`, `acknowledged`, `in_progress`) by severity (`danger`, `warning`, `info`), scoped to the query filters. Always includes all three keys even if the count is `0`. Scoped to active statuses only (not affected by resolved/ignored/suppressed findings).
 - `by_category`: count of active findings grouped by distinct `category` values, scoped to the query filters. Only includes keys that have at least one matching active finding. Null/empty categories are omitted (do not appear as a `""` key).
 - `by_source`: count of active findings grouped by distinct `source` values, scoped to the query filters. Only includes keys that have at least one matching active finding.
+- `top_devices`: the top 10 devices ranked by open-finding risk score, scoped to the query filters. Computed over active findings (`open`, `acknowledged`, `in_progress`) only. `score = 3*danger + 2*warning + 1*info` per device; ties break by danger count, then warning count, then serial number ascending. Devices with an empty/missing `serial_number` are excluded. Empty array if there are no active findings.
 
 **Key distinction**: `by_status` and `by_severity` use fixed keys that are always present (even at `0`), mirroring the precedent set by `get_mcp_findings`' `status_totals` and `totals` fields. `by_category` and `by_source` are dynamic breakdowns — keys are only present if they match at least one active finding.
 
@@ -1235,6 +1245,39 @@ Three read-only routes to support analytics dashboards and bulk export workflows
 2. Call `get_mcp_scan_status?source=mcp` returns `last_scan_id=scan_v1`, `counts.total=10`
 3. Second ingest for source `mcp` with `scan_id=scan_v2` contains 3 findings (danger: 0, warning: 1, info: 2) and uses `replace:true` (auto-resolving the 7 findings from scan_v1 that didn't reappear)
 4. Call `get_mcp_scan_status?source=mcp` returns `last_scan_id=scan_v2`, `counts.total=3` — NOT 13 (does NOT accumulate scans)
+
+**Error response**:
+- `403` with `{"status":"error","message":"MCP findings are disabled"}` if `mcp_findings_enabled=0`.
+
+### get_mcp_finding_timeline — Daily New/Resolved Counts
+
+**Purpose**: Return daily new-finding and resolved-finding counts for trend widgets (e.g., a sparkline/bar chart of finding activity over time).
+
+**Endpoint**: `GET /module/simplemdm/get_mcp_finding_timeline`
+
+**Auth**: Sync token header (`X-SIMPLEMDM-API-KEY`)
+
+**Query parameters**:
+- `days` (optional, default `30`): number of trailing days to bucket, ending today (UTC). Clamped to the range 1-90 (values below 1 fall back to 30; values above 90 are capped at 90).
+
+**Response**:
+
+```json
+{
+  "labels": ["2026-07-05", "2026-07-06", "2026-07-07", "2026-07-08", "2026-07-09", "2026-07-10", "2026-07-11"],
+  "new": [0, 0, 7, 0, 0, 183, 1],
+  "resolved": [0, 0, 0, 0, 0, 7, 3]
+}
+```
+
+**Response field definitions**:
+- `labels`: array of `days` ISO `YYYY-MM-DD` date strings (UTC), oldest first, ending with today.
+- `new`: parallel array of counts — number of findings whose `first_seen_at` date falls on that label.
+- `resolved`: parallel array of counts — number of findings whose `resolved_at` date falls on that label.
+
+**Notes**:
+- Not filtered by source/category/severity/status — this route bucket-counts across all findings whose `first_seen_at` or `resolved_at` falls within the requested window.
+- A finding's `first_seen_at` and `resolved_at` can land on different days (or the same finding can contribute to both a `new` bucket and a `resolved` bucket).
 
 **Error response**:
 - `403` with `{"status":"error","message":"MCP findings are disabled"}` if `mcp_findings_enabled=0`.

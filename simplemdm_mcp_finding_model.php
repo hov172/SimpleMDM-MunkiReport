@@ -224,4 +224,65 @@ class Simplemdm_mcp_finding_model extends Eloquent
         }
         return null;
     }
+
+    /**
+     * Rank devices by open-finding weight: 3*danger + 2*warning + 1*info.
+     * Ties break danger-count-first, then warning count, then serial asc.
+     *
+     * @param array $rows  [['serial_number'=>string,'severity'=>string],...]
+     * @param int   $limit
+     * @return array
+     **/
+    public static function computeDeviceRiskRows($rows, $limit)
+    {
+        $devices = [];
+        foreach ($rows as $row) {
+            $serial = trim((string) ($row['serial_number'] ?? ''));
+            if ($serial === '') { continue; }
+            $sev = in_array($row['severity'] ?? '', ['danger', 'warning', 'info'], true) ? $row['severity'] : 'info';
+            if (! isset($devices[$serial])) {
+                $devices[$serial] = ['serial_number' => $serial, 'score' => 0, 'danger' => 0, 'warning' => 0, 'info' => 0];
+            }
+            $devices[$serial][$sev]++;
+            $devices[$serial]['score'] += ($sev === 'danger' ? 3 : ($sev === 'warning' ? 2 : 1));
+        }
+        $out = array_values($devices);
+        usort($out, function ($a, $b) {
+            if ($a['score'] !== $b['score']) { return $b['score'] - $a['score']; }
+            if ($a['danger'] !== $b['danger']) { return $b['danger'] - $a['danger']; }
+            if ($a['warning'] !== $b['warning']) { return $b['warning'] - $a['warning']; }
+            return strcmp($a['serial_number'], $b['serial_number']);
+        });
+        return array_slice($out, 0, max(1, (int) $limit));
+    }
+
+    /**
+     * Bucket first_seen_at/resolved_at into daily counts for the last $days
+     * days ending at $today (UTC date string). Pure and DB-agnostic: dates
+     * compare via their ISO-8601 10-char prefix.
+     *
+     * @param array  $rows [['first_seen_at'=>string,'resolved_at'=>?string],...]
+     * @param int    $days
+     * @param string $today 'YYYY-MM-DD'
+     * @return array ['labels'=>[], 'new'=>[], 'resolved'=>[]]
+     **/
+    public static function bucketFindingDates($rows, $days, $today)
+    {
+        $days = max(1, (int) $days);
+        $labels = [];
+        $base = strtotime($today . 'T00:00:00Z');
+        for ($i = $days - 1; $i >= 0; $i--) {
+            $labels[] = gmdate('Y-m-d', $base - $i * 86400);
+        }
+        $index = array_flip($labels);
+        $new = array_fill(0, $days, 0);
+        $resolved = array_fill(0, $days, 0);
+        foreach ($rows as $row) {
+            $first = substr((string) ($row['first_seen_at'] ?? ''), 0, 10);
+            if (isset($index[$first])) { $new[$index[$first]]++; }
+            $res = substr((string) ($row['resolved_at'] ?? ''), 0, 10);
+            if ($res !== '' && isset($index[$res])) { $resolved[$index[$res]]++; }
+        }
+        return ['labels' => $labels, 'new' => $new, 'resolved' => $resolved];
+    }
 }

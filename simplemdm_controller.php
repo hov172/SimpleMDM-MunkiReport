@@ -13,7 +13,7 @@ class Simplemdm_controller extends Module_controller
     // instead of a MunkiReport session. Token is validated once in the constructor;
     // the authorized() override below vouches for these requests so they also pass
     // the core Module controller filter.
-    private $token_read_actions = ['get_sync_telemetry', 'get_compliance_stats', 'get_command_status_stats', 'get_assignment_group_stats', 'get_resource_type_stats', 'get_os_security_stats', 'get_supplemental_status', 'get_supplemental_overview_stats', 'get_supplemental_applecare_stats', 'get_device_resources', 'get_events', 'get_dashboard_trend', 'get_supplemental_data', 'get_client_facts', 'get_runner_status', 'get_mcp_findings', 'get_mcp_finding_stats', 'export_mcp_findings', 'get_mcp_scan_status'];
+    private $token_read_actions = ['get_sync_telemetry', 'get_compliance_stats', 'get_command_status_stats', 'get_assignment_group_stats', 'get_resource_type_stats', 'get_os_security_stats', 'get_supplemental_status', 'get_supplemental_overview_stats', 'get_supplemental_applecare_stats', 'get_device_resources', 'get_events', 'get_dashboard_trend', 'get_supplemental_data', 'get_client_facts', 'get_runner_status', 'get_mcp_findings', 'get_mcp_finding_stats', 'export_mcp_findings', 'get_mcp_scan_status', 'get_mcp_finding_timeline'];
     private $token_read_request = false;
     private $downloadable_scripts = ['simplemdm_sync.py', 'install_cron.sh', 'remove_cron.sh'];
 
@@ -6874,12 +6874,45 @@ class Simplemdm_controller extends Module_controller
             )->count();
         }
 
+        $riskRows = $applyFilters(
+            Simplemdm_mcp_finding_model::whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES)
+        )->get(['serial_number', 'severity'])->map(function ($r) {
+            return ['serial_number' => $r->serial_number, 'severity' => $r->severity];
+        })->all();
+        $top_devices = Simplemdm_mcp_finding_model::computeDeviceRiskRows($riskRows, 10);
+
         jsonView([
             'by_status'   => $by_status,
             'by_severity' => $by_severity,
             'by_category' => $by_category,
             'by_source'   => $by_source,
+            'top_devices' => $top_devices,
         ]);
+    }
+
+    /**
+     * Daily new/resolved finding counts for trend widgets.
+     * GET /module/simplemdm/get_mcp_finding_timeline?days=30  (max 90)
+     *
+     * @return void
+     **/
+    public function get_mcp_finding_timeline()
+    {
+        if (! $this->mcp_findings_enabled()) {
+            jsonView(['status' => 'error', 'message' => 'MCP findings are disabled'], 403);
+            return;
+        }
+        $days = isset($_GET['days']) ? (int) $_GET['days'] : 30;
+        if ($days < 1) { $days = 30; }
+        if ($days > 90) { $days = 90; }
+        $since = gmdate('c', time() - ($days + 1) * 86400);
+        $rows = Simplemdm_mcp_finding_model::where(function ($q) use ($since) {
+                $q->where('first_seen_at', '>=', $since)->orWhere('resolved_at', '>=', $since);
+            })
+            ->get(['first_seen_at', 'resolved_at'])
+            ->map(function ($r) { return ['first_seen_at' => $r->first_seen_at, 'resolved_at' => $r->resolved_at]; })
+            ->all();
+        jsonView(Simplemdm_mcp_finding_model::bucketFindingDates($rows, $days, gmdate('Y-m-d')));
     }
 
     /**

@@ -20,6 +20,8 @@ reports:
 widgets:
     simplemdm_mcp_findings:
         view: simplemdm_mcp_findings_widget
+    simplemdm_mcp_critical:
+        view: simplemdm_mcp_critical_widget
     simplemdm_mcp_severity:
         view: simplemdm_mcp_severity_widget
     simplemdm_mcp_source:

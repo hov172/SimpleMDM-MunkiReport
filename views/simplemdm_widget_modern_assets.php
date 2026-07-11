@@ -2725,9 +2725,11 @@ function resizeChartsForMode(mode) {
                 w.classList.remove('simplemdm-list-scroll');
                 continue;
             }
-            if (w.id === 'simplemdm-mcp-findings-widget') {
-                // Statically opted into scrolling (fixed-height category groups, not a
-                // flat list) -- leave it alone rather than toggling based on item count.
+            if (w.id === 'simplemdm-mcp-findings-widget' || w.id === 'simplemdm-mcp-critical-widget') {
+                // Statically opted into scrolling -- leave alone rather than
+                // toggling based on item count (mcp-findings has fixed-height
+                // category groups; mcp-critical is a flat list of danger findings
+                // that can legitimately exceed the auto-scroll threshold).
                 continue;
             }
             var count = w.querySelectorAll('.list-group-item').length;
@@ -3113,6 +3115,7 @@ function resizeChartsForMode(mode) {
     window.simplemdmBindWheelScroll = bindWheelScroll;
     function bindKnownScrollers() {
         bindWheelScroll(document.getElementById('simplemdm-mcp-findings-groups'));
+        bindWheelScroll(document.getElementById('simplemdm-mcp-critical-list'));
         var tableScroll = document.querySelector('#simplemdm-devices-table-widget .simplemdm-devices-table-scroll');
         bindWheelScroll(tableScroll);
     }

@@ -3108,6 +3108,24 @@ function resizeChartsForMode(mode) {
             el.scrollTop = next;
             e.preventDefault();
         }, { passive: false });
+        /* Safari elastic-bounce clamp (restores the passive Fix-4 listener that
+           the bindWheelScroll centralization dropped): trackpad GESTURE input
+           scrolls sub-scrollers through Safari's native path, not the wheel
+           handler above, and Safari rubber-bands overflow:auto elements past
+           their bounds -- read as the widget "shaking" at scroll edges. This
+           listener snaps the position back after the fact. It must stay
+           passive and never preventDefault(): consuming gesture events here
+           reliably broke click-through on widget controls in Safari. */
+        el.addEventListener('scroll', function () {
+            if (el.scrollTop < 0) {
+                el.scrollTop = 0;
+                return;
+            }
+            var max = el.scrollHeight - el.clientHeight;
+            if (max > 0 && el.scrollTop > max) {
+                el.scrollTop = max;
+            }
+        }, { passive: true });
     }
     /* Exposed so views that render their own scrollable containers
        dynamically (e.g. the device page's MCP findings disclosure)

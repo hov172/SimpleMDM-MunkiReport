@@ -979,7 +979,7 @@ Typical use cases:
   - Shows linked apps/groups/profiles/resources.
   - Links into filtered API resources listing.
 - MCP findings browser: `module/simplemdm/findings`
-  - Filters (status, severity, category, source, `finding_type`), pagination (50/page), CSV/JSON export carrying the active filters, and deep-link support (`?status=&severity=&category=&finding_type=&source=`) from the dashboard widget.
+  - Filters (status via toggleable chips, severity, category, source, `finding_type`), pagination (50/page), CSV/JSON export carrying the active filters, and deep-link support (`?status=&severity=&category=&finding_type=&source=`) from the dashboard widget. All filter controls follow the active MunkiReport theme (light and dark).
   - Global-admin only: multi-select bulk Acknowledge/Resolve/Ignore/Suppress.
 
 ![SimpleMDM Report Widgets](docs/images/dashboard_resources.png)

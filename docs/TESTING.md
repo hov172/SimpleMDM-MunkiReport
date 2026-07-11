@@ -681,9 +681,14 @@ via its truncation-note "Open findings browser" link.
    Confirm it renders inside the normal MunkiReport page chrome (nav header,
    footer — it is a standalone page, not an ajax fragment) and the table
    populates with up to 50 rows using the default status filter
-   (`open,acknowledged,in_progress`).
+   (the `open`, `acknowledged`, and `in_progress` status chips render
+   active). In dark mode, confirm the toolbar controls follow the theme
+   (no light browser-default boxes) and active chips show readable
+   inverted-contrast labels.
 2. **Filters narrow results**: set `severity` to `info`, click `Apply`, and
-   confirm every visible row's severity column reads `info`. Repeat spot
+   confirm every visible row's severity column reads `info`. Toggle the
+   `resolved` status chip on, `Apply`, and confirm resolved rows appear
+   (chip toggles take effect on `Apply`, like every other filter). Repeat spot
    checks for `category`, `source`, and `finding_type` (comma-separated is
    accepted, matching Task 2's `get_mcp_findings`/`get_mcp_finding_stats`
    filter). Category/source dropdown options are populated from

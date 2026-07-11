@@ -809,4 +809,6 @@ Rule of thumb:
 - Shared widget assets: `views/simplemdm_widget_modern_assets.php`
 - Device actions UI: `views/simplemdm_device.php`
 - MCP findings dashboard widget: `views/simplemdm_mcp_findings_widget.php`
+- MCP findings analytics widgets: `views/simplemdm_mcp_severity_widget.php`, `views/simplemdm_mcp_source_widget.php`, `views/simplemdm_mcp_critical_widget.php`, `views/simplemdm_mcp_timeline_widget.php`, `views/simplemdm_mcp_top_devices_widget.php`
+- MCP findings browser page: `views/simplemdm_findings_page.php`
 - PHPUnit tests: `tests/Unit/`, bootstrap in `tests/bootstrap.php`, config in `phpunit.xml`

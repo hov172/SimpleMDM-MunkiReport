@@ -43,7 +43,8 @@ Workflow note:
 | Device passthrough (`api_devices`) | Global admin session; mutating methods also require action secret |
 
 Token-readable routes (expanded 2026-07-08 for headless API clients such as
-ReportSimpleMDM and SimpleMDM-MCP): these sixteen read-only routes accept the sync token
+ReportSimpleMDM and SimpleMDM-MCP; further expanded 2026-07-11 with the findings
+analytics/timeline routes): these twenty read-only routes accept the sync token
 header (`X-SIMPLEMDM-API-KEY`) as an alternative to a session. The token grants exactly
 these read routes. Sync/ingest routes above also accept the sync token, but still
 re-validate route-specific auth before doing work. Admin/action routes (`request_sync`,
@@ -67,6 +68,10 @@ re-validate route-specific auth before doing work. Admin/action routes (`request
   key holder; see SECURITY.md)
 - `get_runner_status` (added 2026-07-08)
 - `get_mcp_findings[/serial]` (added 2026-07-08)
+- `get_mcp_finding_stats` (added 2026-07-11)
+- `export_mcp_findings` (added 2026-07-11)
+- `get_mcp_scan_status` (added 2026-07-11)
+- `get_mcp_finding_timeline` (added 2026-07-11)
 
 Headers used by module:
 - Sync token: `X-SIMPLEMDM-API-KEY`
@@ -747,7 +752,7 @@ curl -H "X-SIMPLEMDM-API-KEY: <api_key>" \
   "https://<mr>/module/simplemdm/get_sync_telemetry"
 ```
 
-The response should be JSON. The sync token grants the sixteen token-readable routes in
+The response should be JSON. The sync token grants the twenty token-readable routes in
 the Auth Summary. Sync/ingest routes also accept the sync token but still re-check their
 own auth; admin/action routes (`request_sync`, `refresh_supplemental_summary`,
 `api_devices`) still require a MunkiReport admin session.

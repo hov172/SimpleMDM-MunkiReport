@@ -325,6 +325,15 @@ Expected:
 | MunkiReport events | Activation lock regression | `simplemdm_activation_lock` visible in Events UI |
 | MunkiReport events | Stale-device transition | `simplemdm_stale` visible in Events UI |
 | MunkiReport events | Recovery lock failure | `simplemdm_recovery_lock` visible in Events UI |
+| Device page | MCP findings section | Renders for a serial with findings (severity badges, `data` disclosure, admin action buttons for global-admin sessions); hidden entirely for a serial with none — see Section 15 |
+| Findings page | Load, filter, paginate, bulk-act, export, deep link | `module/simplemdm/findings` renders rows, filters narrow results (incl. `finding_type`), pagination advances at 50/page, admin bulk actions update status, CSV/JSON export carries filters, deep-link query params pre-fill — see Section 15 |
+| Widgets | `simplemdm_mcp_severity` / `simplemdm_mcp_source` | Donut + list render from `get_mcp_finding_stats`, no console errors |
+| Widgets | `simplemdm_mcp_critical` | Open danger findings list renders from `get_mcp_findings?severity=danger`, wheel-scroll works |
+| Widgets | `simplemdm_mcp_timeline` | New/Resolved 30-day lines render from `get_mcp_finding_timeline?days=30` |
+| Widgets | `simplemdm_mcp_top_devices` | Ranked device list renders from `get_mcp_finding_stats` `top_devices` |
+| Routes | `get_mcp_finding_timeline` | Returns daily New/Resolved counts, `days` clamped to 1-90 |
+| Routes | `finding_type` filter | `get_mcp_findings`/`get_mcp_finding_stats?finding_type=` narrows results, comma-separated, case-sensitive — see Section 14 |
+| Events | Fleet findings summary opt-in | `mcp_findings_event_enabled=0` (default) writes no `simplemdm_mcp_findings_summary` row; enabled, one deduplicated row appears anchored to the worst device — see Section 14 |
 
 ## 9) Regression Focus for UI Changes
 

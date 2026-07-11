@@ -7,6 +7,21 @@ or route changes without a deprecation period.
 
 ---
 
+## [Unreleased]
+### Added
+- MCP findings browser page `module/simplemdm/findings` — the full-set companion to the MCP Findings dashboard widget, reachable directly, via the widget's "+N more" links, and via its truncation-note "Open findings browser" link. Filters (`status`, `severity`, `category`, `source`, `finding_type`, comma-separated), pagination (50 rows/page), CSV/JSON export carrying the active filters, and deep-link support (`?status=&severity=&category=&finding_type=&source=`). Bulk Acknowledge/Resolve/Ignore/Suppress actions are global-admin-only.
+- MCP findings section on the standalone device page (`module/simplemdm/device/{serial}`): severity badges, a `<details>` disclosure for the raw pushed `data`, and admin lifecycle action buttons (Acknowledge/Resolve/Ignore/Suppress); the section is hidden entirely when a device has no findings.
+- Five new MCP findings dashboard widgets: `simplemdm_mcp_severity` (severity donut), `simplemdm_mcp_source` (source donut, top 8 + other), `simplemdm_mcp_critical` (open danger-severity findings list), `simplemdm_mcp_timeline` (30-day New/Resolved line chart), and `simplemdm_mcp_top_devices` (ranked per-device risk list). All five are addable/removable via the existing Widget Visibility settings.
+- `get_mcp_finding_timeline?days=N` route (token-readable, `days` clamped 1–90) returning daily New/Resolved counts for the last N days, backing the `simplemdm_mcp_timeline` widget.
+- `top_devices` field on `get_mcp_finding_stats` — up to 10 devices ranked by a 3/2/1-weighted (danger/warning/info) open-finding risk score, backing the `simplemdm_mcp_top_devices` widget.
+- `finding_type` filter (comma-separated, case-sensitive exact match) on `get_mcp_findings` and `get_mcp_finding_stats`, matching the existing `category` filter's semantics.
+- Two admin settings gating an opt-in, deduplicated fleet findings summary event (PRD section 13): `mcp_findings_event_enabled` (default `0`) and `mcp_findings_event_warning_threshold` (default `1`, minimum `1`). When enabled, ingest and admin-action call sites best-effort write a single event under module key `simplemdm_mcp_findings_summary`, anchored to the worst-affected device (highest-severity active-finding count, tie-broken by most active findings, then lowest serial); existing installs see no Events UI change without opting in.
+
+### Changed
+- The four MCP finding admin-action routes (`acknowledge_mcp_finding`, `resolve_mcp_finding`, `ignore_mcp_finding`, `suppress_mcp_finding`) now also accept a global-admin MunkiReport session, in addition to the existing sync-token auth, so the new findings browser page and device-page action buttons can call them from a logged-in browser session without exposing the sync token to page JavaScript.
+
+---
+
 ## [1.2.1] — 2026-07-11
 ### Changed
 - MCP Findings dashboard widget scales to auto-publish volume (200+ findings from SimpleMDM-MCP v0.34.0's middleware): each category section now sub-groups findings by `finding_type` with a per-type count, renders at most 25 rows per type with a "+N more not shown" note pointing at `export_mcp_findings`/`get_mcp_findings`, and fetches up to 500 findings (the server cap; was 100 — which previously hid findings entirely, e.g. 2 `info` findings counted in the totals badges but unreachable in the list). When the fetch is still truncated, category headers show the true total from `get_mcp_finding_stats` as a separate "N total" badge alongside the per-severity badges (which reflect fetched rows only).

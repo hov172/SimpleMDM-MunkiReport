@@ -112,20 +112,21 @@ Three analytics routes — `get_mcp_finding_stats` (count breakdowns), `export_m
 
 - **Actions** (write-gated on the MCP side): `request_sync`, `refresh_supplemental_summary[/serial]`.
 
-Note: as of 2026-07-08, sixteen read-only routes accept the sync token header
+Note: as of 2026-07-11, twenty read-only routes accept the sync token header
 (`X-SIMPLEMDM-API-KEY`) as an alternative to a MunkiReport session, so headless clients
 (SimpleMDM-MCP, ReportSimpleMDM) can read module data without a browser session: the ten
 dashboard routes (`get_sync_telemetry`, `get_compliance_stats`, `get_command_status_stats`,
 `get_assignment_group_stats`, `get_resource_type_stats`, `get_os_security_stats`,
 `get_supplemental_status`, `get_supplemental_overview_stats`, `get_supplemental_applecare_stats`,
 `get_device_resources/{serial}`) plus `get_events`, `get_dashboard_trend`,
-`get_supplemental_data/{serial}`, `get_client_facts/{serial}`, `get_runner_status`, and
-`get_mcp_findings`. The token-protected sync/ingest routes (including `ingest_mcp_findings`
-for the MCP findings push) also pass the core module filter when called directly with a
-valid token. Only the two actions (`request_sync`, `refresh_supplemental_summary`) still
-require an **admin (global)** MunkiReport session. Anyone holding the SimpleMDM API key can
-read all sixteen routes — including per-device client facts — so treat the key accordingly
-and use HTTPS.
+`get_supplemental_data/{serial}`, `get_client_facts/{serial}`, `get_runner_status`,
+`get_mcp_findings`, `get_mcp_finding_stats`, `export_mcp_findings`, `get_mcp_scan_status`,
+and `get_mcp_finding_timeline`. The token-protected sync/ingest routes (including
+`ingest_mcp_findings` for the MCP findings push) also pass the core module filter when
+called directly with a valid token. Only the two actions (`request_sync`,
+`refresh_supplemental_summary`) still require an **admin (global)** MunkiReport session.
+Anyone holding the SimpleMDM API key can read all twenty routes — including per-device
+client facts — so treat the key accordingly and use HTTPS.
 
 ## Connect ReportSimpleMDM
 
@@ -1646,6 +1647,11 @@ Optional production additions:
 - `simplemdm_compliance` (compliant vs noncompliant + reasons)
 - `simplemdm_sync_health` (latest sync telemetry + scope/delta/rate-limit stats)
 - `simplemdm_group_apps` (full-width assignment-group to assigned-app mapping with expandable per-group app lists)
+- `simplemdm_mcp_severity` (MCP findings by severity donut)
+- `simplemdm_mcp_source` (MCP findings by source donut, top 8 + other)
+- `simplemdm_mcp_critical` (open danger-severity MCP findings list)
+- `simplemdm_mcp_timeline` (30-day MCP findings New/Resolved line chart)
+- `simplemdm_mcp_top_devices` (ranked per-device MCP findings risk list)
 
 Widget purpose note:
 - `simplemdm_group` = full groups widget (top chart + expandable assignment group list + drilldown links)
@@ -2067,6 +2073,39 @@ When custom rules are worth using:
 - Empty state: "No MCP findings pushed yet." until `ingest_mcp_findings` has stored findings.
 - Use case: bring MCP-computed insights onto the dashboard without leaving MunkiReport; the full findings set is browsable at `/module/simplemdm/findings` (filters, pagination, bulk status actions, CSV/JSON export) or queryable via `get_mcp_findings`.
 
+`simplemdm_mcp_severity`
+- Purpose: at-a-glance severity mix of active MCP findings.
+- Endpoint: `GET /module/simplemdm/get_mcp_finding_stats`.
+- Data shown: donut chart (danger/warning/info) plus a matching list of counts; clicking a segment/row links into the findings browser page pre-filtered to that severity.
+- Use case: fastest read on fleet-wide finding severity without opening the full findings widget.
+
+`simplemdm_mcp_source`
+- Purpose: which sources (`mcp`, `mcp_auto_<tool>`, `sofa_audit`, etc.) are producing active findings.
+- Endpoint: `GET /module/simplemdm/get_mcp_finding_stats`.
+- Data shown: donut chart of the top 8 sources by active-finding count plus an "other" bucket for the remainder; links into the findings browser page pre-filtered to that source.
+- Use case: spot a noisy or newly-onboarded MCP tool/source at a glance.
+
+`simplemdm_mcp_critical`
+- Purpose: a scrollable list of open, danger-severity findings needing attention now.
+- Endpoint: `GET /module/simplemdm/get_mcp_findings?severity=danger&limit=25`.
+- Data shown: finding type, device serial (linked to the device detail page), and message per row.
+- Empty state: "No open danger findings."
+- Use case: a focused triage list without the noise of lower-severity findings.
+
+`simplemdm_mcp_timeline`
+- Purpose: 30-day trend of new vs. resolved findings.
+- Endpoint: `GET /module/simplemdm/get_mcp_finding_timeline?days=30`.
+- Data shown: two-line chart ("New" and "Resolved" daily counts) over the trailing 30 days.
+- Empty state: "No findings activity in the last 30 days."
+- Use case: is the fleet's findings backlog growing or shrinking.
+
+`simplemdm_mcp_top_devices`
+- Purpose: ranked list of the devices with the most/worst active findings.
+- Endpoint: `GET /module/simplemdm/get_mcp_finding_stats` (`top_devices` field — up to 10 devices, ranked by a 3/2/1-weighted danger/warning/info open-finding score).
+- Data shown: rank, device serial (linked to the device detail page), per-severity badge counts, and the computed risk score.
+- Empty state: "No active findings."
+- Use case: identify which devices to remediate first.
+
 Per-resource-type widget family (`simplemdm_rt_*`):
 - Shared renderer: `views/simplemdm_resource_type_base_widget.php`.
 - Shared endpoints:
@@ -2183,6 +2222,15 @@ Main panels:
   - Users: Username, Full Name, UID, Logged In, Source
   - Profiles: Name, Identifier, Type, Source
 - Source label currently shown as `Direct per-device`.
+
+`MCP Findings`
+- Populated from `GET /module/simplemdm/get_mcp_findings/{serial}`.
+- Severity badge counts for the device's active findings.
+- Per-finding rows: severity badge, finding type, category, message, source, status, reported time.
+- A `<details>` disclosure per row exposes the raw pushed `data` JSON.
+- Global-admin sessions see per-row Acknowledge/Resolve/Ignore/Suppress buttons (calling the four admin-action routes with a session, not a sync token).
+- The entire panel is hidden when the device has no findings — no empty-state placeholder is shown.
+- `window.simplemdmIsGlobalAdmin` (exposed to device page JS) gates whether the action buttons render.
 
 `Device Actions`
 - Action runner for supported passthrough actions on selected device.

@@ -2,6 +2,17 @@
 
 # SimpleMDM module install script for MunkiReport
 # This sets up the sync script on the MunkiReport server
+#
+# MunkiReport inlines this script into the generated client installer
+# (index.php?/install). Data for this module is pushed server-side by
+# simplemdm_sync.py, so there is nothing to install on clients — and an
+# `exit` here would abort the whole client installer. Detect the inlined
+# context (the outer installer defines MUNKIPATH) and no-op.
+
+if [ -n "${MUNKIPATH}" ]; then
+    echo "  simplemdm is a server-side module; no client components to install."
+    return 0 2>/dev/null || true
+else
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODULE_DIR="$(dirname "$SCRIPT_DIR")"
@@ -46,3 +57,5 @@ echo ""
 echo "Install/update the current user's cron entry:"
 echo "    $SCRIPT_DIR/install_cron.sh --munkireport-url 'https://mr.example.com' --install"
 echo ""
+
+fi

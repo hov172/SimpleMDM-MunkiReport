@@ -84,6 +84,7 @@ $(document).on('appReady', function() {
         var p = new URLSearchParams(window.location.search);
         if (p.get('category')) { $('#f-category').val(p.get('category')); }
         if (p.get('source')) { $('#f-source').val(p.get('source')); }
+    }).always(function() {
         load();
     });
 
@@ -93,6 +94,7 @@ $(document).on('appReady', function() {
             var $tb = $('#f-table tbody').empty();
             rows.forEach(function(f) {
                 var sev = String(f.severity || 'info').toLowerCase();
+                if (sev !== 'danger' && sev !== 'warning') { sev = 'info'; }
                 var deviceUrl = appUrl + '/module/simplemdm/device/' + encodeURIComponent(String(f.serial_number || ''));
                 $tb.append($('<tr>')
                     .append(isAdmin ? '<td><input type="checkbox" class="f-sel" value="' + Number(f.id) + '"></td>' : '<td></td>')
@@ -110,6 +112,9 @@ $(document).on('appReady', function() {
             $('#f-prev').prop('disabled', offset === 0);
             $('#f-next').prop('disabled', rows.length < pageSize);
             $('#f-selall').prop('checked', false); updateBulkbar();
+        }).fail(function() {
+            $('#f-table tbody').empty().append('<tr><td colspan="9" class="text-danger">Failed to load findings.</td></tr>');
+            $('#f-pageinfo').text('');
         });
         $('#f-export-csv').attr('href', window.simplemdmModuleUrl('export_mcp_findings') + '?format=csv&' + query());
         $('#f-export-json').attr('href', window.simplemdmModuleUrl('export_mcp_findings') + '?format=json&' + query());

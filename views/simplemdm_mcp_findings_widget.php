@@ -1,6 +1,7 @@
 <?php include_once __DIR__ . '/simplemdm_widget_modern_assets.php'; ?>
 <style>
-#simplemdm-mcp-findings-widget .simplemdm-mcp-finding-message {
+#simplemdm-mcp-findings-widget .simplemdm-mcp-finding-message,
+#simplemdm-mcp-critical-widget .simplemdm-mcp-finding-message {
     display: block;
     margin-top: 4px;
     white-space: normal;

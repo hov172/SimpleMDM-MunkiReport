@@ -371,6 +371,8 @@
             </div>
         </div>
 
+        <div id="simplemdm-mcp-findings-anchor"></div>
+
         <div class="simplemdm-modern-widget" style="margin-bottom:12px;">
             <div class="panel-heading"><h3 class="panel-title"><i class="fa fa-terminal"></i> Device Actions</h3></div>
             <div class="panel-body">
@@ -842,11 +844,11 @@ $(document).on('appReady', function() {
         var statuses = includeClosed
             ? 'open,acknowledged,in_progress,resolved,ignored,suppressed'
             : 'open,acknowledged,in_progress';
+        var $anchor = $('#simplemdm-mcp-findings-anchor');
         $.getJSON(window.simplemdmModuleUrl('get_mcp_findings') + '/' + encodeURIComponent(serial) + '?limit=200&status=' + statuses, function(data) {
             var findings = (data && data.findings) ? data.findings : [];
-            var $existing = $('[data-section-id="mcp-findings"]');
             if (!findings.length && !includeClosed) {
-                $existing.remove();
+                $anchor.empty();
                 return; // PRD 14.2: section only appears when findings exist
             }
             var rows = findings.map(function(f) {
@@ -885,7 +887,7 @@ $(document).on('appReady', function() {
             var toggleLabel = includeClosed ? 'Hide resolved/ignored' : 'Show resolved/ignored';
             var body = '<div><button type="button" class="btn btn-xs btn-default" id="simplemdm-findings-closed-toggle" data-include-closed="' + (includeClosed ? '1' : '0') + '">' + toggleLabel + '</button></div>' + rows;
             var html = createSectionHtml('mcp-findings', 'MCP Findings (' + findings.length + ')', body, true);
-            if ($existing.length) { $existing.replaceWith(html); } else { $('[data-section-id]').last().after(html); }
+            $anchor.html(html);
             if (window.simplemdmBindWheelScroll) {
                 $('#simplemdm-section-mcp-findings .simplemdm-finding-data').each(function() {
                     window.simplemdmBindWheelScroll(this);

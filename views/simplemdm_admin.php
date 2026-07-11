@@ -893,6 +893,11 @@ foreach ($required_simplemdm_widgets as $id => $label) {
                             <input type="number" min="1" step="1" class="form-control" id="mcp_findings_event_warning_threshold" name="mcp_findings_event_warning_threshold" placeholder="1">
                             <p class="help-block">Minimum active warning-severity finding count (fleet-wide) before the summary event escalates to "warning". Values below 1 are clamped up to 1.</p>
                         </div>
+                        <div class="form-group">
+                            <label for="mcp_findings_retention_days">Retention Days</label>
+                            <input type="number" min="0" step="1" class="form-control" id="mcp_findings_retention_days" name="mcp_findings_retention_days" placeholder="0">
+                            <p class="help-block">Days to keep resolved/ignored/suppressed findings after they were last seen; older ones are deleted during ingest. Open, acknowledged, and in-progress findings are never deleted. 0 keeps everything forever.</p>
+                        </div>
                         <button type="submit" class="btn btn-primary">Save MCP Findings Settings</button>
                         <span id="mcpfindings-save-status" style="margin-left: 10px;"></span>
                     </form>
@@ -1866,6 +1871,7 @@ $(document).on('appReady', function() {
         $('#mcp_findings_auto_resolve').prop('checked', String(data.mcp_findings_auto_resolve || '1') === '1');
         $('#mcp_findings_event_enabled').prop('checked', String(data.mcp_findings_event_enabled || '0') === '1');
         $('#mcp_findings_event_warning_threshold').val(pickValue(data.mcp_findings_event_warning_threshold, '1'));
+        $('#mcp_findings_retention_days').val(pickValue(data.mcp_findings_retention_days, '0'));
         $('#client_reporter_hmac_enabled').prop('checked', String(data.client_reporter_hmac_enabled || '0') === '1');
         $('#client_reporter_replay_protection_enabled').prop('checked', String(data.client_reporter_replay_protection_enabled || '0') === '1');
         $('#client_reporter_per_device_tokens_enabled').prop('checked', String(data.client_reporter_per_device_tokens_enabled || '0') === '1');
@@ -2881,7 +2887,8 @@ $(document).on('appReady', function() {
             mcp_findings_metadata_max_bytes: String($('#mcp_findings_metadata_max_bytes').val() || '65536'),
             mcp_findings_auto_resolve: $('#mcp_findings_auto_resolve').is(':checked') ? '1' : '0',
             mcp_findings_event_enabled: $('#mcp_findings_event_enabled').is(':checked') ? '1' : '0',
-            mcp_findings_event_warning_threshold: String($('#mcp_findings_event_warning_threshold').val() || '1')
+            mcp_findings_event_warning_threshold: String($('#mcp_findings_event_warning_threshold').val() || '1'),
+            mcp_findings_retention_days: String($('#mcp_findings_retention_days').val() || '0')
         };
 
         $.post(appUrl + '/module/simplemdm/save_config', payload, function(data) {

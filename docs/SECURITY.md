@@ -18,7 +18,9 @@ The module has six primary write paths:
    enabled, pushes after eligible tool calls, not just when a human runs a push).
    `replace: true` auto-resolve is scoped to the pushing `source` namespace, so a
    misbehaving or compromised publisher can only mass-resolve findings in its own
-   namespace, never another source's.
+   namespace, never another source's. As of 2026-07-11, the four admin-action routes also
+   accept a global-admin session, so the module's own device page and findings list page
+   can drive the lifecycle without exposing the sync token to the browser.
 
 Most read/report/listing routes require a normal authenticated MunkiReport session.
 A narrow allowlist of read-only module data routes also accepts the sync token header
@@ -37,7 +39,7 @@ for headless clients.
 | `index?op=webhook` | Webhook secret OR sync auth | `X-SIMPLEMDM-WEBHOOK-SECRET` or `X-SIMPLEMDM-API-KEY` |
 | `index?op=ingest_client_facts` | Client reporter secret | `X-SIMPLEMDM-CLIENT-SECRET` |
 | `index?op=ingest_mcp_findings` | Sync auth required | `X-SIMPLEMDM-API-KEY` |
-| `index?op=acknowledge/resolve/ignore/suppress_mcp_finding` | Sync auth required | `X-SIMPLEMDM-API-KEY` |
+| `index?op=acknowledge/resolve/ignore/suppress_mcp_finding` | Sync auth OR global-admin session | `X-SIMPLEMDM-API-KEY` or session auth |
 | Token-readable module data routes | Session auth OR sync auth | Session auth or `X-SIMPLEMDM-API-KEY` |
 | `save_config` | Global admin only | Session auth |
 | `request_sync` | Global admin session | Session auth |

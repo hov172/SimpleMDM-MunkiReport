@@ -6929,7 +6929,12 @@ class Simplemdm_controller extends Module_controller
     private function applyFindingStatusAction($targetStatus)
     {
         $this->connectDB();
-        if (! $this->is_valid_sync_token()) {
+        // Sync token (the MCP publisher) OR a global-admin session (browser
+        // UIs: device page, findings list page). Widening to admin session is
+        // strictly additive; unlike the old save_config bug this cannot
+        // let a lesser session skip a scope check -- authorized('global')
+        // IS the scope check.
+        if (! $this->is_valid_sync_token() && ! $this->authorized('global')) {
             jsonView(['status' => 'error', 'message' => 'Unauthorized'], 401);
             return;
         }

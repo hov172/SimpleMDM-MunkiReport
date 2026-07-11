@@ -976,7 +976,7 @@ Four routes to manually change a finding's `status` outside of the automatic ing
 
 ### Authentication
 
-Same sync-token model as `ingest_mcp_findings` and `get_mcp_findings`: `X-SIMPLEMDM-API-KEY: <sync-token>` header, validated via the module's existing `is_valid_sync_token()` check. No new auth mechanism.
+Same sync-token model as ingest_mcp_findings (X-SIMPLEMDM-API-KEY header), or a global-admin MunkiReport session. Browser UIs use the session path; the sync token is never exposed to page JavaScript.
 
 ### Routes
 

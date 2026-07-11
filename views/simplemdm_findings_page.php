@@ -21,6 +21,28 @@
     color: var(--simplemdm-muted);
     opacity: 1;
 }
+#simplemdm-findings-page .simplemdm-status-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+#simplemdm-findings-page .simplemdm-status-chip {
+    border: 1px solid var(--simplemdm-border);
+    background: var(--simplemdm-surface);
+    color: var(--simplemdm-muted);
+    border-radius: 999px;
+    padding: 3px 12px;
+    font-size: 12px;
+    line-height: 1.5;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+#simplemdm-findings-page .simplemdm-status-chip:hover {
+    border-color: var(--simplemdm-hover-border);
+    color: var(--simplemdm-ink);
+}
+#simplemdm-findings-page .simplemdm-status-chip.active {
+    background: var(--simplemdm-accent-soft);
+    border-color: var(--simplemdm-accent-strong);
+    color: var(--simplemdm-accent-strong);
+    font-weight: 700;
+}
 #simplemdm-findings-page table { width: 100%; }
 #simplemdm-findings-page td, #simplemdm-findings-page th { padding: 6px 8px; border-bottom: 1px solid var(--simplemdm-border); vertical-align: top; }
 #simplemdm-findings-page .simplemdm-findings-pager { margin: 12px 0; display: flex; gap: 8px; align-items: center; }
@@ -30,10 +52,14 @@
         <h3><i class="fa fa-flag"></i> MCP Findings</h3>
         <div id="simplemdm-findings-page" data-admin="<?php echo !empty($is_global_admin) ? '1' : '0'; ?>">
             <div class="simplemdm-findings-toolbar">
-                <select id="f-status" multiple size="3">
-                    <option value="open" selected>open</option><option value="acknowledged" selected>acknowledged</option><option value="in_progress" selected>in_progress</option>
-                    <option value="resolved">resolved</option><option value="ignored">ignored</option><option value="suppressed">suppressed</option>
-                </select>
+                <div id="f-status" class="simplemdm-status-chips" role="group" aria-label="Status filter">
+                    <button type="button" class="simplemdm-status-chip active" data-status="open">open</button>
+                    <button type="button" class="simplemdm-status-chip active" data-status="acknowledged">acknowledged</button>
+                    <button type="button" class="simplemdm-status-chip active" data-status="in_progress">in_progress</button>
+                    <button type="button" class="simplemdm-status-chip" data-status="resolved">resolved</button>
+                    <button type="button" class="simplemdm-status-chip" data-status="ignored">ignored</button>
+                    <button type="button" class="simplemdm-status-chip" data-status="suppressed">suppressed</button>
+                </div>
                 <select id="f-severity"><option value="">any severity</option><option>danger</option><option>warning</option><option>info</option></select>
                 <select id="f-category"><option value="">any category</option></select>
                 <select id="f-source"><option value="">any source</option></select>
@@ -70,7 +96,9 @@ $(document).on('appReady', function() {
     function esc(v) { return $('<div>').text(String(v === null || v === undefined ? '' : v)).html(); }
 
     function currentFilters() {
-        var statuses = ($('#f-status').val() || []).join(',');
+        var statuses = $('#f-status .simplemdm-status-chip.active').map(function() {
+            return $(this).attr('data-status');
+        }).get().join(',');
         return {
             status: statuses, severity: $('#f-severity').val() || '',
             category: $('#f-category').val() || '', source: $('#f-source').val() || '',
@@ -88,7 +116,12 @@ $(document).on('appReady', function() {
         var p = new URLSearchParams(window.location.search);
         ['severity', 'category', 'source'].forEach(function(k) { if (p.get(k)) { $('#f-' + (k === 'severity' ? 'severity' : k)).val(p.get(k)); } });
         if (p.get('finding_type')) { $('#f-type').val(p.get('finding_type')); }
-        if (p.get('status')) { $('#f-status').val(p.get('status').split(',')); }
+        if (p.get('status')) {
+            var wanted = p.get('status').split(',');
+            $('#f-status .simplemdm-status-chip').each(function() {
+                $(this).toggleClass('active', wanted.indexOf($(this).attr('data-status')) !== -1);
+            });
+        }
     })();
 
     // Filter dropdown options from stats.
@@ -145,6 +178,9 @@ $(document).on('appReady', function() {
         $('#f-selcount').text(n + ' selected');
     }
 
+    $('#f-status').on('click', '.simplemdm-status-chip', function() {
+        $(this).toggleClass('active');
+    });
     $('#f-apply').on('click', function() { offset = 0; load(); });
     $('#f-prev').on('click', function() { offset = Math.max(0, offset - pageSize); load(); });
     $('#f-next').on('click', function() { offset += pageSize; load(); });

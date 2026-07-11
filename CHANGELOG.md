@@ -11,6 +11,9 @@ or route changes without a deprecation period.
 ### Fixed
 - Findings browser page: the filter controls (status multi-select, severity/category/source dropdowns, finding-type input) were unstyled native form elements — in dark mode they rendered as light UA-default boxes with washed-out text. They now use the module's theme variables (same pipeline as the admin page's `.form-control` styling), following the host MunkiReport theme in both light and dark modes.
 
+### Changed
+- Findings browser page: the status filter is now a row of toggleable pill chips (one per lifecycle status, defaults `open`/`acknowledged`/`in_progress` active) instead of a cmd-click `size=3` multi-select box. Same filter semantics, `?status=` deep links seed the chips identically, and the chips use the theme variables so they match both light and dark modes.
+
 ---
 
 ## [1.3.1] — 2026-07-11

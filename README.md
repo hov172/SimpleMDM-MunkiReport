@@ -166,6 +166,10 @@ Steps in the app:
    that can use either source (OS Versions, Assignment Groups, Resource Types) show a
    "via MunkiReport" caption when module data is feeding them.
 
+   On app builds 9 (v1.7.1) and later, the MCP Findings and Findings Timeline
+   cards open a full in-app findings list grouped by finding type, and Top
+   Devices rows open the matching device's detail view.
+
 The app reads the token-readable module routes it needs for dashboards and device detail;
 it never calls write or admin routes. Use HTTPS so the key is not sent in the clear.
 

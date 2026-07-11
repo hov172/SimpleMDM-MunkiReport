@@ -113,7 +113,7 @@ Conflict guidance:
 ### Device Detail Page (`module/simplemdm/device/{serial}`)
 
 - What:
-  - Single-device operational page with overview, attributes, relationships, connected resources, synced subresources, and action runner.
+  - Single-device operational page with overview, attributes, relationships, connected resources, synced subresources, MCP findings section with admin lifecycle controls, and action runner.
 - Why:
   - Primary page for device-level troubleshooting and targeted operations.
 - How:

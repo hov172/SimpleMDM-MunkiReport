@@ -239,6 +239,27 @@
         width: 160px;
     }
 }
+
+.simplemdm-kv-row {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--simplemdm-border);
+}
+
+.simplemdm-kv-row:last-child {
+    border-bottom: none;
+}
+
+.simplemdm-finding-data {
+    max-height: 160px;
+    overflow-y: auto;
+    font-size: 11px;
+    margin: 4px 0 0;
+}
+
+.simplemdm-finding-actions {
+    display: block;
+    margin-top: 4px;
+}
 </style>
 
 <div class="col-lg-12 simplemdm-device-wrap">
@@ -816,6 +837,84 @@ $(document).on('appReady', function() {
             );
         });
     }
+
+    function simplemdmRenderDeviceFindings(includeClosed) {
+        var statuses = includeClosed
+            ? 'open,acknowledged,in_progress,resolved,ignored,suppressed'
+            : 'open,acknowledged,in_progress';
+        $.getJSON(window.simplemdmModuleUrl('get_mcp_findings') + '/' + encodeURIComponent(serial) + '?limit=200&status=' + statuses, function(data) {
+            var findings = (data && data.findings) ? data.findings : [];
+            var $existing = $('[data-section-id="mcp-findings"]');
+            if (!findings.length && !includeClosed) {
+                $existing.remove();
+                return; // PRD 14.2: section only appears when findings exist
+            }
+            var rows = findings.map(function(f) {
+                var sev = String(f.severity || 'info').toLowerCase();
+                if (sev !== 'danger' && sev !== 'warning') { sev = 'info'; }
+                var meta = [
+                    'first seen ' + esc(String(f.first_seen_at || '').slice(0, 10)),
+                    'last seen ' + esc(String(f.last_seen_at || '').slice(0, 10)),
+                    'seen ' + esc(f.occurrence_count || 1) + 'x'
+                ];
+                if (f.resolved_at) { meta.push('resolved ' + esc(String(f.resolved_at).slice(0, 10))); }
+                var actions = '';
+                if (window.simplemdmIsGlobalAdmin && f.status !== 'resolved') {
+                    actions = '<span class="simplemdm-finding-actions">' +
+                        ['acknowledge', 'resolve', 'ignore', 'suppress'].map(function(a) {
+                            return '<button type="button" class="btn btn-xs btn-default" data-finding-action="' + a + '" data-finding-id="' + Number(f.id) + '">' + a + '</button>';
+                        }).join(' ') + '</span>';
+                }
+                // f.data may come back as a nested JSON object rather than a
+                // string; JSON.stringify keeps the disclosure readable instead
+                // of rendering "[object Object]".
+                var dataText = (f.data && typeof f.data === 'object') ? JSON.stringify(f.data, null, 2) : String(f.data || '');
+                var dataBlock = f.data
+                    ? '<details><summary class="text-muted">details</summary><pre class="simplemdm-finding-data">' + esc(dataText) + '</pre></details>'
+                    : '';
+                return '<div class="simplemdm-kv-row" data-finding-row="' + Number(f.id) + '">' +
+                    '<span class="badge alert-' + sev + '">' + esc(sev) + '</span> ' +
+                    '<span class="badge">' + esc(f.status || 'open') + '</span> ' +
+                    '<strong>' + esc(f.finding_type || '-') + '</strong>' +
+                    (f.category ? ' <span class="text-muted">[' + esc(f.category) + ']</span>' : '') +
+                    '<div>' + esc(f.message || '') + '</div>' +
+                    '<div class="text-muted" style="font-size:11px">' + esc(f.source || '') + ' &middot; ' + meta.join(' &middot; ') + '</div>' +
+                    dataBlock + actions +
+                '</div>';
+            }).join('');
+            var toggleLabel = includeClosed ? 'Hide resolved/ignored' : 'Show resolved/ignored';
+            var body = '<div><button type="button" class="btn btn-xs btn-default" id="simplemdm-findings-closed-toggle" data-include-closed="' + (includeClosed ? '1' : '0') + '">' + toggleLabel + '</button></div>' + rows;
+            var html = createSectionHtml('mcp-findings', 'MCP Findings (' + findings.length + ')', body, true);
+            if ($existing.length) { $existing.replaceWith(html); } else { $('[data-section-id]').last().after(html); }
+            if (window.simplemdmBindWheelScroll) {
+                $('#simplemdm-section-mcp-findings .simplemdm-finding-data').each(function() {
+                    window.simplemdmBindWheelScroll(this);
+                });
+            }
+        });
+    }
+    simplemdmRenderDeviceFindings(false);
+
+    $(document).on('click', '#simplemdm-findings-closed-toggle', function() {
+        simplemdmRenderDeviceFindings($(this).attr('data-include-closed') !== '1');
+    });
+
+    $(document).on('click', '[data-finding-action]', function() {
+        var action = String($(this).attr('data-finding-action'));
+        var id = Number($(this).attr('data-finding-id'));
+        if (['acknowledge', 'resolve', 'ignore', 'suppress'].indexOf(action) === -1 || !id) { return; }
+        var $btn = $(this).prop('disabled', true);
+        $.ajax({
+            url: window.simplemdmModuleUrl(action + '_mcp_finding'),
+            method: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ id: id })
+        }).done(function() {
+            var closed = $('#simplemdm-findings-closed-toggle').attr('data-include-closed') === '1';
+            simplemdmRenderDeviceFindings(closed);
+        }).fail(function() {
+            $btn.prop('disabled', false).text(action + ' failed');
+        });
+    });
 
     $(document).on('click', '[data-section-toggle]', function() {
         var sectionId = String($(this).attr('data-section-toggle') || '');

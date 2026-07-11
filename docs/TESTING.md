@@ -379,6 +379,7 @@ When changing views/assets:
    - synced device subresources
    - supplemental sections
    - client reporter section
+   - MCP findings section (badges, disclosure, admin actions, hidden when empty)
    - actions panel
 
 Useful visual references:

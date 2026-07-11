@@ -3107,6 +3107,10 @@ function resizeChartsForMode(mode) {
             e.preventDefault();
         }, { passive: false });
     }
+    /* Exposed so views that render their own scrollable containers
+       dynamically (e.g. the device page's MCP findings disclosure)
+       can opt in without duplicating the Safari wheel-scroll fix. */
+    window.simplemdmBindWheelScroll = bindWheelScroll;
     function bindKnownScrollers() {
         bindWheelScroll(document.getElementById('simplemdm-mcp-findings-groups'));
         var tableScroll = document.querySelector('#simplemdm-devices-table-widget .simplemdm-devices-table-scroll');

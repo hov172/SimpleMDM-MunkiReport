@@ -3723,6 +3723,9 @@ class Simplemdm_controller extends Module_controller
         if (! isset($config['mcp_findings_event_warning_threshold'])) {
             $config['mcp_findings_event_warning_threshold'] = '1';
         }
+        if (! isset($config['mcp_findings_retention_days'])) {
+            $config['mcp_findings_retention_days'] = '0';
+        }
 
         $run_state = $this->derive_sync_state_from_runs();
         foreach ($run_state as $key => $value) {
@@ -3830,6 +3833,7 @@ class Simplemdm_controller extends Module_controller
             'mcp_findings_auto_resolve',
             'mcp_findings_event_enabled',
             'mcp_findings_event_warning_threshold',
+            'mcp_findings_retention_days',
         ];
         foreach ($config_keys as $key) {
             if (array_key_exists($key, $post)) {
@@ -3918,6 +3922,9 @@ class Simplemdm_controller extends Module_controller
                     $value = (string) $v;
                 } elseif ($key === 'mcp_findings_event_warning_threshold') {
                     $v = max(1, (int) $value);
+                    $value = (string) $v;
+                } elseif ($key === 'mcp_findings_retention_days') {
+                    $v = max(0, (int) $value);
                     $value = (string) $v;
                 } elseif ($key === 'client_reporter_max_time_skew_seconds') {
                     $v = (int) $value;
@@ -6662,6 +6669,15 @@ class Simplemdm_controller extends Module_controller
             ]);
         }
 
+        $purged = 0;
+        try {
+            $retentionDays = (int) $this->get_config_value('mcp_findings_retention_days', '0');
+            $purged = Simplemdm_mcp_finding_model::purgeExpired($retentionDays, $now);
+        } catch (\Throwable $e) {
+            // Silently fail - retention purge is best-effort and must never
+            // fail an ingest.
+        }
+
         try {
             $this->sync_mcp_findings_summary_event();
         } catch (\Throwable $e) {
@@ -6677,6 +6693,7 @@ class Simplemdm_controller extends Module_controller
             'updated'  => $updated,
             'reopened' => $reopened,
             'resolved' => $resolved,
+            'purged'   => $purged,
             'skipped'  => $skipped,
             'replace'  => $replace,
         ]);

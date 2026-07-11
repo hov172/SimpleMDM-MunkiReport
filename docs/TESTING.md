@@ -627,14 +627,20 @@ for full request/response shapes.
 
 1. Open `Admin -> SimpleMDM Settings` and confirm the "MCP Findings Settings"
    panel shows `mcp_findings_enabled`, `mcp_findings_metadata_max_bytes`,
-   `mcp_findings_auto_resolve`, `mcp_findings_event_enabled`, and
-   `mcp_findings_event_warning_threshold`.
+   `mcp_findings_auto_resolve`, `mcp_findings_event_enabled`,
+   `mcp_findings_event_warning_threshold`, and `mcp_findings_retention_days`
+   (labeled "Retention Days").
 2. Save a `mcp_findings_metadata_max_bytes` value below 1024 and confirm it is
    clamped up to the 1024-byte floor rather than saved as-is.
 3. Save a `mcp_findings_event_warning_threshold` value below 1 (e.g. `0` or a
    negative number) and confirm it is clamped up to `1` rather than saved
    as-is.
-4. Confirm these settings save/read through the normal `save_config`/
+4. Retention Days: enter `-5`, save, reload — field shows `0` (server
+   clamps). Set `1`, push a finding, backdate it to `status='resolved'`
+   with `last_seen_at` 2+ days old (see the PDO one-liner in the retention
+   plan), push again from the same source — the ingest response reports
+   `"purged": 1` and the row is gone. Reset to `0` afterwards.
+5. Confirm these settings save/read through the normal `save_config`/
    `get_config` routes — `save_config` requires a global-admin session (see
    Section 7 and `docs/SECURITY.md`).
 

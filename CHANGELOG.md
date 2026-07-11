@@ -7,6 +7,12 @@ or route changes without a deprecation period.
 
 ---
 
+## [Unreleased]
+### Added
+- `mcp_findings_retention_days` admin setting (default 0 = keep forever): when set, `ingest_mcp_findings` lazily hard-deletes resolved/ignored/suppressed findings not seen within the window and reports the count as `purged` in its response. Open, acknowledged, and in-progress findings are never deleted; suppressed findings that still occur keep a fresh last-seen timestamp and are never purged, so retention cannot undo an active suppression.
+
+---
+
 ## [1.3.2] — 2026-07-11
 ### Fixed
 - Findings browser page: the filter controls (status multi-select, severity/category/source dropdowns, finding-type input) were unstyled native form elements — in dark mode they rendered as light UA-default boxes with washed-out text. They now use the module's theme variables (same pipeline as the admin page's `.form-control` styling), following the host MunkiReport theme in both light and dark modes.

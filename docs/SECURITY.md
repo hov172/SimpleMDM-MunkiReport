@@ -26,7 +26,9 @@ The module has six primary write paths:
    `mcp_findings_event_enabled` setting, which is **off by default** (existing installs'
    Events UI does not change without explicit opt-in), and when on, the write is confined
    to a single module key, `simplemdm_mcp_findings_summary` — it never writes to any
-   built-in or custom `simplemdm_*` event key.
+   built-in or custom `simplemdm_*` event key. `mcp_findings_retention_days` is the
+   data-minimization control for stored finding history: non-active findings are
+   hard-deleted once unseen for the configured window (0 = keep forever).
 
 Most read/report/listing routes require a normal authenticated MunkiReport session.
 A narrow allowlist of read-only module data routes also accepts the sync token header

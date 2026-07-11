@@ -808,7 +808,7 @@ Common error payloads:
 
 **Purpose**: Upsert MCP-computed findings into the `simplemdm_mcp_finding` table by a deterministic `(source, serial_number, finding_type, category)` fingerprint.
 
-**Endpoint**: `POST /index.php?/module/simplemdm/index?op=ingest_mcp_findings`
+**Endpoint**: `POST /index.php?/module/simplemdm/ingest_mcp_findings`
 
 **Auth**: Sync token header (`X-SIMPLEMDM-API-KEY`)
 
@@ -875,6 +875,7 @@ Common error payloads:
   "updated": 20,
   "reopened": 2,
   "resolved": 8,
+  "purged": 0,
   "skipped": 2,
   "replace": true
 }
@@ -887,6 +888,7 @@ Common error payloads:
 - `updated`: existing open findings updated (occurrence_count incremented, last_seen_at updated)
 - `reopened`: previously-resolved findings that reappeared (status transitioned from `resolved` back to `open`)
 - `resolved`: findings auto-resolved because they were absent from a `replace=true` push
+- `purged`: number of non-active findings deleted by the retention purge during this ingest (`0` when `mcp_findings_retention_days` is `0`)
 - `skipped`: findings rejected due to basic validation failures only — a non-array finding entry, or a missing/empty `finding_type` or `message`. There is no intra-push dedup guard: if the same fingerprint appears more than once in a single push, the first occurrence is inserted/updated and each subsequent occurrence upserts the same row again (incrementing `occurrence_count` further), counting toward `updated`/`reopened` rather than `skipped`.
 - `replace`: the replace mode used for this push
 
@@ -1007,7 +1009,7 @@ Manual status changes via these admin routes interact with the automatic ingest 
 
 ### Admin settings
 
-Five settings control MCP findings behavior, managed via the module's `save_config`/`get_config` routes (same mechanism as all other module settings) or the "MCP Findings Settings" panel in the admin UI:
+Six settings control MCP findings behavior, managed via the module's `save_config`/`get_config` routes (same mechanism as all other module settings) or the "MCP Findings Settings" panel in the admin UI:
 
 | Setting | Default | Effect |
 |---|---|---|
@@ -1016,6 +1018,7 @@ Five settings control MCP findings behavior, managed via the module's `save_conf
 | `mcp_findings_auto_resolve` | `1` | Global kill-switch on `ingest_mcp_findings`' complete-scan auto-resolve sweep. When `0`, the sweep never runs — even if the request sends `replace: true` — overriding the per-request flag. When `1` (default), the existing `replace`-flag-driven behavior is unchanged. |
 | `mcp_findings_event_enabled` | `0` | Off by default so existing installs' Events UI is unchanged without opt-in. When `1`, `ingest_mcp_findings` and the four admin action routes upsert/clear a single deduplicated fleet findings summary event under module key `simplemdm_mcp_findings_summary` (PRD section 13), anchored to the worst-affected device (see design note below). |
 | `mcp_findings_event_warning_threshold` | `1` | Minimum fleet-wide active warning-severity finding count before the summary event escalates from `info` to `warning`. Has a minimum floor of 1 — any value saved below 1 is clamped up to 1 (`max(1, (int) $value)`), mirroring the `mcp_findings_metadata_max_bytes` floor pattern. |
+| `mcp_findings_retention_days` | `0` | Days to keep resolved/ignored/suppressed findings after they were last seen; ingest deletes older ones. Active (open/acknowledged/in_progress) findings are never deleted. `0` retains indefinitely. Negative values are clamped to `0`. |
 
 **Fleet findings summary event design note (PRD deviation, documented):** MunkiReport events are machine-scoped — the Events UI joins `event` to `machine`/`reportdata` by serial, so a fleet-level row with no serial would never render (see `docs/TESTING.md` "Important UI note"). The summary event is therefore anchored to the *worst* device: highest danger count, then warning count, then total active findings, then lowest serial number for determinism. Clicking the event thus leads to a device page with real findings. The previous anchor's row is always deleted first and only re-written if a summary still applies, so the anchor moves cleanly when the worst device changes between scans, and the row disappears entirely once no active findings meet `Simplemdm_mcp_finding_model::summarizeFindingsForEvent()`'s criteria. The event's `data` payload is the raw fleet severity counts JSON (`{"danger":N,"warning":N,"info":N}`); its `type`/`msg` come verbatim from `summarizeFindingsForEvent()` — see `simplemdm_mcp_finding_model.php` for the exact message strings.
 

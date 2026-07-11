@@ -190,7 +190,10 @@ Conflict guidance:
     Findings Settings" admin panel): `mcp_findings_enabled` (kill switch for
     ingest/read/admin-action routes), `mcp_findings_metadata_max_bytes`
     (default 65536, 1024-byte floor), `mcp_findings_auto_resolve` (global
-    override for the per-request `replace` auto-resolve behavior).
+    override for the per-request `replace` auto-resolve behavior),
+    `mcp_findings_retention_days` — lazy purge window for non-active
+    findings, enforced at the end of `ingest_mcp_findings` via
+    `Simplemdm_mcp_finding_model::purgeExpired()`; 0 disables.
   - Dashboard widget (`views/simplemdm_mcp_findings_widget.php`) groups
     findings by `category` into collapsible sections (danger-severity groups
     expand by default), sub-grouped by `finding_type` inside each category

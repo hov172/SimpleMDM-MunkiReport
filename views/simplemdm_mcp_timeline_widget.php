@@ -38,9 +38,9 @@ $(document).on('appReady', function(e, lang) {
 
         var series = [
             { key: 'New', color: palette.warning || '#e6a23c',
-              values: data.labels.map(function(d, i) { return { x: i, y: data['new'][i] }; }) },
+              values: data.labels.map(function(d, i) { return { x: i, y: Number(newCounts[i] || 0) }; }) },
             { key: 'Resolved', color: palette.positive || '#2f9e44',
-              values: data.labels.map(function(d, i) { return { x: i, y: data.resolved[i] }; }) }
+              values: data.labels.map(function(d, i) { return { x: i, y: Number(resolvedCounts[i] || 0) }; }) }
         ];
 
         nv.addGraph(function() {

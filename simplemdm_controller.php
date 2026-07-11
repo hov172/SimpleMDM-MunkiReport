@@ -6662,7 +6662,11 @@ class Simplemdm_controller extends Module_controller
             ]);
         }
 
-        $this->sync_mcp_findings_summary_event();
+        try {
+            $this->sync_mcp_findings_summary_event();
+        } catch (\Throwable $e) {
+            // Silently fail - summary event is best-effort
+        }
 
         jsonView([
             'status'   => 'success',
@@ -7078,7 +7082,11 @@ class Simplemdm_controller extends Module_controller
             $updated = Simplemdm_mcp_finding_model::whereIn('id', $existingIds)->update($update);
         }
 
-        $this->sync_mcp_findings_summary_event();
+        try {
+            $this->sync_mcp_findings_summary_event();
+        } catch (\Throwable $e) {
+            // Silently fail - summary event is best-effort
+        }
 
         jsonView([
             'status'    => 'success',

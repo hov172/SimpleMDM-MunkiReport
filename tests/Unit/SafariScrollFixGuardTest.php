@@ -108,6 +108,29 @@ final class SafariScrollFixGuardTest extends TestCase
         );
     }
 
+    public function testCollapsibleWidgetsBindTheirOwnScrollers(): void
+    {
+        // The group and resource-types widgets manage their own collapsed
+        // sub-scrollers via jQuery .css(overflowY: 'auto') — they are on
+        // markScrollableSimplemdmLists()'s exclusion list precisely because
+        // of that, so the central auto-binding never reaches them. Each must
+        // bind its scroll body itself or Safari users get no wheel scrolling
+        // and uncorrected elastic bounce in those widgets.
+        foreach (
+            [
+                'simplemdm_group_widget.php',
+                'simplemdm_resource_types_widget.php',
+            ] as $view
+        ) {
+            $src = (string) file_get_contents(__DIR__ . '/../../views/' . $view);
+            $this->assertStringContainsString(
+                'window.simplemdmBindWheelScroll(',
+                $src,
+                $view . ' no longer binds its collapsed sub-scroller — Safari scrolling breaks in that widget (see DEVELOPER_GUIDE Safari postmortems).'
+            );
+        }
+    }
+
     public function testResizeLoopGatePresent(): void
     {
         // Synthetic-resize feedback loop fix: applyLayoutMode must never

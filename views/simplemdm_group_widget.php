@@ -95,6 +95,13 @@ $(document).on('appReady', function(e, lang) {
             overflowX: 'hidden',
             display: 'block'
         });
+        if (window.simplemdmBindWheelScroll) {
+            // Collapsed state makes this a Safari sub-scroller: it needs the
+            // shared wheel + elastic-bounce-clamp fix (see the Safari
+            // postmortems in docs/DEVELOPER_GUIDE.md). Idempotent; the handler
+            // no-ops while the body is expanded (no overflow).
+            window.simplemdmBindWheelScroll(listBody[0]);
+        }
         listGroup.css({
             maxHeight: 'none',
             overflowY: 'visible',

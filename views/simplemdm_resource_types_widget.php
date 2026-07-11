@@ -137,6 +137,13 @@ $(document).on('appReady', function() {
             overflowX: 'hidden',
             display: 'block'
         });
+        if (window.simplemdmBindWheelScroll) {
+            // Collapsed state makes this a Safari sub-scroller: it needs the
+            // shared wheel + elastic-bounce-clamp fix (see the Safari
+            // postmortems in docs/DEVELOPER_GUIDE.md). Idempotent; the handler
+            // no-ops while the body is expanded (no overflow).
+            window.simplemdmBindWheelScroll(body[0]);
+        }
         cards.css({
             maxHeight: 'none',
             overflowY: 'visible',

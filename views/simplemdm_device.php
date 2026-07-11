@@ -384,6 +384,7 @@
 </div>
 
 <script>
+window.simplemdmIsGlobalAdmin = <?php echo !empty($is_global_admin) ? 'true' : 'false'; ?>;
 $(document).on('appReady', function() {
     $('body').attr('data-simplemdm-disable-dashboard-grid', '1');
     var serial = $('#simplemdm-serial').text().trim();

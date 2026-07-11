@@ -3595,7 +3595,10 @@ class Simplemdm_controller extends Module_controller
     public function device($serial_number = '')
     {
         $obj = new View();
-        $obj->view('simplemdm_device', ['serial_number' => $serial_number], $this->module_path . '/views/');
+        $obj->view('simplemdm_device', [
+            'serial_number'   => $serial_number,
+            'is_global_admin' => (bool) $this->authorized('global'),
+        ], $this->module_path . '/views/');
     }
 
     /**

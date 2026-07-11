@@ -154,6 +154,32 @@ final class SafariScrollFixGuardTest extends TestCase
         );
     }
 
+    public function testSyntheticResizeDispatchBudget(): void
+    {
+        // The Safari scroll-shake postmortem: a synthetic window resize
+        // dispatched from a code path that a resize listener re-schedules
+        // creates a permanent relayout feedback loop (~120x/sec) that shakes
+        // widgets in Safari. Exactly five dispatch sites are audited and safe:
+        // three collapse-toggle click fallbacks (group, resource-types,
+        // devices-table), group-apps' width-toggle (intentionally
+        // unconditional: NVD3 charts re-measure via resize listeners), and
+        // the gated dispatch in the widget assets layout engine. If you add
+        // one, prove it is user-event-triggered (one-shot) or gated like
+        // applyLayoutMode's, then update this budget with a comment.
+        $total = 0;
+        foreach (glob(__DIR__ . '/../../views/*.php') as $view) {
+            $total += substr_count(
+                (string) file_get_contents($view),
+                "dispatchEvent(new Event('resize'))"
+            );
+        }
+        $this->assertSame(
+            5,
+            $total,
+            'Synthetic window-resize dispatch count changed in views/ — a new dispatch in a resize-rescheduled path recreates the Safari shake loop (see DEVELOPER_GUIDE scroll-shake postmortem).'
+        );
+    }
+
     public function testNoNewOverscrollBehavior(): void
     {
         // overscroll-behavior: none on a sub-scroller freezes Safari wheel

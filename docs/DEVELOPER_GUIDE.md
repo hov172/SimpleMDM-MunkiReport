@@ -648,6 +648,11 @@ Primary file: `simplemdm_processor.php`
 - Legacy Processor class to upsert device rows from JSON payload
 - Useful as compatibility/fallback path
 - Main current operational sync path is script -> controller ingest endpoints
+- After each device ingest, the controller backfills the core `machine`
+  table's `machine_desc` from `simplemdm.model_name` for the ingested
+  serials — only where the current value is empty/NULL or a lookup-failure
+  sentinel (`model_lookup_failed`, `unknown_model`); best-effort, never
+  fails the ingest (`backfill_machine_desc_from_model_names`)
 
 ## 6) Database Model Map
 

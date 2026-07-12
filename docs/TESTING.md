@@ -638,8 +638,12 @@ for full request/response shapes.
 4. Retention Days: enter `-5`, save, reload — field shows `0` (server
    clamps). Set `1`, push a finding, backdate it to `status='resolved'`
    with `last_seen_at` 2+ days old (see the PDO one-liner in the retention
-   plan), push again from the same source — the ingest response reports
-   `"purged": 1` and the row is gone. Reset to `0` afterwards.
+   plan), then push a **different** finding (any other `finding_type`) from
+   the same source — the ingest response reports `"purged": 1` and the
+   backdated row is gone. (Re-pushing the *same* finding instead matches
+   its fingerprint in the upsert loop, which runs before the purge: the row
+   is reopened with a fresh last-seen and reports `"reopened": 1,
+   "purged": 0`.) Reset to `0` afterwards.
 5. Confirm these settings save/read through the normal `save_config`/
    `get_config` routes — `save_config` requires a global-admin session (see
    Section 7 and `docs/SECURITY.md`).

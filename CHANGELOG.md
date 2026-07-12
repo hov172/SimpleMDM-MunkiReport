@@ -10,6 +10,7 @@ or route changes without a deprecation period.
 ## [Unreleased]
 ### Added
 - `mcp_findings_retention_days` admin setting (default 0 = keep forever): when set, `ingest_mcp_findings` lazily hard-deletes resolved/ignored/suppressed findings not seen within the window and reports the count as `purged` in its response. Open, acknowledged, and in-progress findings are never deleted; suppressed findings that still occur keep a fresh last-seen timestamp and are never purged, so retention cannot undo an active suppression.
+- Device ingest now backfills the core `machine` table's `machine_desc` from SimpleMDM's `model_name` for the ingested serials — but only where the current value is empty or a lookup-failure sentinel (`model_lookup_failed`, `unknown_model`), since Apple retired the serial-lookup endpoint the core machine module used for model names. Manual entries and past successful lookups are never overwritten; backfill errors never fail the ingest. No core files are modified.
 
 ---
 

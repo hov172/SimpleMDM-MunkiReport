@@ -13,7 +13,7 @@
 - No behavior changes anywhere in this plan. Every extraction must produce byte-identical controller behavior to what exists today — proven by keeping the DB-backed tests' expectations matched against the *current* logic, not a "should be" logic.
 - Tests live in `local/modules/simplemdm/tests/` (the module's own directory), not the host app's `tests/` — confirmed by the user during brainstorming.
 - `phpunit/phpunit` is a `require-dev` of the module's own `composer.json`, with its own `vendor/` (gitignored — `vendor/` is already in `.gitignore`). Do NOT add it to the host app's `composer.json` — that file belongs to a different repo/concern and this plan must not touch it.
-- Tests are run via Docker (`docker compose run --rm munkireport ...` from the host repo root, `/Users/helpdesk/websites/munkireport-php`), never a bare `php`/`phpunit` binary — there is no PHP runtime outside the container in this environment.
+- Tests are run via Docker (`docker compose run --rm munkireport ...` from the host repo root, `<repo-root>`), never a bare `php`/`phpunit` binary — there is no PHP runtime outside the container in this environment.
 - No test may exercise the HTTP/controller layer, `mcp_findings_enabled()`/settings gating, or `export_mcp_findings`'s CSV output — those are explicitly Phase B, out of scope here (see spec `docs/superpowers/specs/2026-07-10-mcp-findings-php-test-coverage-design.md`).
 
 ---
@@ -136,7 +136,7 @@ final class McpFindingModelTest extends TestCase
 
 - [ ] **Step 5: Install and run**
 
-Run (from the host repo root, `/Users/helpdesk/websites/munkireport-php`):
+Run (from the host repo root, `<repo-root>`):
 
 ```
 docker compose run --rm munkireport bash -c "cd local/modules/simplemdm && composer install"

@@ -115,7 +115,8 @@ Notes:
   - `X-SIMPLEMDM-CLIENT-SECRET`.
 - Current trust model:
   - shared secret plus HTTPS, allowlisted fact keys, payload-size limits, and type validation.
-  - optional hardening can also require HMAC signing, replay protection, per-device tokens, and trusted-proxy/IP controls.
+  - optional hardening can also require HMAC signing (`client_reporter_hmac_enabled`), replay protection (`client_reporter_replay_protection_enabled`), per-device tokens (`client_reporter_per_device_tokens_enabled`), and trusted-proxy/IP controls (`client_reporter_proxy_only_enabled`, `client_reporter_ip_allowlist`, `client_reporter_trusted_proxy_ips`).
+  - `client_reporter_max_time_skew_seconds` controls the allowed time window for timestamp-based validation.
 - Boundary:
   - suitable for controlled supplemental reporting
   - stronger per-device assurance requires the optional token or future certificate-based paths

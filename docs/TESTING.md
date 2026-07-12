@@ -133,7 +133,7 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
 
 If the devices table widget fails after the supplemental-data migrations:
 - confirm the latest module migrations ran successfully
-- confirm the collation-repair migration [2026_03_16_000000_simplemdm_supplemental_collation_fix.php](/Users/jay/Developer/Github/GitHub/SimpleMDM/munkireport-php/local/modules/simplemdm/migrations/2026_03_16_000000_simplemdm_supplemental_collation_fix.php) has been applied
+- confirm the collation-repair migration [2026_03_16_000000_simplemdm_supplemental_collation_fix.php](../migrations/2026_03_16_000000_simplemdm_supplemental_collation_fix.php) has been applied
 - symptom: `/module/simplemdm/get_data` fails because new supplemental tables were created with a different collation than the existing `simplemdm` tables
 
 4. Schedule and one-off sync smoke test:

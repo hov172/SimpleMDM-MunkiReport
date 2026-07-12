@@ -160,7 +160,7 @@ Notes:
    - Confirm you are on a current module revision; older revisions could fail on assignment-group/OS-security widget queries in some environments.
 5. `SimpleMDM Devices Table` shows `Failed to load devices` after upgrading to the supplemental-data release:
    - Confirm the supplemental/client tables were migrated successfully.
-   - This release adds [2026_03_16_000000_simplemdm_supplemental_collation_fix.php](/Users/jay/Developer/Github/GitHub/SimpleMDM/munkireport-php/local/modules/simplemdm/migrations/2026_03_16_000000_simplemdm_supplemental_collation_fix.php) to normalize new supplemental tables to the same `utf8mb4_unicode_ci` collation used by existing `simplemdm` tables.
+   - This release adds [2026_03_16_000000_simplemdm_supplemental_collation_fix.php](../migrations/2026_03_16_000000_simplemdm_supplemental_collation_fix.php) to normalize new supplemental tables to the same `utf8mb4_unicode_ci` collation used by existing `simplemdm` tables.
    - Symptom: `/module/simplemdm/get_data` returns a DB collation error and the dashboard/report device table widget falls back to `Failed to load devices`.
    - Fix: run the latest module migrations, including the collation repair migration.
 6. `Sync Status -> Queue Next Worker Run` stays queued forever:

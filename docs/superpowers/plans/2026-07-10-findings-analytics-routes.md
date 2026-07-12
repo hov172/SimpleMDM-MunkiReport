@@ -135,7 +135,7 @@ Insert immediately after the closing `}` of `get_mcp_findings()` (currently line
 - [ ] **Step 3: Verify PHP syntax**
 
 ```bash
-docker compose -f /Users/helpdesk/websites/munkireport-php/docker-compose.yml exec munkireport php -l /var/munkireport/local/modules/simplemdm/simplemdm_controller.php
+docker compose -f <repo-root>/docker-compose.yml exec munkireport php -l /var/munkireport/local/modules/simplemdm/simplemdm_controller.php
 ```
 
 Expected: `No syntax errors detected`.
@@ -173,14 +173,14 @@ Expected: `200` (not `403`/`401` — confirms the `$token_read_actions` registra
 - [ ] **Step 6: Clean up test rows**
 
 ```bash
-sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite \
+sqlite3 <repo-root>/app/db/db.sqlite \
   "DELETE FROM simplemdm_mcp_finding WHERE source='stats_test';"
 ```
 
 - [ ] **Step 7: Commit**
 
 ```bash
-cd /Users/helpdesk/websites/munkireport-php
+cd <repo-root>
 git add local/modules/simplemdm/simplemdm_controller.php
 git commit -m "feat(simplemdm): add get_mcp_finding_stats route, register analytics routes for token auth"
 ```
@@ -314,7 +314,7 @@ Insert immediately after `get_mcp_finding_stats()`'s closing `}` (from Task 1) a
 - [ ] **Step 2: Verify PHP syntax**
 
 ```bash
-docker compose -f /Users/helpdesk/websites/munkireport-php/docker-compose.yml exec munkireport php -l /var/munkireport/local/modules/simplemdm/simplemdm_controller.php
+docker compose -f <repo-root>/docker-compose.yml exec munkireport php -l /var/munkireport/local/modules/simplemdm/simplemdm_controller.php
 ```
 
 Expected: `No syntax errors detected`.
@@ -365,7 +365,7 @@ Expected: HTTP 400, `{"status":"error","message":"format must be csv or json"}`.
 - [ ] **Step 6: Clean up test rows and temp file**
 
 ```bash
-sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite \
+sqlite3 <repo-root>/app/db/db.sqlite \
   "DELETE FROM simplemdm_mcp_finding WHERE source='export_test';"
 rm -f /tmp/export_test.csv
 ```
@@ -373,7 +373,7 @@ rm -f /tmp/export_test.csv
 - [ ] **Step 7: Commit**
 
 ```bash
-cd /Users/helpdesk/websites/munkireport-php
+cd <repo-root>
 git add local/modules/simplemdm/simplemdm_controller.php
 git commit -m "feat(simplemdm): add export_mcp_findings route (CSV/JSON bulk export)"
 ```
@@ -450,7 +450,7 @@ Insert immediately after `export_mcp_findings()`'s closing `}` (from Task 2) and
 - [ ] **Step 2: Verify PHP syntax**
 
 ```bash
-docker compose -f /Users/helpdesk/websites/munkireport-php/docker-compose.yml exec munkireport php -l /var/munkireport/local/modules/simplemdm/simplemdm_controller.php
+docker compose -f <repo-root>/docker-compose.yml exec munkireport php -l /var/munkireport/local/modules/simplemdm/simplemdm_controller.php
 ```
 
 Expected: `No syntax errors detected`.
@@ -494,14 +494,14 @@ Expected: `last_scan_id="scan_second"`, `counts.total=1` (`info=1`, `danger=0`, 
 - [ ] **Step 4: Clean up test rows**
 
 ```bash
-sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite \
+sqlite3 <repo-root>/app/db/db.sqlite \
   "DELETE FROM simplemdm_mcp_finding WHERE source='scan_status_test';"
 ```
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/helpdesk/websites/munkireport-php
+cd <repo-root>
 git add local/modules/simplemdm/simplemdm_controller.php
 git commit -m "feat(simplemdm): add get_mcp_scan_status route (per-source last-scan summary)"
 ```
@@ -545,7 +545,7 @@ Find the paragraph mentioning `get_mcp_findings`'/admin settings' token auth (se
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /Users/helpdesk/websites/munkireport-php
+cd <repo-root>
 git add local/modules/simplemdm/README.md local/modules/simplemdm/CHANGELOG.md local/modules/simplemdm/docs/API_REFERENCE.md
 git commit -m "docs(simplemdm): document findings analytics routes"
 ```

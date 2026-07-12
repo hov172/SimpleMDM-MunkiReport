@@ -85,7 +85,7 @@ class SimplemdmMcpFindingCategory extends Migration
 - [ ] **Step 2: Run the migration against the running dev container**
 
 ```bash
-docker compose -f /Users/helpdesk/websites/munkireport-php/docker-compose.yml exec munkireport php please migrate
+docker compose -f <repo-root>/docker-compose.yml exec munkireport php please migrate
 ```
 
 Expected: output lists `SimplemdmMcpFindingCategory` as migrated, no errors.
@@ -93,13 +93,13 @@ Expected: output lists `SimplemdmMcpFindingCategory` as migrated, no errors.
 - [ ] **Step 3: Verify schema and recomputed fingerprints directly against SQLite**
 
 ```bash
-sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite ".schema simplemdm_mcp_finding"
+sqlite3 <repo-root>/app/db/db.sqlite ".schema simplemdm_mcp_finding"
 ```
 
 Expected: schema output includes the new `category` column (nullable string).
 
 ```bash
-sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite \
+sqlite3 <repo-root>/app/db/db.sqlite \
   "SELECT id, source, serial_number, finding_type, category, fingerprint FROM simplemdm_mcp_finding LIMIT 5;"
 ```
 
@@ -108,7 +108,7 @@ Expected: `category` is `NULL`/empty for every existing row; `fingerprint` is a 
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /Users/helpdesk/websites/munkireport-php
+cd <repo-root>
 git add local/modules/simplemdm/migrations/2026_07_09_100000_simplemdm_mcp_finding_category.php
 git commit -m "feat(simplemdm): add category column, rescope fingerprint backfill"
 ```
@@ -176,7 +176,7 @@ Replace the `computeFingerprint` method and the `$fillable` array:
 - [ ] **Step 2: Smoke-check the fingerprint helper matches the Task 1 backfill formula when category is empty**
 
 ```bash
-docker compose -f /Users/helpdesk/websites/munkireport-php/docker-compose.yml exec munkireport php -r '
+docker compose -f <repo-root>/docker-compose.yml exec munkireport php -r '
 require "/var/munkireport/local/modules/simplemdm/simplemdm_mcp_finding_model.php";
 echo Simplemdm_mcp_finding_model::computeFingerprint("stale_devices", "C02EXAMPLE", "stale_device"), PHP_EOL;
 echo Simplemdm_mcp_finding_model::computeFingerprint("stale_devices", "C02EXAMPLE", "stale_device", ""), PHP_EOL;
@@ -189,7 +189,7 @@ Expected: the first two lines print the IDENTICAL 64-char hex string (default `$
 - [ ] **Step 3: Commit**
 
 ```bash
-cd /Users/helpdesk/websites/munkireport-php
+cd <repo-root>
 git add local/modules/simplemdm/simplemdm_mcp_finding_model.php
 git commit -m "feat(simplemdm): extend computeFingerprint with category dimension"
 ```
@@ -251,7 +251,7 @@ Note: unlike `severity`/`status`/`source`, do NOT lowercase the `category` filte
 - [ ] **Step 3: Verify PHP syntax**
 
 ```bash
-docker compose -f /Users/helpdesk/websites/munkireport-php/docker-compose.yml exec munkireport php -l /var/munkireport/local/modules/simplemdm/simplemdm_controller.php
+docker compose -f <repo-root>/docker-compose.yml exec munkireport php -l /var/munkireport/local/modules/simplemdm/simplemdm_controller.php
 ```
 
 Expected: `No syntax errors detected`.
@@ -276,7 +276,7 @@ curl -s -X POST "$BASE/ingest_mcp_findings" -H "Content-Type: application/json" 
 Expected JSON: `"inserted":0,"updated":1` (deduped to the same row — confirms compatibility).
 
 ```bash
-sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite \
+sqlite3 <repo-root>/app/db/db.sqlite \
   "SELECT count(*), category FROM simplemdm_mcp_finding WHERE source='category_test';"
 ```
 
@@ -292,7 +292,7 @@ curl -s -X POST "$BASE/ingest_mcp_findings" -H "Content-Type: application/json" 
 Expected JSON: `"inserted":1` (NOT an update — same `source`/`serial_number`/`finding_type` as the earlier pushes, but a different `category` makes this a distinct fingerprint).
 
 ```bash
-sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite \
+sqlite3 <repo-root>/app/db/db.sqlite \
   "SELECT count(*), category FROM simplemdm_mcp_finding WHERE source='category_test' ORDER BY id;"
 ```
 
@@ -315,14 +315,14 @@ Expected: `"count":2` (no category filter — both rows returned, since both are
 - [ ] **Step 7: Clean up test rows**
 
 ```bash
-sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite \
+sqlite3 <repo-root>/app/db/db.sqlite \
   "DELETE FROM simplemdm_mcp_finding WHERE source='category_test';"
 ```
 
 - [ ] **Step 8: Commit**
 
 ```bash
-cd /Users/helpdesk/websites/munkireport-php
+cd <repo-root>
 git add local/modules/simplemdm/simplemdm_controller.php
 git commit -m "feat(simplemdm): ingest and filter findings by category"
 ```
@@ -357,7 +357,7 @@ Add to the top of the `## [Unreleased]` section:
 - [ ] **Step 3: Commit**
 
 ```bash
-cd /Users/helpdesk/websites/munkireport-php
+cd <repo-root>
 git add local/modules/simplemdm/docs/API_REFERENCE.md local/modules/simplemdm/CHANGELOG.md
 git commit -m "docs(simplemdm): document category field and fingerprint rescoping"
 ```

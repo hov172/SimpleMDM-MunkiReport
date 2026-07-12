@@ -261,7 +261,7 @@ $(document).on('appReady', function() {
 
 - [ ] **Step 3: Sanity-check the PHP file for syntax errors**
 
-Run: `docker compose run --rm munkireport php -l local/modules/simplemdm/views/simplemdm_mcp_findings_widget.php` (from the host repo root, `/Users/helpdesk/websites/munkireport-php`)
+Run: `docker compose run --rm munkireport php -l local/modules/simplemdm/views/simplemdm_mcp_findings_widget.php` (from the host repo root, `<repo-root>`)
 
 Expected: `No syntax errors detected`. This file is almost entirely a `<script>` block, so `php -l` mainly confirms the surrounding PHP tags and heredoc-free HTML/JS embedding didn't break PHP parsing — it will NOT catch JS bugs, which Task 2 covers.
 
@@ -282,7 +282,7 @@ git commit -m "feat(simplemdm): group MCP findings widget by category with scrol
 
 - [ ] **Step 1: Ensure the Docker container is running with fresh code**
 
-Run (from the host repo root, `/Users/helpdesk/websites/munkireport-php`): `docker compose up -d munkireport` — the compose file bind-mounts `./local` into the container, so Task 1's edit is already live without a rebuild; this just ensures the container is up. Confirm with `docker compose ps` that `munkireport-local` is running and healthy.
+Run (from the host repo root, `<repo-root>`): `docker compose up -d munkireport` — the compose file bind-mounts `./local` into the container, so Task 1's edit is already live without a rebuild; this just ensures the container is up. Confirm with `docker compose ps` that `munkireport-local` is running and healthy.
 
 - [ ] **Step 2: Seed at least two categories of findings via the MCP ingest route**
 

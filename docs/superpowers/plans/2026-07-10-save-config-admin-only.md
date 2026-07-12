@@ -58,7 +58,7 @@ Replace with:
 
 - [ ] **Step 3: Syntax check**
 
-Run (from the host repo root, `/Users/helpdesk/websites/munkireport-php`): `docker compose run --rm munkireport php -l local/modules/simplemdm/simplemdm_controller.php`
+Run (from the host repo root, `<repo-root>`): `docker compose run --rm munkireport php -l local/modules/simplemdm/simplemdm_controller.php`
 
 Expected: `No syntax errors detected`.
 
@@ -70,7 +70,7 @@ Expected: `OK (41 tests, 74 assertions)` — this change doesn't touch any of th
 
 - [ ] **Step 5: Live-verify the fix actually rejects a sync-token-only request**
 
-Ensure the container is up (`docker compose up -d munkireport` from the host repo root if needed). Discover the currently-configured `api_key` the same way prior verification passes in this session did — do NOT print/echo the raw key value anywhere in your report or tool output; only confirm you found and used one (e.g. query it directly in a script without echoing it to stdout, or reference `/Users/helpdesk/websites/munkireport-php/app/db/db.sqlite`'s `simplemdm_config` table `WHERE name='api_key'` from the host, since that file is bind-mounted and host-readable).
+Ensure the container is up (`docker compose up -d munkireport` from the host repo root if needed). Discover the currently-configured `api_key` the same way prior verification passes in this session did — do NOT print/echo the raw key value anywhere in your report or tool output; only confirm you found and used one (e.g. query it directly in a script without echoing it to stdout, or reference `<repo-root>/app/db/db.sqlite`'s `simplemdm_config` table `WHERE name='api_key'` from the host, since that file is bind-mounted and host-readable).
 
 Send a POST to `save_config` using ONLY the sync-token header (no session cookie), e.g.:
 

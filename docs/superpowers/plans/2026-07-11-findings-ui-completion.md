@@ -69,7 +69,7 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST "http://localhost:8888/module/s
 Expected: `401`
 
 ```bash
-KEY=$(python3 -c "import sqlite3;print(sqlite3.connect('/Users/helpdesk/websites/munkireport-php/app/db/db.sqlite').execute(\"SELECT value FROM simplemdm_config WHERE name='api_key'\").fetchone()[0])")
+KEY=$(python3 -c "import sqlite3;print(sqlite3.connect('<repo-root>/app/db/db.sqlite').execute(\"SELECT value FROM simplemdm_config WHERE name='api_key'\").fetchone()[0])")
 curl -s -X POST "http://localhost:8888/module/simplemdm/acknowledge_mcp_finding" -H "Content-Type: application/json" -H "X-SIMPLEMDM-API-KEY: $KEY" -d '{"ids":[999999]}'
 ```
 Expected: `{"status":"success","requested":1,"updated":0,"not_found":[999999]}`
@@ -133,7 +133,7 @@ Inside the closure (after its `category` block), using `$query` exactly as the c
 - [ ] **Step 3: Verify via curl**
 
 ```bash
-KEY=$(python3 -c "import sqlite3;print(sqlite3.connect('/Users/helpdesk/websites/munkireport-php/app/db/db.sqlite').execute(\"SELECT value FROM simplemdm_config WHERE name='api_key'\").fetchone()[0])")
+KEY=$(python3 -c "import sqlite3;print(sqlite3.connect('<repo-root>/app/db/db.sqlite').execute(\"SELECT value FROM simplemdm_config WHERE name='api_key'\").fetchone()[0])")
 curl -s -H "X-SIMPLEMDM-API-KEY: $KEY" "http://localhost:8888/module/simplemdm/get_mcp_findings?finding_type=stale_device&limit=2" | python3 -m json.tool | head -20
 ```
 Expected: only `"finding_type": "stale_device"` rows.
@@ -296,7 +296,7 @@ Note: `serialNumber` is the variable the view already defines from `$serial_numb
 
 - [ ] **Step 2: Verify in browse against a serial that has findings**
 
-Pick a serial from the live data: `python3 -c "import sqlite3;print(sqlite3.connect('/Users/helpdesk/websites/munkireport-php/app/db/db.sqlite').execute(\"SELECT serial_number FROM simplemdm_mcp_finding WHERE status IN ('open','acknowledged','in_progress') LIMIT 1\").fetchone()[0])"`.
+Pick a serial from the live data: `python3 -c "import sqlite3;print(sqlite3.connect('<repo-root>/app/db/db.sqlite').execute(\"SELECT serial_number FROM simplemdm_mcp_finding WHERE status IN ('open','acknowledged','in_progress') LIMIT 1\").fetchone()[0])"`.
 
 - Section renders with count, badges, disclosure, buttons.
 - Click `acknowledge` on one finding → row re-renders with `acknowledged` status badge.
@@ -747,9 +747,9 @@ If the controller's setting-reader has a different name than `get_module_setting
 - [ ] **Step 4: Verify end-to-end**
 
 ```bash
-KEY=$(python3 -c "import sqlite3;print(sqlite3.connect('/Users/helpdesk/websites/munkireport-php/app/db/db.sqlite').execute(\"SELECT value FROM simplemdm_config WHERE name='api_key'\").fetchone()[0])")
+KEY=$(python3 -c "import sqlite3;print(sqlite3.connect('<repo-root>/app/db/db.sqlite').execute(\"SELECT value FROM simplemdm_config WHERE name='api_key'\").fetchone()[0])")
 # Default off: ingest something, confirm no event row
-python3 -c "import sqlite3;print(sqlite3.connect('/Users/helpdesk/websites/munkireport-php/app/db/db.sqlite').execute(\"SELECT COUNT(*) FROM event WHERE module='simplemdm_mcp_findings_summary'\").fetchone())"
+python3 -c "import sqlite3;print(sqlite3.connect('<repo-root>/app/db/db.sqlite').execute(\"SELECT COUNT(*) FROM event WHERE module='simplemdm_mcp_findings_summary'\").fetchone())"
 ```
 Expected `(0,)`. Then enable `mcp_findings_event_enabled` in the admin UI, push one finding via `ingest_mcp_findings` (curl, any test source with `replace:false`), and re-run the count → `(1,)`; check the row's serial is the worst device and message matches Task 7 wording; resolve everything from that test source and confirm the event row updates/clears per the summary logic. Confirm the event renders in `/show/listing/event/event` (anchor serial must exist in `machine` — pick a real serial for the test finding).
 

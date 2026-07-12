@@ -96,7 +96,7 @@ class SimplemdmMcpFindingLifecycle extends Migration
 - [ ] **Step 2: Run the migration against the running dev container**
 
 ```bash
-docker compose -f /Users/helpdesk/websites/munkireport-php/docker-compose.yml exec munkireport php please migrate
+docker compose -f <repo-root>/docker-compose.yml exec munkireport php please migrate
 ```
 
 Expected: output lists `SimplemdmMcpFindingLifecycle` as migrated, no errors.
@@ -104,8 +104,8 @@ Expected: output lists `SimplemdmMcpFindingLifecycle` as migrated, no errors.
 - [ ] **Step 3: Verify schema and backfill directly against the SQLite file**
 
 ```bash
-sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite ".schema simplemdm_mcp_finding"
-sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite \
+sqlite3 <repo-root>/app/db/db.sqlite ".schema simplemdm_mcp_finding"
+sqlite3 <repo-root>/app/db/db.sqlite \
   "SELECT id, source, fingerprint, status, occurrence_count, first_seen_at, last_seen_at FROM simplemdm_mcp_finding LIMIT 5;"
 ```
 
@@ -114,7 +114,7 @@ Expected: schema output includes all seven new columns and the new unique index;
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /Users/helpdesk/websites/munkireport-php
+cd <repo-root>
 git add local/modules/simplemdm/migrations/2026_07_09_000000_simplemdm_mcp_finding_lifecycle.php
 git commit -m "feat(simplemdm): add lifecycle columns to simplemdm_mcp_finding"
 ```
@@ -190,7 +190,7 @@ class Simplemdm_mcp_finding_model extends Eloquent
 - [ ] **Step 2: Smoke-check the fingerprint helper matches the backfilled values**
 
 ```bash
-docker compose -f /Users/helpdesk/websites/munkireport-php/docker-compose.yml exec munkireport php -r '
+docker compose -f <repo-root>/docker-compose.yml exec munkireport php -r '
 require "/var/munkireport/local/modules/simplemdm/simplemdm_mcp_finding_model.php";
 echo Simplemdm_mcp_finding_model::computeFingerprint("stale_devices", "C02EXAMPLE", "stale_device"), PHP_EOL;
 '
@@ -201,7 +201,7 @@ Expected: a 64-character lowercase hex string, with no PHP errors/warnings.
 - [ ] **Step 3: Commit**
 
 ```bash
-cd /Users/helpdesk/websites/munkireport-php
+cd <repo-root>
 git add local/modules/simplemdm/simplemdm_mcp_finding_model.php
 git commit -m "feat(simplemdm): add finding lifecycle status constants and fingerprint helper"
 ```
@@ -411,7 +411,7 @@ curl -s -X POST "$BASE?op=ingest_mcp_findings" \
 Expected JSON: `"inserted":1,"updated":0,"reopened":0,"resolved":0,"skipped":0`.
 
 ```bash
-sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite \
+sqlite3 <repo-root>/app/db/db.sqlite \
   "SELECT status, occurrence_count, first_seen_at, last_seen_at, resolved_at FROM simplemdm_mcp_finding WHERE source='phase1_test';"
 ```
 
@@ -429,7 +429,7 @@ curl -s -X POST "$BASE?op=ingest_mcp_findings" \
 Expected JSON: `"inserted":0,"updated":1,"reopened":0,"resolved":0`.
 
 ```bash
-sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite \
+sqlite3 <repo-root>/app/db/db.sqlite \
   "SELECT count(*), occurrence_count, status FROM simplemdm_mcp_finding WHERE source='phase1_test';"
 ```
 
@@ -446,7 +446,7 @@ curl -s -X POST "$BASE?op=ingest_mcp_findings" \
 Expected JSON: `"resolved":1`.
 
 ```bash
-sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite \
+sqlite3 <repo-root>/app/db/db.sqlite \
   "SELECT status, resolved_at FROM simplemdm_mcp_finding WHERE source='phase1_test';"
 ```
 
@@ -464,7 +464,7 @@ curl -s -X POST "$BASE?op=ingest_mcp_findings" \
 Expected JSON: `"inserted":0,"updated":0,"reopened":1`.
 
 ```bash
-sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite \
+sqlite3 <repo-root>/app/db/db.sqlite \
   "SELECT count(*), status, occurrence_count, resolved_at FROM simplemdm_mcp_finding WHERE source='phase1_test';"
 ```
 
@@ -473,14 +473,14 @@ Expected: `count(*)=1`, `status=open`, `occurrence_count=3`, `resolved_at` empty
 - [ ] **Step 3: Clean up test rows**
 
 ```bash
-sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite \
+sqlite3 <repo-root>/app/db/db.sqlite \
   "DELETE FROM simplemdm_mcp_finding WHERE source='phase1_test';"
 ```
 
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /Users/helpdesk/websites/munkireport-php
+cd <repo-root>
 git add local/modules/simplemdm/simplemdm_controller.php
 git commit -m "feat(simplemdm): upsert-by-fingerprint ingest with reopen/auto-resolve lifecycle"
 ```
@@ -609,7 +609,7 @@ curl -s "$BASE?op=get_mcp_findings&source=phase1_test2&status=resolved" -H "X-SI
 Expected: `"count":1`, finding's `status` is `resolved`, `status_totals.resolved >= 1`.
 
 ```bash
-sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite \
+sqlite3 <repo-root>/app/db/db.sqlite \
   "DELETE FROM simplemdm_mcp_finding WHERE source='phase1_test2';"
 ```
 
@@ -620,7 +620,7 @@ Open `http://localhost:8888/index.php?/dashboard` (or `/clients`, whichever the 
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /Users/helpdesk/websites/munkireport-php
+cd <repo-root>
 git add local/modules/simplemdm/simplemdm_controller.php
 git commit -m "feat(simplemdm): add status/since/offset/scan_id filters to get_mcp_findings"
 ```
@@ -658,7 +658,7 @@ Add one paragraph noting findings now have lifecycle status and history instead 
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /Users/helpdesk/websites/munkireport-php
+cd <repo-root>
 git add local/modules/simplemdm/README.md local/modules/simplemdm/CHANGELOG.md local/modules/simplemdm/docs/API_REFERENCE.md
 git commit -m "docs(simplemdm): document MCP findings lifecycle upsert behavior"
 ```

@@ -121,7 +121,7 @@ Insert the following immediately after the closing `}` of `get_mcp_findings()` (
 - [ ] **Step 2: Verify PHP syntax**
 
 ```bash
-docker compose -f /Users/helpdesk/websites/munkireport-php/docker-compose.yml exec munkireport php -l /var/munkireport/local/modules/simplemdm/simplemdm_controller.php
+docker compose -f <repo-root>/docker-compose.yml exec munkireport php -l /var/munkireport/local/modules/simplemdm/simplemdm_controller.php
 ```
 
 Expected: `No syntax errors detected`.
@@ -147,7 +147,7 @@ curl -s -X POST "$BASE/ingest_mcp_findings" \
 Expected JSON: `"inserted":2`.
 
 ```bash
-sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite \
+sqlite3 <repo-root>/app/db/db.sqlite \
   "SELECT id, status, resolved_at FROM simplemdm_mcp_finding WHERE source='admin_route_test' ORDER BY id;"
 ```
 
@@ -165,7 +165,7 @@ curl -s -X POST "$BASE/acknowledge_mcp_finding" \
 Expected JSON: `{"status":"success","requested":1,"updated":1,"not_found":[]}`.
 
 ```bash
-sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite \
+sqlite3 <repo-root>/app/db/db.sqlite \
   "SELECT status, resolved_at FROM simplemdm_mcp_finding WHERE id=$ID1;"
 ```
 
@@ -183,7 +183,7 @@ curl -s -X POST "$BASE/resolve_mcp_finding" \
 Expected JSON: `{"status":"success","requested":1,"updated":1,"not_found":[]}`.
 
 ```bash
-sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite \
+sqlite3 <repo-root>/app/db/db.sqlite \
   "SELECT status, resolved_at FROM simplemdm_mcp_finding WHERE id=$ID1;"
 ```
 
@@ -197,7 +197,7 @@ curl -s -X POST "$BASE/acknowledge_mcp_finding" \
 ```
 
 ```bash
-sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite \
+sqlite3 <repo-root>/app/db/db.sqlite \
   "SELECT status, resolved_at FROM simplemdm_mcp_finding WHERE id=$ID1;"
 ```
 
@@ -215,7 +215,7 @@ curl -s -X POST "$BASE/ignore_mcp_finding" \
 Expected JSON: `{"status":"success","requested":2,"updated":1,"not_found":[999999999]}`.
 
 ```bash
-sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite \
+sqlite3 <repo-root>/app/db/db.sqlite \
   "SELECT status FROM simplemdm_mcp_finding WHERE id=$ID2;"
 ```
 
@@ -231,7 +231,7 @@ curl -s -X POST "$BASE/suppress_mcp_finding" \
 Expected JSON: `{"status":"success","requested":2,"updated":2,"not_found":[]}`.
 
 ```bash
-sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite \
+sqlite3 <repo-root>/app/db/db.sqlite \
   "SELECT id, status, resolved_at FROM simplemdm_mcp_finding WHERE id IN ($ID1, $ID2);"
 ```
 
@@ -261,14 +261,14 @@ Expected JSON: `{"status":"error","message":"Unauthorized"}` with HTTP 401.
 - [ ] **Step 8: Clean up test rows**
 
 ```bash
-sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite \
+sqlite3 <repo-root>/app/db/db.sqlite \
   "DELETE FROM simplemdm_mcp_finding WHERE source='admin_route_test';"
 ```
 
 - [ ] **Step 9: Commit**
 
 ```bash
-cd /Users/helpdesk/websites/munkireport-php
+cd <repo-root>
 git add local/modules/simplemdm/simplemdm_controller.php
 git commit -m "feat(simplemdm): add acknowledge/resolve/ignore/suppress admin action routes"
 ```
@@ -369,7 +369,7 @@ Findings can also be transitioned manually via four admin action routes (`acknow
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /Users/helpdesk/websites/munkireport-php
+cd <repo-root>
 git add local/modules/simplemdm/README.md local/modules/simplemdm/CHANGELOG.md local/modules/simplemdm/docs/API_REFERENCE.md
 git commit -m "docs(simplemdm): document admin action routes (acknowledge/resolve/ignore/suppress)"
 ```

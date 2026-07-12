@@ -140,12 +140,22 @@ All are called via:
 - `client_reporter_history_enabled`
 - `client_reporter_max_payload_bytes`
 - `client_reporter_allowed_fact_keys_json`
+- `client_reporter_hmac_enabled`
+- `client_reporter_replay_protection_enabled`
+- `client_reporter_per_device_tokens_enabled`
+- `client_reporter_ip_allowlist`
+- `client_reporter_proxy_only_enabled`
+- `client_reporter_trusted_proxy_ips`
+- `client_reporter_max_time_skew_seconds`
+- `client_reporter_device_tokens_json` (write-only provisioning payload for per-device tokens; global-admin only)
 - `event_stale_threshold_hours`
 - `event_builtin_settings_json`
 - `custom_event_rules_json`
 - sync queue keys (`sync_request_state`, `sync_requested_at`, `sync_started_at`, `sync_request_source`)
 - telemetry/status keys (`last_sync_status`, `last_sync_time`, `last_sync_cursor`, etc.)
 - widget visibility config keys discovered from `provides.yml`
+
+`get_config` also returns `client_reporter_device_token_metadata_json` for global-admin callers (a metadata-only snapshot of configured per-device tokens) and `[]` for non-global callers.
 
 `get_config` returns full secret values only to global admins. Sync-token-auth callers receive masked secret behavior (`api_key_set`, `webhook_secret_set`, `action_api_secret_set`) plus the non-secret runner/schedule settings needed by the worker.
 

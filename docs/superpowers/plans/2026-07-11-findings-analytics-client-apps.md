@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- **Repo paths:** iOS = `/Users/helpdesk/Developer/GitHub/ReportSimpleMDM`; Android = `/Users/helpdesk/Developer/ReportSimpleMDMAndroid` (NOTE: the Android repo is NOT under `GitHub/`). Both are on `main`, clean, one commit ahead of origin (the MCP Findings card work, unpushed).
+- **Repo paths:** iOS = `<ReportSimpleMDM-repo>`; Android = `<ReportSimpleMDMAndroid-repo>` (NOTE: the Android repo is NOT under `GitHub/`). Both are on `main`, clean, one commit ahead of origin (the MCP Findings card work, unpushed).
 - Create branch `findings-analytics-cards` in each repo before its first task; commit style `feat: ...` (match `git log -5` in each repo).
 - **Server data contracts (verbatim, from the module):**
   - `GET module/simplemdm/get_mcp_finding_timeline?days=30` → `{"labels": ["YYYY-MM-DD", ...], "new": [int, ...], "resolved": [int, ...]}` (arrays same length as labels; route is in `$token_read_actions`; returns 403 when mcp findings disabled, 404 on older servers — both must hide the card).
@@ -40,7 +40,7 @@
 - [ ] **Step 0: Create the branch**
 
 ```bash
-cd /Users/helpdesk/Developer/GitHub/ReportSimpleMDM
+cd <ReportSimpleMDM-repo>
 git checkout -b findings-analytics-cards
 ```
 
@@ -113,7 +113,7 @@ final class McpAnalyticsTests: XCTestCase {
 
 - [ ] **Step 2: Run to fail**
 
-Run: `cd /Users/helpdesk/Developer/GitHub/ReportSimpleMDM && xcodebuild -project ReportSimpleMDM.xcodeproj -scheme ReportSimpleMDM -destination 'platform=macOS' -only-testing:ReportSimpleMDMTests/McpAnalyticsTests test -quiet 2>&1 | tail -20`
+Run: `cd <ReportSimpleMDM-repo> && xcodebuild -project ReportSimpleMDM.xcodeproj -scheme ReportSimpleMDM -destination 'platform=macOS' -only-testing:ReportSimpleMDMTests/McpAnalyticsTests test -quiet 2>&1 | tail -20`
 Expected: BUILD FAILS — `cannot find 'McpTimelinePayload' in scope` (compile error is the RED state here since the types don't exist).
 
 - [ ] **Step 3: Implement the models** — append to `ReportSimpleMDM/Models.swift` directly after `McpFindingsPayload` (~line 1756):
@@ -477,7 +477,7 @@ git commit -m "feat: Top Devices by Findings card in MunkiReport Insights dashbo
 - [ ] **Step 0: Create the branch**
 
 ```bash
-cd /Users/helpdesk/Developer/ReportSimpleMDMAndroid
+cd <ReportSimpleMDMAndroid-repo>
 git checkout -b findings-analytics-cards
 ```
 
@@ -555,7 +555,7 @@ class McpAnalyticsPayloadTest {
 
 - [ ] **Step 2: Run to fail**
 
-Run: `cd /Users/helpdesk/Developer/ReportSimpleMDMAndroid && ./gradlew :app:testDebugUnitTest --tests 'com.AyalaSolutions.reportsimplemdmandroid.model.McpAnalyticsPayloadTest' 2>&1 | tail -15`
+Run: `cd <ReportSimpleMDMAndroid-repo> && ./gradlew :app:testDebugUnitTest --tests 'com.AyalaSolutions.reportsimplemdmandroid.model.McpAnalyticsPayloadTest' 2>&1 | tail -15`
 Expected: compilation failure — `Unresolved reference: McpTimelinePayload` (RED = compile error since the types don't exist).
 
 - [ ] **Step 3: Implement the models** — append to `DashboardModels.kt` after `McpFindingsPayload` (~line 264). Add `import kotlinx.serialization.SerialName` to the file's imports (explicit per-class style):

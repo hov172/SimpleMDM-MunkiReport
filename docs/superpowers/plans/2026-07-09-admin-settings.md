@@ -181,7 +181,7 @@ In the same method's `foreach ($config_keys as $key) { if (array_key_exists($key
 - [ ] **Step 9: Verify PHP syntax**
 
 ```bash
-docker compose -f /Users/helpdesk/websites/munkireport-php/docker-compose.yml exec munkireport php -l /var/munkireport/local/modules/simplemdm/simplemdm_controller.php
+docker compose -f <repo-root>/docker-compose.yml exec munkireport php -l /var/munkireport/local/modules/simplemdm/simplemdm_controller.php
 ```
 
 Expected: `No syntax errors detected`.
@@ -224,7 +224,7 @@ curl -s "$BASE/get_mcp_findings" -H "X-SIMPLEMDM-API-KEY: $TOKEN"
 Expected: HTTP 403, same error body.
 
 ```bash
-sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite \
+sqlite3 <repo-root>/app/db/db.sqlite \
   "SELECT id FROM simplemdm_mcp_finding WHERE source='settings_test';"
 ```
 
@@ -255,7 +255,7 @@ curl -s -X POST "$BASE/ingest_mcp_findings" -H "Content-Type: application/json" 
 ```
 
 ```bash
-sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite \
+sqlite3 <repo-root>/app/db/db.sqlite \
   "SELECT length(data) FROM simplemdm_mcp_finding WHERE source='settings_test2';"
 ```
 
@@ -263,7 +263,7 @@ Expected: `5000` (NOT truncated to 4096 — confirms the new 65536 default is in
 
 ```bash
 curl -s -X POST "$BASE/save_config" -H "X-SIMPLEMDM-API-KEY: $TOKEN" -d "mcp_findings_metadata_max_bytes=100"
-sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite \
+sqlite3 <repo-root>/app/db/db.sqlite \
   "SELECT value FROM simplemdm_config WHERE name='mcp_findings_metadata_max_bytes';"
 ```
 
@@ -276,7 +276,7 @@ curl -s -X POST "$BASE/ingest_mcp_findings" -H "Content-Type: application/json" 
 ```
 
 ```bash
-sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite \
+sqlite3 <repo-root>/app/db/db.sqlite \
   "SELECT length(data) FROM simplemdm_mcp_finding WHERE source='settings_test3';"
 ```
 
@@ -301,7 +301,7 @@ curl -s -X POST "$BASE/ingest_mcp_findings" -H "Content-Type: application/json" 
 Expected JSON: `"resolved":0` (kill-switch prevented the sweep even though `replace:true` was sent).
 
 ```bash
-sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite \
+sqlite3 <repo-root>/app/db/db.sqlite \
   "SELECT status FROM simplemdm_mcp_finding WHERE source='settings_test4';"
 ```
 
@@ -320,14 +320,14 @@ Expected JSON: `"resolved":1`.
 - [ ] **Step 14: Clean up test rows**
 
 ```bash
-sqlite3 /Users/helpdesk/websites/munkireport-php/app/db/db.sqlite \
+sqlite3 <repo-root>/app/db/db.sqlite \
   "DELETE FROM simplemdm_mcp_finding WHERE source IN ('settings_test','settings_test2','settings_test3','settings_test4');"
 ```
 
 - [ ] **Step 15: Commit**
 
 ```bash
-cd /Users/helpdesk/websites/munkireport-php
+cd <repo-root>
 git add local/modules/simplemdm/simplemdm_controller.php
 git commit -m "feat(simplemdm): add mcp_findings_enabled/metadata_max_bytes/auto_resolve admin settings"
 ```
@@ -436,7 +436,7 @@ Insert immediately after line 2818 (the closing `});` of the `#simplemdm-widget-
 - [ ] **Step 4: Verify PHP syntax**
 
 ```bash
-docker compose -f /Users/helpdesk/websites/munkireport-php/docker-compose.yml exec munkireport php -l /var/munkireport/local/modules/simplemdm/views/simplemdm_admin.php
+docker compose -f <repo-root>/docker-compose.yml exec munkireport php -l /var/munkireport/local/modules/simplemdm/views/simplemdm_admin.php
 ```
 
 Expected: `No syntax errors detected`.
@@ -454,7 +454,7 @@ Use this skill's project browse tooling (or any available headless/browser tool)
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /Users/helpdesk/websites/munkireport-php
+cd <repo-root>
 git add local/modules/simplemdm/views/simplemdm_admin.php
 git commit -m "feat(simplemdm): add MCP Findings Settings panel to admin UI"
 ```
@@ -509,7 +509,7 @@ Ingest, read, and admin-action behavior for MCP findings can be tuned via three 
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /Users/helpdesk/websites/munkireport-php
+cd <repo-root>
 git add local/modules/simplemdm/README.md local/modules/simplemdm/CHANGELOG.md local/modules/simplemdm/docs/API_REFERENCE.md
 git commit -m "docs(simplemdm): document MCP findings admin settings"
 ```

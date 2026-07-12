@@ -555,7 +555,7 @@ rendering).
 ## 14) MCP Findings Lifecycle, Admin-Action, and Analytics Checks
 
 Covers the ingest-lifecycle/category/admin-action/analytics surface added to
-`op=ingest_mcp_findings` and the related routes. See `docs/API_REFERENCE.md`
+`ingest_mcp_findings` and the related routes. See `docs/API_REFERENCE.md`
 for full request/response shapes.
 
 ### Ingest lifecycle (upsert/dedup/reopen/auto-resolve)

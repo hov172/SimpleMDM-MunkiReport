@@ -46,8 +46,8 @@ for headless clients.
 | `index?op=get_config` | Global admin OR sync auth | Session auth or `X-SIMPLEMDM-API-KEY` |
 | `index?op=webhook` | Webhook secret OR sync auth | `X-SIMPLEMDM-WEBHOOK-SECRET` or `X-SIMPLEMDM-API-KEY` |
 | `index?op=ingest_client_facts` | Client reporter secret | `X-SIMPLEMDM-CLIENT-SECRET` |
-| `index?op=ingest_mcp_findings` | Sync auth required | `X-SIMPLEMDM-API-KEY` |
-| `index?op=acknowledge/resolve/ignore/suppress_mcp_finding` | Sync auth OR global-admin session | `X-SIMPLEMDM-API-KEY` or session auth |
+| `ingest_mcp_findings` | Sync auth required | `X-SIMPLEMDM-API-KEY` |
+| `acknowledge/resolve/ignore/suppress_mcp_finding` | Sync auth OR global-admin session | `X-SIMPLEMDM-API-KEY` or session auth |
 | Token-readable module data routes | Session auth OR sync auth | Session auth or `X-SIMPLEMDM-API-KEY` |
 | `save_config` | Global admin only | Session auth |
 | `request_sync` | Global admin session | Session auth |
@@ -157,7 +157,7 @@ Notes:
    - `request_sync`
    - `index?op=begin_sync_run`
    - `api_devices` mutating calls
-   - `index?op=ingest_mcp_findings` (now an automated write endpoint when the
+   - `ingest_mcp_findings` (now an automated write endpoint when the
      MCP's auto-publish middleware is enabled — a spike from an unexpected
      `source` slug is a signal worth investigating)
 10. Rotate secrets on staff turnover or suspected exposure.

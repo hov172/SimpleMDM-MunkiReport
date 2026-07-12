@@ -185,6 +185,18 @@ curl -H "X-SIMPLEMDM-API-KEY: <api_key>" \
   "https://munkireport.example.com/index.php?/module/simplemdm/get_sync_telemetry"
 ```
 
+## Connect ReportSimpleMDM Android
+
+The Android client follows the same connection model as the iOS/macOS app:
+
+1. Point the app at the MunkiReport base URL.
+2. Set the module path prefix to `/module/simplemdm`.
+3. Use `X-SIMPLEMDM-API-KEY` as the auth header name.
+4. Set the header value to the same SimpleMDM API key stored in the module.
+5. Use the token-readable routes only; the Android client should not call write or admin routes.
+
+If the app build also supports a session-cookie fallback, it should only be needed for older module versions that predate the token-readable read routes. Use HTTPS so the key is not sent in the clear.
+
 Expected result is JSON. Troubleshooting:
 
 - `Authenticate first.` as plain text (HTTP 200) — the key does not match the module's
@@ -376,6 +388,7 @@ Operational guidance:
 - [Key Points](#key-points)
 - [Connect SimpleMDM-MCP (natural-language queries)](#connect-simplemdm-mcp-natural-language-queries)
 - [Connect ReportSimpleMDM](#connect-reportsimplemdm)
+- [Connect ReportSimpleMDM Android](#connect-reportsimplemdm-android)
 - [Developer Guide](docs/DEVELOPER_GUIDE.md)
 - [Client Reporter Add-On](docs/CLIENT_REPORTER_ADDON.md)
 - [Client Reporter Deployment Guide](docs/CLIENT_REPORTER_DEPLOYMENT.md)

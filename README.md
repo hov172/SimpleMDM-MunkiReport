@@ -996,6 +996,10 @@ Typical use cases:
 - Connected Resources on device pages:
   - Shows linked apps/groups/profiles/resources.
   - Links into filtered API resources listing.
+- MCP findings per device: shown on both the client tab (`#tab_simplemdm-tab`) and the
+  standalone device page. Each surface hides the section entirely when the device has
+  no findings, offers a Show/Hide resolved-ignored toggle, and shows per-row
+  Acknowledge/Resolve/Ignore/Suppress buttons to global admins.
 - MCP findings browser: `module/simplemdm/findings`
   - Filters (status via toggleable chips, severity, category, source, `finding_type`), pagination (50/page), CSV/JSON export carrying the active filters, and deep-link support (`?status=&severity=&category=&finding_type=&source=`) from the dashboard widget. All filter controls follow the active MunkiReport theme (light and dark).
   - Global-admin only: multi-select bulk Acknowledge/Resolve/Ignore/Suppress.
@@ -2251,6 +2255,13 @@ Main panels:
 - Global-admin sessions see per-row Acknowledge/Resolve/Ignore/Suppress buttons (calling the four admin-action routes with a session, not a sync token).
 - The entire panel is hidden when the device has no findings — no empty-state placeholder is shown.
 - `window.simplemdmIsGlobalAdmin` (exposed to device page JS) gates whether the action buttons render.
+- A "Show resolved/ignored" toggle re-queries including the closed statuses; the section stays visible after toggling even if that query comes back empty, so the toggle remains reachable.
+- The same section is rendered on the **client tab** (`#tab_simplemdm-tab`) from the same
+  endpoint, laid out as a Severity/Status/Finding/Activity table to match the tab's other
+  panels. It behaves identically (hidden with no findings, toggle, admin actions), and it
+  hides itself when findings are disabled in settings (the endpoint answers `403`).
+  The tab derives its admin flag from `authorized('global')` in the view rather than a
+  controller variable, since MunkiReport core renders module tabs.
 
 `Device Actions`
 - Action runner for supported passthrough actions on selected device.

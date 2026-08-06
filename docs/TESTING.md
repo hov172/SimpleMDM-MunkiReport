@@ -730,4 +730,19 @@ via its truncation-note "Open findings browser" link.
    type), click its "+N more — view all ... findings" link, and confirm it
    navigates to `module/simplemdm/findings` with `finding_type` (and
    `category`, when not "Uncategorized") pre-filled and matching rows.
-8. **No console errors** in any of the above states.
+8. **Client tab findings section**: open a MunkiReport client detail page
+   (`clients/detail/{serial}`) for a serial that has findings and select the
+   SimpleMDM tab. Confirm the `MCP Findings` section appears below
+   `Supplemental Data` with severity-count chips, a Severity/Status/Finding/
+   Activity table, and a `details` disclosure on rows carrying `data`. Then:
+   - Click `Show resolved/ignored` and confirm closed findings appear and the
+     button flips to `Hide resolved/ignored`.
+   - As a global admin, click `acknowledge` on a row and confirm the status
+     badge updates in place; confirm `resolve` drops the row from the default
+     (active-only) view and that the resolved row shows **no** action buttons
+     when revealed via the toggle.
+   - Open the tab for a serial with no findings and confirm the section is
+     absent entirely — not an empty table.
+   - Set `mcp_findings_enabled` to `0` and confirm the section is absent
+     rather than showing an error (the endpoint answers `403`).
+9. **No console errors** in any of the above states.

@@ -31,6 +31,21 @@
     background: var(--simplemdm-surface-alt);
     color: var(--simplemdm-ink);
 }
+/* MCP findings: mirrors the standalone device page's finding styling, scoped
+   to the tab so the two views cannot drift into each other. */
+#simplemdm-tab .simplemdm-finding-data {
+    max-height: 160px;
+    overflow-y: auto;
+    font-size: 11px;
+    margin: 4px 0 0;
+}
+#simplemdm-tab .simplemdm-finding-actions {
+    display: block;
+    margin-top: 6px;
+}
+#simplemdm-tab .simplemdm-finding-meta {
+    font-size: 11px;
+}
 </style>
 <div id="simplemdm-tab" class="tab-pane">
     <h3 data-i18n="simplemdm.title"></h3>
@@ -236,10 +251,34 @@
             </tbody>
         </table>
         </div>
+
+        <!-- PRD 14.2: hidden entirely for devices with no findings, matching
+             the standalone device page. Shown by renderTabFindings(). -->
+        <div id="simplemdm-tab-findings-wrap" style="display:none;">
+        <h4>MCP Findings</h4>
+        <div id="simplemdm-tab-findings-summary" class="simplemdm-tab-panel" style="margin-bottom:8px;"></div>
+        <div class="simplemdm-tab-panel">
+        <table class="table table-striped table-condensed table-bordered">
+            <thead>
+                <tr>
+                    <th style="width: 90px;">Severity</th>
+                    <th style="width: 110px;">Status</th>
+                    <th>Finding</th>
+                    <th style="width: 170px;">Activity</th>
+                </tr>
+            </thead>
+            <tbody id="simplemdm-tab-findings"></tbody>
+        </table>
+        </div>
+        </div>
     </div>
 </div>
 
 <script>
+// Gate the lifecycle action buttons the same way the standalone device page
+// does. This is presentation only — every *_mcp_finding route re-checks the
+// session server-side, so a wrong guess here hides buttons, never grants them.
+window.simplemdmIsGlobalAdmin = <?php echo authorized('global') ? 'true' : 'false'; ?>;
 $(document).on('appReady', function(e, lang) {
     function resourcesListingUrl(query) {
         var path = '/show/listing/simplemdm/simplemdm_resources';
@@ -340,6 +379,155 @@ $(document).on('appReady', function(e, lang) {
             );
         });
     }
+
+    var findingsIncludeClosed = false;
+
+    function findingSeverity(f) {
+        var sev = String((f && f.severity) || 'info').toLowerCase();
+        return (sev === 'danger' || sev === 'warning') ? sev : 'info';
+    }
+
+    function renderTabFindings(payload) {
+        var findings = (payload && payload.findings) ? payload.findings : [];
+        var $wrap = $('#simplemdm-tab-findings-wrap');
+        var $summary = $('#simplemdm-tab-findings-summary').empty();
+        var $tbody = $('#simplemdm-tab-findings').empty();
+
+        // PRD 14.2: devices with no findings show no section at all. Once the
+        // user has asked for closed findings we keep the section up even if
+        // the result set comes back empty, so the toggle stays reachable.
+        if (!findings.length && !findingsIncludeClosed) {
+            $wrap.hide();
+            return;
+        }
+        $wrap.show();
+
+        var counts = { danger: 0, warning: 0, info: 0 };
+        findings.forEach(function(f) { counts[findingSeverity(f)] += 1; });
+        ['danger', 'warning', 'info'].forEach(function(sev) {
+            if (counts[sev]) {
+                $summary.append(
+                    '<span class="simplemdm-tab-chip"><span class="badge alert-' + sev + '">' +
+                    esc(sev) + '</span>&nbsp;' + esc(counts[sev]) + '</span>'
+                );
+            }
+        });
+        $summary.append(
+            '<button type="button" class="btn btn-xs btn-default" id="simplemdm-tab-findings-toggle">' +
+            (findingsIncludeClosed ? 'Hide resolved/ignored' : 'Show resolved/ignored') +
+            '</button>'
+        );
+
+        if (!findings.length) {
+            $tbody.append('<tr><td colspan="4" class="text-muted">No findings for this device.</td></tr>');
+            return;
+        }
+
+        findings.forEach(function(f) {
+            var sev = findingSeverity(f);
+            var meta = [
+                'first seen ' + esc(String(f.first_seen_at || '').slice(0, 10)),
+                'last seen ' + esc(String(f.last_seen_at || '').slice(0, 10)),
+                'seen ' + esc(f.occurrence_count || 1) + 'x'
+            ];
+            if (f.resolved_at) {
+                meta.push('resolved ' + esc(String(f.resolved_at).slice(0, 10)));
+            }
+
+            var actions = '';
+            if (window.simplemdmIsGlobalAdmin && f.status !== 'resolved') {
+                actions = '<span class="simplemdm-finding-actions">' +
+                    ['acknowledge', 'resolve', 'ignore', 'suppress'].map(function(a) {
+                        return '<button type="button" class="btn btn-xs btn-default" ' +
+                            'data-finding-action="' + a + '" data-finding-id="' + Number(f.id) + '">' +
+                            a + '</button>';
+                    }).join(' ') + '</span>';
+            }
+
+            // f.data can arrive as a nested object rather than a string;
+            // stringify it so the disclosure never renders "[object Object]".
+            var dataText = (f.data && typeof f.data === 'object')
+                ? JSON.stringify(f.data, null, 2)
+                : String(f.data || '');
+            var dataBlock = f.data
+                ? '<details><summary class="text-muted">details</summary>' +
+                  '<pre class="simplemdm-finding-data">' + esc(dataText) + '</pre></details>'
+                : '';
+
+            $tbody.append(
+                '<tr data-finding-row="' + Number(f.id) + '">' +
+                    '<td><span class="badge alert-' + sev + '">' + esc(sev) + '</span></td>' +
+                    '<td><span class="badge">' + esc(f.status || 'open') + '</span></td>' +
+                    '<td>' +
+                        '<strong>' + esc(f.finding_type || '-') + '</strong>' +
+                        (f.category ? ' <span class="text-muted">[' + esc(f.category) + ']</span>' : '') +
+                        '<div>' + esc(f.message || '') + '</div>' +
+                        dataBlock + actions +
+                    '</td>' +
+                    '<td class="text-muted simplemdm-finding-meta">' +
+                        esc(f.source || '') + '<br>' + meta.join('<br>') +
+                    '</td>' +
+                '</tr>'
+            );
+        });
+
+        // Safari: every dynamically created sub-scroller needs the shared
+        // wheel + elastic-bounce binding (see DEVELOPER_GUIDE postmortems).
+        if (window.simplemdmBindWheelScroll) {
+            $tbody.find('.simplemdm-finding-data').each(function() {
+                window.simplemdmBindWheelScroll(this);
+            });
+        }
+    }
+
+    function loadTabFindings() {
+        var statuses = findingsIncludeClosed
+            ? 'open,acknowledged,in_progress,resolved,ignored,suppressed'
+            : 'open,acknowledged,in_progress';
+        $.getJSON(
+            window.simplemdmModuleUrl('get_mcp_findings') + '/' + encodeURIComponent(serialNumber) +
+            '?limit=200&status=' + statuses,
+            function(data) {
+                renderTabFindings(data || {});
+            }
+        ).fail(function(jqXHR) {
+            // 403 means the MCP findings feature is switched off in settings —
+            // that is a configuration state, not an error, so stay hidden.
+            if (jqXHR && jqXHR.status === 403) {
+                $('#simplemdm-tab-findings-wrap').hide();
+                return;
+            }
+            $('#simplemdm-tab-findings-wrap').show();
+            $('#simplemdm-tab-findings-summary').html('<span class="text-danger">Failed to load MCP findings.</span>');
+            $('#simplemdm-tab-findings').html('<tr><td colspan="4" class="text-danger">Lookup failed.</td></tr>');
+        });
+    }
+
+    // Scoped to the tab: the standalone device page binds the same selectors
+    // at document level, and these two views must never cross-fire.
+    $('#simplemdm-tab').on('click', '#simplemdm-tab-findings-toggle', function() {
+        findingsIncludeClosed = !findingsIncludeClosed;
+        loadTabFindings();
+    });
+
+    $('#simplemdm-tab').on('click', '[data-finding-action]', function() {
+        var action = String($(this).attr('data-finding-action'));
+        var id = Number($(this).attr('data-finding-id'));
+        if (['acknowledge', 'resolve', 'ignore', 'suppress'].indexOf(action) === -1 || !id) {
+            return;
+        }
+        var $btn = $(this).prop('disabled', true);
+        $.ajax({
+            url: window.simplemdmModuleUrl(action + '_mcp_finding'),
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ id: id })
+        }).done(function() {
+            loadTabFindings();
+        }).fail(function() {
+            $btn.prop('disabled', false).text(action + ' failed');
+        });
+    });
 
     // Get simplemdm data for this machine
     $.getJSON(appUrl + '/module/simplemdm/get_simplemdm_data/' + serialNumber, function(data) {
@@ -459,6 +647,7 @@ $(document).on('appReady', function(e, lang) {
                 $('#simplemdm-tab-supplemental-summary').html('<span class="text-danger">Failed to load supplemental data.</span>');
                 $('#simplemdm-tab-supplemental').html('<tr><td colspan="3" class="text-danger">Lookup failed.</td></tr>');
             });
+            loadTabFindings();
         } else {
             $('#simplemdm-tab-msg').show();
         }

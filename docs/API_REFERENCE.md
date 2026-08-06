@@ -658,7 +658,7 @@ Upstream dependency:
 | View | Primary API command(s) | Backing data | Upstream dependency |
 |---|---|---|---|
 | detail widget `simplemdm_detail` | `GET /module/simplemdm/get_simplemdm_data/{serial}` | `simplemdm` | `GET /devices` |
-| client tab `simplemdm-tab` | `GET /module/simplemdm/get_simplemdm_data/{serial}`, `GET /module/simplemdm/get_device_resources/{serial}` | `simplemdm`, `simplemdm_resource`, `simplemdm_relationship_edge` | `GET /devices` plus resource sync |
+| client tab `simplemdm-tab` | `GET /module/simplemdm/get_simplemdm_data/{serial}`, `GET /module/simplemdm/get_device_resources/{serial}`, `GET /module/simplemdm/get_supplemental_data/{serial}`, `GET /module/simplemdm/get_mcp_findings/{serial}` | `simplemdm`, `simplemdm_resource`, `simplemdm_relationship_edge`, `simplemdm_supplemental_summary`, `simplemdm_mcp_finding` | `GET /devices` plus resource sync; findings come from MCP ingest, not the SimpleMDM API |
 | standalone device page `/module/simplemdm/device/{serial}` | `GET /module/simplemdm/get_simplemdm_data/{serial}`, `GET /module/simplemdm/get_device_resources/{serial}`, `GET /module/simplemdm/get_device_subresources/{serial}` | `simplemdm`, `simplemdm_resource`, `simplemdm_relationship_edge` | `GET /devices`, resource sync, and optional `GET /devices/{id}/profiles`, `GET /devices/{id}/installed_apps`, `GET /devices/{id}/users` |
 | device listing page `/show/listing/simplemdm/simplemdm` | `GET /module/simplemdm/get_data` | `simplemdm` | `GET /devices` |
 | resource listing page `/show/listing/simplemdm/simplemdm_resources` | `GET /module/simplemdm/get_resources_data`, `GET /module/simplemdm/get_resource_filter_options` | `simplemdm_resource` | resource endpoint sync |

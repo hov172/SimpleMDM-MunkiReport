@@ -132,6 +132,33 @@ final class SafariScrollFixGuardTest extends TestCase
         }
     }
 
+    public function testFindingDataDisclosuresBindTheirScrollers(): void
+    {
+        // The MCP finding "details" disclosures are capped-height <pre>
+        // sub-scrollers created after page load, so markScrollableSimplemdmLists
+        // never sees them — each view that renders them must bind them itself
+        // or Safari users get no wheel scrolling and uncorrected bounce inside
+        // the disclosure.
+        foreach (
+            [
+                'simplemdm_device.php',
+                'simplemdm_tab.php',
+            ] as $view
+        ) {
+            $src = (string) file_get_contents(__DIR__ . '/../../views/' . $view);
+            $this->assertStringContainsString(
+                'simplemdm-finding-data',
+                $src,
+                $view . ' no longer renders finding-data disclosures — update this guard if that is intentional.'
+            );
+            $this->assertStringContainsString(
+                'window.simplemdmBindWheelScroll(',
+                $src,
+                $view . ' renders finding-data sub-scrollers but no longer binds them — Safari scrolling breaks inside the disclosure (see DEVELOPER_GUIDE Safari postmortems).'
+            );
+        }
+    }
+
     public function testResizeLoopGatePresent(): void
     {
         // Synthetic-resize feedback loop fix: applyLayoutMode must never

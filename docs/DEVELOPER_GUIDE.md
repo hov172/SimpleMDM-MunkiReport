@@ -836,4 +836,12 @@ Rule of thumb:
 - MCP findings dashboard widget: `views/simplemdm_mcp_findings_widget.php`
 - MCP findings analytics widgets: `views/simplemdm_mcp_severity_widget.php`, `views/simplemdm_mcp_source_widget.php`, `views/simplemdm_mcp_critical_widget.php`, `views/simplemdm_mcp_timeline_widget.php`, `views/simplemdm_mcp_top_devices_widget.php`
 - MCP findings browser page: `views/simplemdm_findings_page.php`
+- MCP findings per-device sections: `views/simplemdm_device.php` (standalone page)
+  and `views/simplemdm_tab.php` (client tab). Both read `get_mcp_findings/{serial}`
+  and post to the four `*_mcp_finding` admin routes. They deliberately do NOT share
+  a partial: the device page renders collapsible `createSectionHtml` blocks while the
+  tab renders a table matching its sibling panels. The tab scopes its click handlers
+  to `#simplemdm-tab` because the device page binds the same selectors at document
+  level. The tab gets its admin flag from `authorized('global')` in the view (core
+  renders module tabs, so there is no controller to pass `is_global_admin`).
 - PHPUnit tests: `tests/Unit/`, bootstrap in `tests/bootstrap.php`, config in `phpunit.xml`

@@ -8,9 +8,17 @@ or route changes without a deprecation period.
 ---
 
 ## [Unreleased]
+
+---
+
+## [1.3.3] — 2026-08-05
 ### Added
 - `mcp_findings_retention_days` admin setting (default 0 = keep forever): when set, `ingest_mcp_findings` lazily hard-deletes resolved/ignored/suppressed findings not seen within the window and reports the count as `purged` in its response. Open, acknowledged, and in-progress findings are never deleted; suppressed findings that still occur keep a fresh last-seen timestamp and are never purged, so retention cannot undo an active suppression.
 - Device ingest now backfills the core `machine` table's `machine_desc` from SimpleMDM's `model_name` for the ingested serials — but only where the current value is empty or a lookup-failure sentinel (`model_lookup_failed`, `unknown_model`), since Apple retired the serial-lookup endpoint the core machine module used for model names. Manual entries and past successful lookups are never overwritten; backfill errors never fail the ingest. No core files are modified.
+
+### Documentation
+- README: documented the two supplemental dashboard widgets (`simplemdm_supplemental_overview`, `simplemdm_supplemental_applecare`) that shipped registered in `provides.yml` but were missing from the widget list; added the omitted "Supplemental Data" table-of-contents entry.
+- README + `docs/API_REFERENCE.md`: documented the `machine_desc` backfill at the `ingest` endpoint (previously only described in `docs/DEVELOPER_GUIDE.md`), including the note that it is a core-table data write with no core file changes.
 
 ---
 

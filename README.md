@@ -389,6 +389,7 @@ Operational guidance:
 - [Connect SimpleMDM-MCP (natural-language queries)](#connect-simplemdm-mcp-natural-language-queries)
 - [Connect ReportSimpleMDM](#connect-reportsimplemdm)
 - [Connect ReportSimpleMDM Android](#connect-reportsimplemdm-android)
+- [Supplemental Data](#supplemental-data)
 - [Developer Guide](docs/DEVELOPER_GUIDE.md)
 - [Client Reporter Add-On](docs/CLIENT_REPORTER_ADDON.md)
 - [Client Reporter Deployment Guide](docs/CLIENT_REPORTER_DEPLOYMENT.md)
@@ -1664,6 +1665,8 @@ Optional production additions:
 - `simplemdm_compliance` (compliant vs noncompliant + reasons)
 - `simplemdm_sync_health` (latest sync telemetry + scope/delta/rate-limit stats)
 - `simplemdm_group_apps` (full-width assignment-group to assigned-app mapping with expandable per-group app lists)
+- `simplemdm_supplemental_overview` (supplemental data coverage summary, backed by `get_supplemental_overview_stats`)
+- `simplemdm_supplemental_applecare` (AppleCare lifecycle donut + breakdown, backed by `get_supplemental_applecare_stats`)
 - `simplemdm_mcp_severity` (MCP findings by severity donut)
 - `simplemdm_mcp_source` (MCP findings by source donut, top 8 + other)
 - `simplemdm_mcp_critical` (open danger-severity MCP findings list)
@@ -2526,6 +2529,12 @@ Expected behavior:
   - Worker-side claim of queued/scheduled sync execution.
 - `POST /index.php?/module/simplemdm/index?op=ingest`
   - Device payload batch ingest.
+  - Also backfills the core `machine` table's `machine_desc` from SimpleMDM's
+    `model_name` for the ingested serials, but only where the current value is
+    empty or a lookup-failure sentinel (`model_lookup_failed`, `unknown_model`) —
+    Apple retired the serial-lookup endpoint the core machine module used for
+    model names. Manual entries and past successful lookups are never
+    overwritten, and a backfill error never fails the ingest.
 - `POST /index.php?/module/simplemdm/index?op=ingest_resources`
   - API resource payload batch ingest.
 - `POST /index.php?/module/simplemdm/index?op=ingest_commands`
@@ -2758,6 +2767,9 @@ Use `--max-parent-resources` for frequent runs and run full deep sync less often
 - Controllers/models/views under `local/modules/simplemdm/`
 - Migrations under `local/modules/simplemdm/migrations/`
 - No required permanent changes in MunkiReport core files.
+- One core *data* touchpoint (no core files): device ingest backfills the core
+  `machine` table's `machine_desc` for rows whose model name is empty or a
+  lookup-failure sentinel. See [Ingest endpoints](#ingest-endpoints-used-by-syncwebhooks).
 
 ## License
 

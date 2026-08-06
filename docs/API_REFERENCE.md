@@ -92,13 +92,22 @@ All are called via:
 | Operation | Method | Purpose | Auth |
 |---|---|---|---|
 | `begin_sync_run` | POST | Claim a queued/scheduled sync run and mark it running | Sync token |
-| `ingest` | POST | Upsert device rows into `simplemdm` via processor | Sync token |
+| `ingest` | POST | Upsert device rows into `simplemdm` via processor; then best-effort backfill of the core `machine` table's `machine_desc` from `model_name` (see note below) | Sync token |
 | `ingest_resources` | POST | Upsert non-device resources into `simplemdm_resource` | Sync token |
 | `ingest_commands` | POST | Upsert command status rows into `simplemdm_command` | Sync token |
 | `ingest_client_facts` | POST | Upsert allowlisted client-reported facts into `simplemdm_client_fact` | Client reporter secret |
 | `update_sync_status` | POST | Update sync status and telemetry fields in `simplemdm_config` | Sync token |
 | `webhook` | POST | Store webhook event; best-effort device/command updates | Webhook secret OR sync token |
 | `ingest_mcp_findings` | POST | Upsert MCP-computed findings by deterministic fingerprint; auto-resolve findings absent from complete scans; reopen resolved findings if they reappear (2 MB / 2000-finding caps) | Sync token |
+
+**`machine_desc` backfill note.** After each `ingest`, the controller copies
+SimpleMDM's `model_name` into the core `machine` table's `machine_desc` for the
+ingested serials — but only where the existing value is empty/NULL or one of the
+lookup-failure sentinels (`model_lookup_failed`, `unknown_model`). Apple retired
+the serial-lookup endpoint the core machine module used for model names, so those
+rows would otherwise stay blank. Manually set values and past successful lookups
+are never overwritten, no core files are modified, and a backfill error never
+fails the ingest.
 
 ## 3) Config Endpoints
 

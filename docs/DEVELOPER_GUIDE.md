@@ -841,7 +841,14 @@ Rule of thumb:
   and post to the four `*_mcp_finding` admin routes. They deliberately do NOT share
   a partial: the device page renders collapsible `createSectionHtml` blocks while the
   tab renders a table matching its sibling panels. The tab scopes its click handlers
-  to `#simplemdm-tab` because the device page binds the same selectors at document
-  level. The tab gets its admin flag from `authorized('global')` in the view (core
+  to `.simplemdm-tab-root` because the device page binds the same selectors at
+  document level. The tab gets its admin flag from `authorized('global')` in the view (core
   renders module tabs, so there is no controller to pass `is_global_admin`).
+- Client tab root element: core's `$tab_list` loop in
+  `app/views/client/client_detail.php` already wraps each module tab in
+  `<div class="tab-pane" id="{client_tabs key}">`. `views/simplemdm_tab.php` must
+  therefore NOT declare `id="simplemdm-tab"` or `class="tab-pane"` on its own root —
+  doing so produced a duplicate DOM id and a nested pane. It hooks
+  `.simplemdm-tab-root` instead, which also keeps the view independent of core's
+  wrapper id. `tests/Unit/ClientTabMarkupGuardTest.php` is the tripwire.
 - PHPUnit tests: `tests/Unit/`, bootstrap in `tests/bootstrap.php`, config in `phpunit.xml`

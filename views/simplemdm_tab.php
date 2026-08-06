@@ -1,26 +1,26 @@
 <?php include_once __DIR__ . '/simplemdm_widget_modern_assets.php'; ?>
 <style>
-#simplemdm-tab .simplemdm-tab-panel {
+.simplemdm-tab-root .simplemdm-tab-panel {
     border: 1px solid var(--simplemdm-border);
     border-radius: 12px;
     background: var(--simplemdm-card-bg);
     padding: 10px 12px;
     margin-bottom: 12px;
 }
-#simplemdm-tab .table > thead > tr > th {
+.simplemdm-tab-root .table > thead > tr > th {
     background: var(--simplemdm-heading-bg);
     color: var(--simplemdm-ink);
     border-bottom: 1px solid var(--simplemdm-border);
 }
-#simplemdm-tab .table > tbody > tr > th,
-#simplemdm-tab .table > tbody > tr > td {
+.simplemdm-tab-root .table > tbody > tr > th,
+.simplemdm-tab-root .table > tbody > tr > td {
     border-color: var(--simplemdm-border);
     color: var(--simplemdm-ink);
 }
-#simplemdm-tab .table-striped > tbody > tr:nth-of-type(odd) {
+.simplemdm-tab-root .table-striped > tbody > tr:nth-of-type(odd) {
     background: rgba(120, 160, 200, 0.08);
 }
-#simplemdm-tab .simplemdm-tab-chip {
+.simplemdm-tab-root .simplemdm-tab-chip {
     display: inline-block;
     border-radius: 999px;
     padding: 4px 9px;
@@ -33,21 +33,26 @@
 }
 /* MCP findings: mirrors the standalone device page's finding styling, scoped
    to the tab so the two views cannot drift into each other. */
-#simplemdm-tab .simplemdm-finding-data {
+.simplemdm-tab-root .simplemdm-finding-data {
     max-height: 160px;
     overflow-y: auto;
     font-size: 11px;
     margin: 4px 0 0;
 }
-#simplemdm-tab .simplemdm-finding-actions {
+.simplemdm-tab-root .simplemdm-finding-actions {
     display: block;
     margin-top: 6px;
 }
-#simplemdm-tab .simplemdm-finding-meta {
+.simplemdm-tab-root .simplemdm-finding-meta {
     font-size: 11px;
 }
 </style>
-<div id="simplemdm-tab" class="tab-pane">
+<!-- No id/tab-pane here: MunkiReport core (app/views/client/client_detail.php)
+     already wraps this view in <div class="tab-pane" id="simplemdm-tab">, keyed
+     off the client_tabs name in provides.yml. Repeating them produced a
+     duplicate DOM id and a nested .tab-pane. Styles and handlers below hook
+     .simplemdm-tab-root so this view does not depend on core's wrapper id. -->
+<div class="simplemdm-tab-root">
     <h3 data-i18n="simplemdm.title"></h3>
     <button id="simplemdm-sync-now" class="btn btn-default btn-xs pull-right" style="margin-top: -30px;">
         <i class="fa fa-refresh"></i> <span data-i18n="simplemdm.sync_now"></span>
@@ -505,12 +510,12 @@ $(document).on('appReady', function(e, lang) {
 
     // Scoped to the tab: the standalone device page binds the same selectors
     // at document level, and these two views must never cross-fire.
-    $('#simplemdm-tab').on('click', '#simplemdm-tab-findings-toggle', function() {
+    $('.simplemdm-tab-root').on('click', '#simplemdm-tab-findings-toggle', function() {
         findingsIncludeClosed = !findingsIncludeClosed;
         loadTabFindings();
     });
 
-    $('#simplemdm-tab').on('click', '[data-finding-action]', function() {
+    $('.simplemdm-tab-root').on('click', '[data-finding-action]', function() {
         var action = String($(this).attr('data-finding-action'));
         var id = Number($(this).attr('data-finding-id'));
         if (['acknowledge', 'resolve', 'ignore', 'suppress'].indexOf(action) === -1 || !id) {

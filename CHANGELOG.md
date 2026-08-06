@@ -8,6 +8,10 @@ or route changes without a deprecation period.
 ---
 
 ## [Unreleased]
+
+---
+
+## [1.3.4] — 2026-08-05
 ### Added
 - MCP findings section on the **client tab** (`#tab_simplemdm-tab`), closing the gap with the standalone device page (which has had one since 1.3.0). Renders below `Supplemental Data` as a Severity/Status/Finding/Activity table matching the tab's other panels, with severity-count chips, a `details` disclosure for the raw pushed `data`, a Show/Hide resolved-ignored toggle, and per-row Acknowledge/Resolve/Ignore/Suppress buttons for global-admin sessions. The section is hidden entirely for devices with no findings (PRD 14.2) and when findings are disabled in settings (the endpoint answers `403`) — so installs without MCP findings see no change to the tab.
 - `SafariScrollFixGuardTest::testFindingDataDisclosuresBindTheirScrollers` — tripwire ensuring both views that render finding-`data` disclosures keep binding them through `simplemdmBindWheelScroll`, since those capped-height `<pre>` sub-scrollers are created after page load and `markScrollableSimplemdmLists` never sees them.

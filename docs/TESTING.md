@@ -541,6 +541,9 @@ Current coverage:
 |---|---|
 | `tests/Unit/McpFindingModelTest.php` | Pure static helpers on `simplemdm_mcp_finding_model.php` — `normalizeFinding()`, `computeUpsertUpdate()`, `parseFindingIds()`, `buildStatusUpdate()`, `parseMultiValueParam()`. No DB required. |
 | `tests/Unit/McpFindingUpsertDbTest.php` | `simplemdm_mcp_finding_model.php` upsert/dedup/reopen/auto-resolve behavior against a real (in-memory) `simplemdm_mcp_finding` table |
+| `tests/Unit/McpFindingPurgeDbTest.php` | `purgeExpired()` retention behavior against a real table — window boundaries, and that active (open/acknowledged/in_progress) findings are never deleted |
+| `tests/Unit/SafariScrollFixGuardTest.php` | Tripwire over the multi-part Safari scroll fix in `views/simplemdm_widget_modern_assets.php` (wheel handler, passive bounce clamp, auto-marked-list binding, collapsible self-binding, resize-loop gate, hover-lift suppression, `overscroll-behavior` budget, synthetic-resize dispatch budget) plus the finding-`data` disclosure bindings in the device page and client tab. Read the DEVELOPER_GUIDE postmortems before weakening any assertion. |
+| `tests/Unit/ClientTabMarkupGuardTest.php` | Tripwire that `views/simplemdm_tab.php` never re-declares core's `tab-pane` class or `simplemdm-tab` id on its own root, and keeps the `.simplemdm-tab-root` hook its styles and delegated MCP findings handlers depend on |
 | `tests/bootstrap.php` | Shared bootstrap: spins up an in-memory SQLite DB and applies real migrations before the suite runs |
 
 `phpunit.xml` at the module root points the `Unit` test suite at `./tests/Unit`

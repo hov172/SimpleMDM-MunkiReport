@@ -8,11 +8,18 @@ or route changes without a deprecation period.
 ---
 
 ## [Unreleased]
+
+---
+
+## [1.3.5] — 2026-08-05
 ### Fixed
 - Client tab no longer emits a duplicate `simplemdm-tab` DOM id or a nested `.tab-pane`. MunkiReport core already wraps every module tab in `<div class="tab-pane" id="{client_tabs key}">`, and `views/simplemdm_tab.php` was repeating both on its own root element. The view now hooks a `.simplemdm-tab-root` class for its styles and delegated handlers, which also decouples it from core's wrapper id. No visual or behavioral change — the duplicate was invalid markup rather than a user-visible bug.
 
 ### Added
 - `tests/Unit/ClientTabMarkupGuardTest.php` — tripwire asserting the client tab view never re-declares core's pane id or class, and keeps the `.simplemdm-tab-root` hook its styling and MCP findings handlers depend on.
+
+### Documentation
+- `docs/TESTING.md`: the unit-test inventory listed only 2 of the 5 test files. Added `McpFindingPurgeDbTest`, `SafariScrollFixGuardTest`, and `ClientTabMarkupGuardTest` with what each covers.
 
 ---
 

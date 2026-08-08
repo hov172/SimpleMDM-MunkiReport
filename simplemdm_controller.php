@@ -2669,15 +2669,43 @@ class Simplemdm_controller extends Module_controller
             return;
         }
 
-        $state = $this->read_throttle_state($file);
-        $state['count']++;
+        // One exclusive lock held across read, increment and write.
+        //
+        // Splitting the read and the write into separate calls loses
+        // increments under concurrency — two requests both read count=N and
+        // both write N+1 — and concurrency is precisely what an attacker
+        // running a parallel guessing campaign produces. LOCK_EX on
+        // file_put_contents() alone does not help, because the stale read has
+        // already happened by the time the lock is taken.
+        //
+        // 'c+' opens read/write, creates when absent, and does not truncate,
+        // so the existing bytes are still there to read under the lock.
+        $handle = @fopen($file, 'c+');
+        if ($handle === false) {
+            return;
+        }
 
-        @file_put_contents(
-            $file,
-            json_encode(['count' => $state['count'], 'reset' => $state['reset']]),
-            LOCK_EX
-        );
+        // The counter directory is already 0700 and owned by this process
+        // (see throttle_dir()), so the file is unreachable to others
+        // regardless; this just keeps the file itself tight.
         @chmod($file, 0600);
+
+        if (@flock($handle, LOCK_EX)) {
+            $raw = stream_get_contents($handle);
+            $state = $this->decode_throttle_state(is_string($raw) ? $raw : '');
+            $state['count']++;
+
+            rewind($handle);
+            ftruncate($handle, 0);
+            fwrite($handle, json_encode([
+                'count' => $state['count'],
+                'reset' => $state['reset'],
+            ]));
+            fflush($handle);
+            flock($handle, LOCK_UN);
+        }
+
+        fclose($handle);
 
         $this->cleanup_throttle_files();
     }
@@ -2717,24 +2745,45 @@ class Simplemdm_controller extends Module_controller
      **/
     private function read_throttle_state($file)
     {
-        $fresh = ['count' => 0, 'reset' => time() + self::AUTH_FAILURE_WINDOW_SECONDS];
-        if (! is_file($file)) {
-            return $fresh;
+        if ($file === '' || ! is_file($file)) {
+            return $this->fresh_throttle_state();
         }
 
         $raw = @file_get_contents($file);
-        if ($raw === false) {
-            return $fresh;
-        }
 
+        return $this->decode_throttle_state($raw === false ? '' : $raw);
+    }
+
+    /**
+     * A counter that has never been written, or whose window has elapsed.
+     *
+     * @return array{count:int,reset:int}
+     **/
+    private function fresh_throttle_state()
+    {
+        return ['count' => 0, 'reset' => time() + self::AUTH_FAILURE_WINDOW_SECONDS];
+    }
+
+    /**
+     * Parse counter state from its serialized form.
+     *
+     * Split out from read_throttle_state() so record_auth_failure() can decode
+     * bytes it has already read under its own lock, rather than re-opening the
+     * file and racing with itself.
+     *
+     * @param string $raw
+     * @return array{count:int,reset:int}
+     **/
+    private function decode_throttle_state($raw)
+    {
         $decoded = json_decode((string) $raw, true);
         if (! is_array($decoded) || ! isset($decoded['reset'], $decoded['count'])) {
-            return $fresh;
+            return $this->fresh_throttle_state();
         }
 
         // Window elapsed: start over.
         if ((int) $decoded['reset'] <= time()) {
-            return $fresh;
+            return $this->fresh_throttle_state();
         }
 
         return ['count' => (int) $decoded['count'], 'reset' => (int) $decoded['reset']];

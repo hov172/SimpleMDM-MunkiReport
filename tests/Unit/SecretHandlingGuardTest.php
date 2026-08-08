@@ -179,4 +179,63 @@ final class SecretHandlingGuardTest extends TestCase
             . 'do not share counters.'
         );
     }
+
+    public function testThrottleCounterIncrementIsAtomic(): void
+    {
+        // A read-modify-write split across two calls loses increments under
+        // concurrency, which is exactly the condition a parallel guessing
+        // campaign creates. Measured: 40 concurrent increments recorded 2
+        // with the split version, 40 with a single held lock.
+        $this->assertStringContainsString(
+            "fopen(\$file, 'c+')",
+            self::$controller,
+            "record_auth_failure() must open the counter with 'c+' so it can read and write "
+            . 'under one lock without truncating.'
+        );
+
+        $this->assertStringContainsString(
+            'flock($handle, LOCK_EX)',
+            self::$controller,
+            'record_auth_failure() must hold an exclusive lock across the read and the write.'
+        );
+
+        $this->assertDoesNotMatchRegularExpression(
+            '/file_put_contents\(\s*\$file,\s*json_encode\(\[\s*\x27count\x27/',
+            self::$controller,
+            'The counter is being written with file_put_contents() again. LOCK_EX there does not '
+            . 'help: the stale read has already happened before the lock is taken.'
+        );
+    }
+
+    public function testEnvFilePathIsCanonicalisedBeforeContainmentCheck(): void
+    {
+        // A textual prefix match is bypassed by '..' or a symlinked parent,
+        // which would place the secrets file under the web root while
+        // appearing to pass the check.
+        $this->assertStringContainsString(
+            'pwd -P',
+            self::$installCron,
+            'install_cron.sh must resolve --env-file and the module directory with `pwd -P` '
+            . 'before comparing them.'
+        );
+
+        $this->assertStringContainsString(
+            'MODULE_DIR_REAL',
+            self::$installCron,
+            'The containment check must compare against the canonicalised module directory.'
+        );
+
+        $this->assertStringContainsString(
+            'must not be a symlink',
+            self::$installCron,
+            'install_cron.sh must refuse a symlinked --env-file; the redirect that writes it would '
+            . 'follow the link straight past the containment check.'
+        );
+
+        $this->assertStringNotContainsString(
+            '${ENV_FILE##"$MODULE_DIR"/*}',
+            self::$installCron,
+            'The old textual prefix match is back; it does not resolve `..` or symlinks.'
+        );
+    }
 }

@@ -156,10 +156,31 @@ case "$ENV_FILE" in
         ;;
 esac
 
-if [ -z "${ENV_FILE##"$MODULE_DIR"/*}" ]; then
-    echo "ERROR: --env-file must not live inside the module directory; it would be web-served." >&2
+# Canonicalise before the containment check. A textual prefix match is
+# bypassed by '..' or a symlinked parent, which would put the secrets file
+# under the web root while appearing to pass the check.
+ENV_FILE_DIR=$(cd "$(dirname "$ENV_FILE")" 2>/dev/null && pwd -P) || true
+if [ -z "$ENV_FILE_DIR" ]; then
+    echo "ERROR: the directory for --env-file does not exist: $(dirname "$ENV_FILE")" >&2
     exit 1
 fi
+ENV_FILE="$ENV_FILE_DIR/$(basename "$ENV_FILE")"
+
+# A symlink target is resolved by '>' on write, so it would sidestep the
+# check below entirely. Refuse rather than chase it.
+if [ -L "$ENV_FILE" ]; then
+    echo "ERROR: --env-file must not be a symlink (got '$ENV_FILE')." >&2
+    exit 1
+fi
+
+MODULE_DIR_REAL=$(cd "$MODULE_DIR" && pwd -P)
+case "$ENV_FILE" in
+    "$MODULE_DIR_REAL"|"$MODULE_DIR_REAL"/*)
+        echo "ERROR: --env-file must not live inside the module directory; it would be web-served." >&2
+        echo "       Resolved to: $ENV_FILE" >&2
+        exit 1
+        ;;
+esac
 
 # The cron job sources the env file, so no secret appears in the crontab line.
 CRON_CMD="set -a; . '$ENV_FILE'; set +a; $PYTHON_BIN $SYNC_SCRIPT --munkireport-url '$MUNKIREPORT_URL' --respect-schedule --max-parent-resources $MAX_PARENT_RESOURCES"

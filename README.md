@@ -1,8 +1,5 @@
 # SimpleMDM Module for MunkiReport
 
-> [!IMPORTANT]
-> **BETA STATUS**: This module is currently in beta. Features. Docs and database schemas may undergo significant changes before the final 2.0 release.
-
 Module-only SimpleMDM integration for MunkiReport.
 
 This module syncs devices and API resources from SimpleMDM server-side, stores them locally, and exposes listings, widgets, and per-device connected resource views.

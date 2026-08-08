@@ -2,9 +2,6 @@
 
 All notable changes to the SimpleMDM MunkiReport module are documented here.
 
-This module is in beta (see README). Versions before 2.0 may include schema
-or route changes without a deprecation period.
-
 ---
 
 ## [Unreleased]

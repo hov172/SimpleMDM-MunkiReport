@@ -2,6 +2,37 @@
 
 This guide covers safe upgrade procedures for this module in Hosted/VM and Docker environments.
 
+## 0) Required Action When Upgrading To 1.3.6 (Security)
+
+**This applies only if you installed the cron entry before 1.3.6.** Upgrading the code does not remediate it for you.
+
+Before 1.3.6, `install_cron.sh` wrote the SimpleMDM API key directly into the crontab line, and `run_script` passed it as a `--api-key` argument. Command-line arguments are readable via `ps` and `/proc/<pid>/cmdline` by **every local account on the host**, and an installed crontab entry keeps that exposure permanent. 1.3.6 moves the key into a `0600` env file that the job sources — but an entry installed by an earlier version still contains the key until you rewrite it.
+
+1. Check whether your existing entry carries the key:
+
+```bash
+crontab -l | grep -- '--api-key'
+```
+
+2. If it matches, rewrite the entry with the new script:
+
+```bash
+export SIMPLEMDM_API_KEY='YOUR_SIMPLEMDM_API_KEY'
+local/modules/simplemdm/scripts/install_cron.sh \
+  --munkireport-url 'https://your-munkireport' --install
+```
+
+   This writes `~/.simplemdm_sync.env` (mode `0600`) and replaces the crontab line with one that sources it. Confirm the key is gone:
+
+```bash
+crontab -l | grep -- '--api-key'   # expect no output
+ls -l ~/.simplemdm_sync.env        # expect -rw-------
+```
+
+3. **Rotate the SimpleMDM API key.** It has been readable by any local account for as long as the old entry was installed, so replacing the entry alone does not undo the exposure. Follow the rotation procedure in `SECURITY.md` §4, then re-run step 2 with the new key.
+
+If you never installed cron, or only ever ran sync from the admin UI on 1.3.6+, no action is needed.
+
 ## 1) Upgrade Principles
 
 1. Always back up before upgrade.

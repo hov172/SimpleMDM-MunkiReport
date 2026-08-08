@@ -171,7 +171,7 @@ Notes:
     - `action_secret` is accepted only in a request header or the POST/JSON body. It is deliberately **not** read from the query string, which would copy it into access logs, proxy logs and `Referer` headers.
 12. Rate limiting: the module throttles failed shared-secret authentications to 20 per client IP per 15 minutes, answering `429` with `Retry-After` beyond that. A correct secret is never throttled. This bounds guessing volume only — put real rate limiting at the reverse proxy or WAF.
 13. Business units: when `enable_business_units` is on, module reads are scoped to the caller's machine groups, and a request for an out-of-scope serial answers `404`. Global admins and sync-token clients are exempt. With business units off, core grants every user every machine group and the module matches that behavior.
-    - Note that dashboard trend data (`get_dashboard_trend`) is served from pre-aggregated estate-wide snapshots and cannot be scoped per group. Disable the trend widget if whole-estate device counts are sensitive in your deployment.
+    - Note that dashboard trend data (`get_dashboard_trend`) is served from pre-aggregated estate-wide snapshots and cannot be scoped per group — a snapshot row holds totals, not serials, so there is nothing to filter on. This is a known, accepted exposure (SEC-015, accepted 2026-08-08): it discloses 30 days of device counts and aggregate FileVault/supervision/DEP ratios, and no serial, device name or per-device record. **Disable the trend widget if whole-estate counts are sensitive in your deployment** — for example a managed service provider whose clients must not learn each other's scale. Nothing else depends on the widget.
 
 ## 6) Optional Hardening For Option B
 

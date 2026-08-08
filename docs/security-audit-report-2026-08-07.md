@@ -1712,7 +1712,7 @@ The single item below is carried as **Accepted Risk** rather than open: it is a 
 |---|---|
 | **Severity** | Low |
 | **OWASP Category** | A01:2025 – Broken Access Control |
-| **Status** | Accepted Risk — requires a schema migration |
+| **Status** | Accepted Risk — **formally accepted by the maintainer (hov172), 2026-08-08** |
 | **Location** | `simplemdm_controller.php` `get_dashboard_trend()`, backed by `simplemdm_dashboard_snapshot` |
 | **Affected Version** | All versions |
 | **Fixed In** | Not fixed — see rationale |
@@ -1773,6 +1773,15 @@ Add a `machine_group` column to `simplemdm_dashboard_snapshot`, have `record_das
 
 **Why accepted rather than fixed:** A migration in a security patch carries its own risk, the module's own guidance treats migrations as immutable once applied, and the exposure is aggregate-only. The correct owner for this decision is the maintainer, not the audit.
 
+**Maintainer decision, 2026-08-08.** hov172 reviewed the exposure — 30 days of estate-wide device counts and aggregate FileVault/supervision/DEP ratios, with no serial, device name or per-device record disclosed — and accepted the risk. No migration will be made for it.
+
+This closes the finding for planning purposes. It is not a deferral: the decision is that the disclosure is acceptable for this project's deployments, not that a fix is pending. Two conditions would reopen it:
+
+- A deployment where tenants must not learn each other's scale, such as a managed service provider serving competing clients. The interim mitigation there is to disable the trend widget in the admin UI; nothing else depends on it.
+- Any future change that adds per-device detail to `simplemdm_dashboard_snapshot`. The acceptance rests specifically on the rows being aggregate-only — a snapshot that carried serials would be a different finding.
+
+Note the exposure is inert unless `enable_business_units` is on. With business units off, core grants every user every machine group, so these totals disclose nothing an authenticated user cannot already see throughout the UI.
+
 ---
 
 ## Remediation Roadmap
@@ -1786,7 +1795,7 @@ Add a `machine_group` column to `simplemdm_dashboard_snapshot`, have `record_das
 | Immediate | — | **MunkiReport core** (separate project): 21 affected runtime packages. Prioritise `robrichards/xmlseclibs` + `onelogin/php-saml` if SAML auth is in use — digest/signature validation bypass. See Appendix A. | core maintainers | — |
 | ~~This Quarter~~ | SEC-013 | ~~Make the throttle counter increment atomic under a single `flock`~~ — **completed 2026-08-07** | hov172 | Done |
 | ~~This Quarter~~ | SEC-014 | ~~Canonicalise `--env-file` before the containment check~~ — **completed 2026-08-07** | hov172 | Done |
-| Backlog | SEC-015 | Decide whether to add `machine_group` to dashboard snapshots, or document permanently as accepted | hov172 | — |
+| ~~Backlog~~ | SEC-015 | ~~Decide whether to add `machine_group` to dashboard snapshots~~ — **decided 2026-08-08: risk accepted**, no migration. Reopen only if a tenant-isolating deployment appears or snapshots gain per-device detail. | hov172 | Closed |
 | Backlog | — | `index()` dispatches only 8 of 13 `sync_actions`; `ingest_mcp_findings` and the four finding-status actions silently return the default page text. Functional defect, not a security issue. | hov172 | — |
 
 ---
@@ -2023,3 +2032,4 @@ Remaining `simplemdm_rt_*` widgets were swept for output sinks; none use the esc
 | 1.1 | 2026-08-07 | Claude Code (secure-webapp skill), for hov172 | SEC-013 and SEC-014 remediated and verified (`35f9613`); both moved from Open Findings to Confirmed Findings with applied fixes, evidence and verification. Finding counts updated: 14 fixed, 0 open, 1 accepted risk, 1 false positive. Roadmap entries marked done. **No open findings remain.** |
 | 1.2 | 2026-08-08 | Claude Code (secure-webapp skill), for hov172 | Dependency CVE scan completed against Packagist's advisory API, closing the scope gap recorded in 1.0. Module clean — no runtime dependencies, and the installed PHPUnit is outside every advisory range. MunkiReport core scanned for context: 22 affected packages, 21 runtime, added to Appendix A and the roadmap. No change to this module's findings. |
 | 1.3 | 2026-08-08 | Claude Code (secure-webapp skill), for hov172 | SEC-003 verified live via a new transactional harness, `tests/manual/sec003_business_unit_scoping.php` — 21/21 assertions against the real controller with business units enabled and a non-admin session, rolled back with zero residue. The last remaining scope gap from revision 1.0 is closed; the report now has no unverified findings and no outstanding scope caveats beyond dynamic testing. |
+| 1.4 | 2026-08-08 | Claude Code (secure-webapp skill), for hov172 | SEC-015 formally accepted by the maintainer; no migration will be made. Recorded with the reopening conditions. **The report is now fully closed: 14 fixed, 0 open, 1 accepted by decision, 1 false positive, and no outstanding scope caveats beyond dynamic testing.** |

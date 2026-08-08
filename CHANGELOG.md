@@ -2,6 +2,12 @@
 
 All notable changes to the SimpleMDM MunkiReport module are documented here.
 
+This module follows [semantic versioning](https://semver.org/). Breaking changes to the
+database schema, HTTP routes or response shapes are confined to major releases. Security
+fixes are the exception: where a vulnerability cannot be closed without changing behaviour,
+the change ships in the earliest release that closes it and is called out in that release's
+entry.
+
 ---
 
 ## [Unreleased]

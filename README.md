@@ -4,6 +4,17 @@ Module-only SimpleMDM integration for MunkiReport.
 
 This module syncs devices and API resources from SimpleMDM server-side, stores them locally, and exposes listings, widgets, and per-device connected resource views.
 
+> [!NOTE]
+> **Stability:** this module follows [semantic versioning](https://semver.org/). Breaking
+> changes to the database schema, HTTP routes or response shapes are confined to major
+> releases.
+>
+> Security fixes are the one exception. Where a vulnerability cannot be closed without
+> changing behaviour, the change ships in the earliest release that closes it and is called
+> out in the [CHANGELOG](CHANGELOG.md). 1.3.6 did this twice: it scoped module reads to the
+> caller's machine groups when business units are enabled, and turned the client reporter's
+> integrity controls on by default.
+
 > [!TIP]
 > **Query this module with natural language:** the companion [SimpleMDM-MCP](https://github.com/hov172/SimpleMDM-MCP)
 > server exposes your SimpleMDM fleet to Claude (or any MCP client) as 189 tools — and its five

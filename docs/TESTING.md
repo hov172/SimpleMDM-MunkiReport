@@ -32,7 +32,7 @@ php please migrate
 5. For mutating action tests: `action_api_secret` configured.
 6. If validating scheduled sync behavior, ensure cron is actually installed on the host.
    - If in-module script execution is enabled, use `Enable Scheduled Sync` in the admin UI.
-   - Otherwise install it manually with `local/modules/simplemdm/scripts/install_cron.sh --munkireport-url '<url>' --api-key 'YOUR_SIMPLEMDM_API_KEY' --install`.
+   - Otherwise install it manually with `SIMPLEMDM_API_KEY='YOUR_SIMPLEMDM_API_KEY' local/modules/simplemdm/scripts/install_cron.sh --munkireport-url '<url>' --install`.
 7. If you are validating shell helpers directly, confirm the execute bit is present.
    - If needed: `chmod +x local/modules/simplemdm/scripts/install_cron.sh local/modules/simplemdm/scripts/remove_cron.sh`
 
@@ -63,8 +63,8 @@ Run from MunkiReport root.
 1. Manual sync:
 
 ```bash
+ SIMPLEMDM_API_KEY='YOUR_SIMPLEMDM_API_KEY' \
 python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
-  --api-key 'YOUR_SIMPLEMDM_API_KEY' \
   --munkireport-url 'http://127.0.0.1' \
   --respect-schedule \
   --force-run \
@@ -109,14 +109,14 @@ docker compose exec munkireport php please migrate
 If you want to validate recurring schedule behavior, install a real cron entry first or use:
 
 ```bash
-local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'http://localhost:8888' --api-key 'YOUR_SIMPLEMDM_API_KEY' --install
+SIMPLEMDM_API_KEY='YOUR_SIMPLEMDM_API_KEY' local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'http://localhost:8888' --install
 ```
 
 2. Manual sync from host:
 
 ```bash
+ SIMPLEMDM_API_KEY='YOUR_SIMPLEMDM_API_KEY' \
 python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
-  --api-key 'YOUR_SIMPLEMDM_API_KEY' \
   --munkireport-url 'http://localhost:8888' \
   --respect-schedule \
   --force-run \
@@ -150,8 +150,8 @@ If the devices table widget fails after the supplemental-data migrations:
    - Wait for cron pickup or run:
 
 ```bash
+ SIMPLEMDM_API_KEY='YOUR_SIMPLEMDM_API_KEY' \
 python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
-  --api-key 'YOUR_SIMPLEMDM_API_KEY' \
   --munkireport-url 'http://localhost:8888' \
   --respect-schedule \
   --force-run \

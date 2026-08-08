@@ -836,7 +836,7 @@ fail the suite if the unsafe patterns return.
 1. Run migrations in your target environment:
    - `php please migrate`
 2. Run one manual sync:
-   - `python3 local/modules/simplemdm/scripts/simplemdm_sync.py --api-key '...' --munkireport-url '...' --verbose`
+   - ` SIMPLEMDM_API_KEY='...' python3 local/modules/simplemdm/scripts/simplemdm_sync.py --munkireport-url '...' --verbose`
 3. If validating scheduled or queued host/manual runs, export `SIMPLEMDM_API_KEY` and confirm the runner or cron command can reach `index?op=get_config` without an interactive login. Do **not** put the key on the command line — it is readable via `ps` by every local account. `install_cron.sh` writes it to a `0600` env file the cron job sources; see `docs/SECURITY.md` §5.11.
 4. Validate:
    - report renders

@@ -76,8 +76,8 @@ php please migrate
 4. Run one manual sync:
 
 ```bash
+ SIMPLEMDM_API_KEY='YOUR_SIMPLEMDM_API_KEY' \
 python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
-  --api-key 'YOUR_SIMPLEMDM_API_KEY' \
   --munkireport-url 'http://127.0.0.1' \
   --respect-schedule \
   --force-run \
@@ -123,8 +123,8 @@ docker compose exec munkireport php please migrate
 4. Run one manual sync from host:
 
 ```bash
+ SIMPLEMDM_API_KEY='YOUR_SIMPLEMDM_API_KEY' \
 python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
-  --api-key 'YOUR_SIMPLEMDM_API_KEY' \
   --munkireport-url 'http://localhost:8888' \
   --respect-schedule \
   --force-run \
@@ -195,7 +195,7 @@ Notes:
    - Symptom: `/module/simplemdm/get_data` returns a DB collation error and the dashboard/report device table widget falls back to `Failed to load devices`.
    - Fix: run the latest module migrations, including the collation repair migration.
 6. `Sync Status -> Queue Next Worker Run` stays queued forever:
-   - Confirm a real cron entry exists or manually run `python3 local/modules/simplemdm/scripts/simplemdm_sync.py --api-key 'YOUR_SIMPLEMDM_API_KEY' --munkireport-url '<url>' --respect-schedule --force-run`.
+   - Confirm a real cron entry exists or manually run ` SIMPLEMDM_API_KEY='YOUR_SIMPLEMDM_API_KEY' python3 local/modules/simplemdm/scripts/simplemdm_sync.py --munkireport-url '<url>' --respect-schedule --force-run`.
    - That queue button does not execute Python directly from the web request.
    - If module-side Python is available, use `In-Module Sync And Schedule -> Run Sync Now` for an immediate run instead.
 7. `Recent Runs` does not populate after upgrade:

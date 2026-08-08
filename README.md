@@ -58,7 +58,8 @@ Developer docs:
 - Client reporter contract and Option B details: `docs/CLIENT_REPORTER_ADDON.md`
 - Client reporter deployment guide: `docs/CLIENT_REPORTER_DEPLOYMENT.md`
 - Security: `docs/SECURITY.md`
-- Upgrade runbook: `docs/UPGRADE.md`
+- Security audit report (2026-08-07): `docs/security-audit-report-2026-08-07.md`
+- Upgrade runbook: `docs/UPGRADE.md` — **read section 0 first if you installed cron before 1.3.6**
 - API routes/auth reference: `docs/API_REFERENCE.md`
 - Testing and QA: `docs/TESTING.md`
 
@@ -394,6 +395,7 @@ Operational guidance:
 - [Client Reporter Add-On](docs/CLIENT_REPORTER_ADDON.md)
 - [Client Reporter Deployment Guide](docs/CLIENT_REPORTER_DEPLOYMENT.md)
 - [Security Guide](docs/SECURITY.md)
+- [Security Audit Report (2026-08-07)](docs/security-audit-report-2026-08-07.md)
 - [Upgrade Guide](docs/UPGRADE.md)
 - [API Reference](docs/API_REFERENCE.md)
 - [Testing Guide](docs/TESTING.md)

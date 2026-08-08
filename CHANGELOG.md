@@ -9,17 +9,6 @@ or route changes without a deprecation period.
 
 ## [Unreleased]
 
-### Security
-- Self-review of the 1.3.6 remediation caught a defect in the new throttle itself. `throttle_dir()` accepted a pre-existing `sys_get_temp_dir()/simplemdm-auth-throttle` regardless of who owned it — and `/tmp` is writable by every local account. Another user could win the race, create it world-writable, then delete counter files to defeat the throttle or plant counters at the limit to hold the sync integration at `429` indefinitely; a symlink in place of the directory had the same effect. The directory is now per-install (suffixed with a hash of the module path), and is used only when it is a real directory, not a symlink, owned by the running process, and not group- or world-writable. Failing any of those checks disables throttling rather than trusting the directory, which matches the existing fail-open behavior.
-- `SecretHandlingGuardTest::testThrottleDirectoryIsNotBlindlyTrusted` locks the ownership, symlink, permission and per-install-naming checks in.
-- Closed the two Low-severity items the audit report had left open.
-  - **SEC-013, throttle counter increment was not atomic.** `record_auth_failure()` read the counter, incremented, then wrote in a separate call. `LOCK_EX` on the write did not help, because the stale read had already happened before the lock was taken — so concurrent failures lost increments, and concurrency is exactly what a parallel guessing campaign produces. Measured with 40 simultaneous increments: the old code recorded **2**, the new single-lock version records **40**. The read and write now happen under one `flock(LOCK_EX)` on a `'c+'` handle; parsing moved to `decode_throttle_state()` so the locked path never re-opens the file.
-  - **SEC-014, `--env-file` containment check was textual.** A prefix match does not resolve `..` or a symlinked parent, so `.../simplemdm/../simplemdm/x.env` passed the check and put the secrets file under the web root. Both paths are now canonicalised with `pwd -P` before comparison, a symlinked target is refused outright (the write redirect would follow it straight past the check), a nonexistent parent directory is now an explicit error, and the resolved path is printed on refusal.
-- `SecretHandlingGuardTest::testThrottleCounterIncrementIsAtomic` and `::testEnvFilePathIsCanonicalisedBeforeContainmentCheck` lock both fixes in.
-- `docs/security-audit-report-2026-08-07.md` — formal audit report for the whole engagement: 16 findings, per-finding attack chains, evidence and verification, false positives, roadmap and appendices. Updated alongside these two fixes, so the module now carries **no open findings**; one Low item (SEC-015, estate-wide dashboard trend counts under business units) remains accepted risk pending a schema decision.
-
-- A second review pass found that 1.3.6 stopped *new* API-key exposure but left *existing* exposure in place: a crontab entry installed by an earlier version still contains `--api-key <key>` on the command line, and upgrading the module does not rewrite it. `docs/UPGRADE.md` now opens with the required remediation — detect the old entry, rewrite it with the current `install_cron.sh`, and rotate the key, since it has been readable via `ps` by every local account for as long as that entry was installed. Replacing the entry alone does not undo the exposure.
-
 ---
 
 ## [1.3.6] — 2026-08-07
@@ -39,6 +28,18 @@ Findings from a full OWASP-grounded review of the module (controller, views, mod
 - **Failed shared-secret authentications are now throttled.** 20 failures per client IP per 15 minutes, then `429` with `Retry-After`. Enforced in the constructor as well as per-endpoint so both the direct and `index?op=` routes are covered. Checked only *after* a credential is found invalid, so a caller presenting the correct secret is never locked out. Counters live outside the web root and fail open if no writable temp directory exists. This bounds guessing volume; real rate limiting still belongs at the reverse proxy.
 - **Internal error detail no longer returned to clients.** `ingest()`, `download_module()` and the supplemental-source query path returned raw exception messages, which for an Eloquent failure include the SQL statement and schema names. They now return a generic message and log class/message/file/line server-side via `log_internal_error()`. The two `\RuntimeException` handlers in `save_config` are unchanged — those carry authored validation text meant for the admin.
 
+Two further passes were then run over the remediation itself, on the principle that newly written security code deserves the same scrutiny as the code it replaces. Both found real defects:
+
+- Self-review of the remediation caught a defect in the new throttle itself. `throttle_dir()` accepted a pre-existing `sys_get_temp_dir()/simplemdm-auth-throttle` regardless of who owned it — and `/tmp` is writable by every local account. Another user could win the race, create it world-writable, then delete counter files to defeat the throttle or plant counters at the limit to hold the sync integration at `429` indefinitely; a symlink in place of the directory had the same effect. The directory is now per-install (suffixed with a hash of the module path), and is used only when it is a real directory, not a symlink, owned by the running process, and not group- or world-writable. Failing any of those checks disables throttling rather than trusting the directory, which matches the existing fail-open behavior.
+- `SecretHandlingGuardTest::testThrottleDirectoryIsNotBlindlyTrusted` locks the ownership, symlink, permission and per-install-naming checks in.
+- Closed the two Low-severity items the audit report had left open.
+  - **SEC-013, throttle counter increment was not atomic.** `record_auth_failure()` read the counter, incremented, then wrote in a separate call. `LOCK_EX` on the write did not help, because the stale read had already happened before the lock was taken — so concurrent failures lost increments, and concurrency is exactly what a parallel guessing campaign produces. Measured with 40 simultaneous increments: the old code recorded **2**, the new single-lock version records **40**. The read and write now happen under one `flock(LOCK_EX)` on a `'c+'` handle; parsing moved to `decode_throttle_state()` so the locked path never re-opens the file.
+  - **SEC-014, `--env-file` containment check was textual.** A prefix match does not resolve `..` or a symlinked parent, so `.../simplemdm/../simplemdm/x.env` passed the check and put the secrets file under the web root. Both paths are now canonicalised with `pwd -P` before comparison, a symlinked target is refused outright (the write redirect would follow it straight past the check), a nonexistent parent directory is now an explicit error, and the resolved path is printed on refusal.
+- `SecretHandlingGuardTest::testThrottleCounterIncrementIsAtomic` and `::testEnvFilePathIsCanonicalisedBeforeContainmentCheck` lock both fixes in.
+- `docs/security-audit-report-2026-08-07.md` — formal audit report for the whole engagement: 16 findings, per-finding attack chains, evidence and verification, false positives, roadmap and appendices. Updated alongside these two fixes, so the module now carries **no open findings**; one Low item (SEC-015, estate-wide dashboard trend counts under business units) remains accepted risk pending a schema decision.
+
+- A second pass found that the fix above stopped *new* API-key exposure but left *existing* exposure in place: a crontab entry installed by an earlier version still contains `--api-key <key>` on the command line, and upgrading the module does not rewrite it. `docs/UPGRADE.md` now opens with the required remediation — detect the old entry, rewrite it with the current `install_cron.sh`, and rotate the key, since it has been readable via `ps` by every local account for as long as that entry was installed. Replacing the entry alone does not undo the exposure.
+
 Reviewed and found sound, no change needed: all four secret comparisons already use `hash_equals`; nonces and device tokens are stored SHA-256 hashed; every shell argument is `escapeshellarg`'d behind a global-admin check plus an execution flag; `selectRaw` uses only hardcoded expressions; `download_script` resolves against a three-entry allow-list; CSRF is enforced for session-authenticated writes; `get_config` secret masking is correct on both routes; and the SimpleMDM API proxy does verify TLS (PHP has defaulted `verify_peer` on since 5.6, so the absent explicit `ssl` context option is not a gap).
 
 ### Added
@@ -46,15 +47,20 @@ Reviewed and found sound, no change needed: all four secret comparisons already 
 - `tests/Unit/SecretHandlingGuardTest.php` — asserts the API key stays off command lines and out of the crontab, that runner output is redacted, that the action secret is never read from `$_GET`, that the archive exclusion list holds, that client-reporter defaults stay on, and that the throttle is wired to every shared-secret endpoint.
 - `tests/Unit/MachineScopeGuardTest.php` — asserts the scoping helpers exist, stay gated on `enable_business_units`, exempt global admins and token callers, that every serial-scoped endpoint calls `require_serial_access()`, and that group ids are cast to int before reaching raw SQL.
 - `tests/Unit/CsvInjectionTest.php` — unit tests for `neutralizeCsvField()` plus a guard that the export routes every cell through it.
-- `install_cron.sh --env-file PATH` to relocate the secrets file; it refuses any path inside the module directory, which is web-served.
+- `install_cron.sh --env-file PATH` to relocate the secrets file; it refuses any path inside the module directory, which is web-served, and refuses a symlinked target.
+- `docs/security-audit-report-2026-08-07.md` — the formal report for this engagement: 16 findings with attack chains, evidence, applied fixes and verification, plus false positives, scope boundaries, roadmap and appendices carrying the actual tool output.
 
 ### Changed
 - `run_local_script_command()` takes an optional `$env` array, merged over the current environment for the child process.
 - `Simplemdm_mcp_finding_model::neutralizeCsvField()` added alongside the other static export helpers.
+- Throttle state parsing split into `decode_throttle_state()` and `fresh_throttle_state()`, so the locked increment path decodes bytes it already holds instead of re-opening the counter file.
 
 ### Documentation
 - `docs/SECURITY.md`: client-reporter defaults, the no-secrets-on-command-lines rule, the throttle, and business-unit scoping (including the note that `get_dashboard_trend` is served from estate-wide snapshots and cannot be group-scoped).
-- `README.md`: the cron setup example now sources a `0600` env file instead of putting the API key in the crontab line.
+- `README.md`: the cron setup example now sources a `0600` env file instead of putting the API key in the crontab line; the documentation index and table of contents now list the security audit report.
+- `docs/UPGRADE.md`: new section 0, the required remediation for anyone who installed cron before this release — detect the old entry, rewrite it, and rotate the key.
+- `docs/TESTING.md`: unit-test inventory extended with the four new guard/unit files.
+- `docs/DEVELOPER_GUIDE.md`: output-escaping rule for view code, and the pre-commit checklist item that enforces it.
 
 ---
 

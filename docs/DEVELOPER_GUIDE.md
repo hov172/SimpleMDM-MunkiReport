@@ -801,6 +801,35 @@ Rule of thumb:
 - Config write (`save_config`) requires a global-admin session only; sync-token
   (`X-SIMPLEMDM-API-KEY`) auth is not accepted for this route (fixed 2026-07-10 —
   it previously was, see `docs/SECURITY.md`).
+- Module reads are scoped to the caller's machine groups when
+  `enable_business_units` is on; global admins and sync-token callers are
+  exempt. See `require_serial_access()` and `scope_to_machine_groups()`.
+
+### Output escaping in views (read before writing any widget)
+
+Everything the views render — device names, model names, assignment groups,
+resource names, OS versions, MCP finding messages — arrives from SimpleMDM.
+A device's own user can set `device_name` by renaming their Mac, so view data
+is attacker-influenced, not trusted.
+
+- **Use `window.simplemdmEscapeHtml(value)`** for every interpolation of
+  server data into markup. It lives in
+  `views/simplemdm_widget_modern_assets.php`, which every non-`rt_` view
+  already includes. It escapes `& < > " '`, so it is safe in text nodes *and*
+  inside quoted attributes.
+- **Use `window.simplemdmEscapeUrl(value)`** for `href`/`src` values. It also
+  collapses any non-`http(s)` scheme to `#`, blocking `javascript:` payloads.
+  For a value going into a URL *path*, use `encodeURIComponent()`.
+- **Never** reintroduce `$('<div>').text(v).html()` as an escaper. It relies on
+  innerHTML serialization, which leaves `"` and `'` intact — fine in a text
+  node, exploitable inside `href="…"` or `title="…"`. Twelve views carried that
+  helper before 1.3.6 and several used it in attribute context.
+- **DataTables writes cell content as HTML.** A column declared as
+  `{data: 'x'}` with no `render` callback is an injection sink. Give every
+  column either an escaping renderer or `$.fn.dataTable.render.text()`.
+
+`tests/Unit/OutputEscapingGuardTest.php` enforces all of the above and will
+fail the suite if the unsafe patterns return.
 
 ## 10) Dev Checklist Before Commit
 
@@ -808,7 +837,7 @@ Rule of thumb:
    - `php please migrate`
 2. Run one manual sync:
    - `python3 local/modules/simplemdm/scripts/simplemdm_sync.py --api-key '...' --munkireport-url '...' --verbose`
-3. If validating scheduled or queued host/manual runs, confirm the runner or cron command also includes `--api-key '...'` (or exports `SIMPLEMDM_API_KEY`) and can reach `index?op=get_config` without an interactive login.
+3. If validating scheduled or queued host/manual runs, export `SIMPLEMDM_API_KEY` and confirm the runner or cron command can reach `index?op=get_config` without an interactive login. Do **not** put the key on the command line — it is readable via `ps` by every local account. `install_cron.sh` writes it to a `0600` env file the cron job sources; see `docs/SECURITY.md` §5.11.
 4. Validate:
    - report renders
    - device/resource listings populate
@@ -817,8 +846,13 @@ Rule of thumb:
 5. For UI changes, verify both:
    - dashboard/report widget pages
    - standalone listing/admin/device pages
-6. If you touched `simplemdm_mcp_finding_model.php` or the MCP findings routes in
-   `simplemdm_controller.php`, run the PHPUnit suite:
+6. If you touched any view, escape every interpolation of server data through
+   `window.simplemdmEscapeHtml` (and `simplemdmEscapeUrl` for `href`/`src`).
+   See "Output escaping in views" in section 9 — the guard test will fail the
+   suite if an unsafe pattern reappears.
+7. Run the PHPUnit suite before every commit, not only for MCP findings work —
+   four of the nine test files are guard tests over the controller, the views
+   and the shell scripts, so unrelated changes can trip them:
    - `composer install` (once), then `vendor/bin/phpunit`
    - see `docs/TESTING.md` for what each test file covers
 

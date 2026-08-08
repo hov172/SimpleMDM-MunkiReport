@@ -77,6 +77,24 @@ server can query it from Claude (or any MCP client):
 4. Test from the MCP side with `get_munkireport_sync_health`. An expired session shows up
    there as a JSON parse error (MunkiReport returns `Authenticate first.` as HTTP 200 text).
 
+As of module 1.3.6:
+
+- **If you rotate the SimpleMDM API key, update the MCP's `MUNKIREPORT_AUTH_HEADER_VALUE`
+  too.** The module, the sync worker and every companion share one key. `docs/UPGRADE.md`
+  section 0 requires a rotation for anyone who installed cron before 1.3.6, so this is not
+  hypothetical — miss it and the MCP starts failing auth against a module that is otherwise
+  healthy.
+- **A wrong key now yields HTTP 429 after 20 failed attempts** from the same source address
+  within 15 minutes, with a `Retry-After` header, instead of continuing to return 401/403.
+  A *correct* key is never throttled, regardless of counter state, so a working MCP cannot
+  be locked out by unrelated traffic from the same egress IP.
+- **Business-unit scoping does not apply to token callers.** 1.3.6 scopes module reads to
+  the caller's machine groups when `enable_business_units` is on, but sync-token clients are
+  exempt by design — the MCP continues to see the whole estate.
+- `get_supplemental_data/{serial}` returns a generic string in `detail.error` when a
+  supplemental source query fails. It previously returned the raw database error, including
+  the SQL statement and table names.
+
 The MCP tools map to these routes (16 tools as of SimpleMDM-MCP v0.33.0, unchanged in v0.34.0):
 
 - **Alerts**: `get_events[/serial]?limit&type` — the 13 built-in alert/regression events plus
@@ -142,7 +160,9 @@ Requirements:
   session for the dashboard read routes).
 - The SimpleMDM API key saved in the module's admin settings (`Settings -> SimpleMDM` in
   MunkiReport). The app authenticates with the same key, so both sides must hold the same
-  value.
+  value. **If you rotate the key — which `docs/UPGRADE.md` section 0 requires for anyone
+  who installed cron before module 1.3.6 — re-enter it in the app as well**, or the module
+  dashboards go empty while everything else keeps working.
 
 Steps in the app:
 
@@ -190,7 +210,8 @@ The Android client follows the same connection model as the iOS/macOS app:
 1. Point the app at the MunkiReport base URL.
 2. Set the module path prefix to `/module/simplemdm`.
 3. Use `X-SIMPLEMDM-API-KEY` as the auth header name.
-4. Set the header value to the same SimpleMDM API key stored in the module.
+4. Set the header value to the same SimpleMDM API key stored in the module. Re-enter it
+   after any key rotation (see `docs/UPGRADE.md` section 0).
 5. Use the token-readable routes only; the Android client should not call write or admin routes.
 
 If the app build also supports a session-cookie fallback, it should only be needed for older module versions that predate the token-readable read routes. Use HTTPS so the key is not sent in the clear.
@@ -203,6 +224,14 @@ Expected result is JSON. Troubleshooting:
 - HTTP 403 `Module controller filter` — the module predates `f8dd079` (MunkiReport core is
   session-gating the route before the module can accept the token).
 - HTTP 404 — check the base URL form (`index.php?` vs rewrite) and the module path prefix.
+  On module 1.3.6+ with `enable_business_units` on, a **session**-authenticated request for
+  a device outside the caller's machine groups also answers 404 by design. Token callers are
+  exempt from that scoping, so this does not affect the companion apps or the MCP.
+- HTTP 429 `Too many failed authentication attempts` (module 1.3.6+) — more than 20 failed
+  attempts from this source address in 15 minutes. Honour the `Retry-After` header. This
+  means the key being sent is wrong: a correct key is checked before the throttle and is
+  never rejected, so if you are seeing 429 the fix is to correct the key, not to wait.
+  A common cause is a key rotation that was applied to the module but not to the client.
 
 ## Supplemental Data
 
@@ -1316,11 +1345,13 @@ Security behavior:
 
 1. In SimpleMDM, generate or copy an API key with read access to devices and resources.
 2. In MunkiReport `Admin -> SimpleMDM Settings`, save the API key.
-3. Run one manual sync:
+3. Run one manual sync. Pass the key through the environment rather than `--api-key`:
+   command-line arguments are readable via `ps` by every local account on the host, and the
+   leading space keeps the assignment out of shell history under `HISTCONTROL=ignorespace`.
 
 ```bash
+ SIMPLEMDM_API_KEY='YOUR_SIMPLEMDM_API_KEY' \
 python3 /path/to/munkireport/local/modules/simplemdm/scripts/simplemdm_sync.py \
-  --api-key 'YOUR_SIMPLEMDM_API_KEY' \
   --munkireport-url 'https://your-munkireport' \
   --verbose
 ```

@@ -471,7 +471,7 @@ Operational guidance:
      - `printf "SIMPLEMDM_API_KEY='YOUR_SIMPLEMDM_API_KEY'\n" > ~/.simplemdm_sync.env && chmod 600 ~/.simplemdm_sync.env`
      - `* * * * * set -a; . ~/.simplemdm_sync.env; set +a; /usr/bin/python3 <ABSOLUTE_MR_ROOT>/local/modules/simplemdm/scripts/simplemdm_sync.py --munkireport-url 'https://mr' --respect-schedule --max-parent-resources 25 >> /var/log/simplemdm_sync.log 2>&1`
    - Or use the admin UI `Enable Scheduled Sync` button when in-module script execution is enabled
-   - Or print/install the entry manually with `local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'https://mr' --api-key 'YOUR_SIMPLEMDM_API_KEY' [--install]`. `install_cron.sh` writes the key to `~/.simplemdm_sync.env` (mode `0600`) and emits a cron line that sources it; override the location with `--env-file PATH`. Export `SIMPLEMDM_API_KEY` instead of passing `--api-key` to keep the key out of your shell history too.
+   - Or print/install the entry manually with `SIMPLEMDM_API_KEY='YOUR_SIMPLEMDM_API_KEY' local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'https://mr' [--install]`. `install_cron.sh` writes the key to `~/.simplemdm_sync.env` (mode `0600`) and emits a cron line that sources it; override the location with `--env-file PATH`. Export `SIMPLEMDM_API_KEY` instead of passing `--api-key` to keep the key out of your shell history too.
    - Scheduled sync always runs `simplemdm_sync.py`; cron is just the launcher
 6. Verify:
    - `reports/simplemdm` renders widgets
@@ -719,7 +719,7 @@ crontab -l
 If you do not want the module to execute sync inside MunkiReport, you can still use the host/manual workflow:
 
 - run `simplemdm_sync.py` directly with `python3`
-- install cron outside the module with `install_cron.sh --munkireport-url 'https://your-munkireport' --api-key 'YOUR_SIMPLEMDM_API_KEY' --install`
+- install cron outside the module with `SIMPLEMDM_API_KEY='YOUR_SIMPLEMDM_API_KEY' install_cron.sh --munkireport-url 'https://your-munkireport' --install`
 - use `Sync Status -> Queue Next Worker Run` only as a queue/request signal for the next host-side worker pickup
 
 ### Hosted / VM Module Install
@@ -780,8 +780,8 @@ They are required for fresh installs and upgrades, and shipped migrations should
 6. Run a manual sync test:
 
 ```bash
+ SIMPLEMDM_API_KEY='YOUR_SIMPLEMDM_API_KEY' \
 python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
-  --api-key 'YOUR_SIMPLEMDM_API_KEY' \
   --munkireport-url 'http://127.0.0.1' \
   --verbose
 ```
@@ -789,8 +789,8 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
 7. Install the schedule runner on the host:
 
 ```bash
-local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'http://127.0.0.1' --api-key 'YOUR_SIMPLEMDM_API_KEY'
-local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'http://127.0.0.1' --api-key 'YOUR_SIMPLEMDM_API_KEY' --install
+SIMPLEMDM_API_KEY='YOUR_SIMPLEMDM_API_KEY' local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'http://127.0.0.1'
+SIMPLEMDM_API_KEY='YOUR_SIMPLEMDM_API_KEY' local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'http://127.0.0.1' --install
 local/modules/simplemdm/scripts/install_cron.sh --remove
 ```
 
@@ -856,8 +856,8 @@ docker compose exec munkireport php please migrate
 6. Run a manual sync from the host:
 
 ```bash
+ SIMPLEMDM_API_KEY='YOUR_SIMPLEMDM_API_KEY' \
 python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
-  --api-key 'YOUR_SIMPLEMDM_API_KEY' \
   --munkireport-url 'http://localhost:8888' \
   --verbose
 ```
@@ -865,8 +865,8 @@ python3 local/modules/simplemdm/scripts/simplemdm_sync.py \
 7. Install the schedule runner on the host:
 
 ```bash
-local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'http://localhost:8888' --api-key 'YOUR_SIMPLEMDM_API_KEY'
-local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'http://localhost:8888' --api-key 'YOUR_SIMPLEMDM_API_KEY' --install
+SIMPLEMDM_API_KEY='YOUR_SIMPLEMDM_API_KEY' local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'http://localhost:8888'
+SIMPLEMDM_API_KEY='YOUR_SIMPLEMDM_API_KEY' local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'http://localhost:8888' --install
 local/modules/simplemdm/scripts/install_cron.sh --remove
 ```
 
@@ -913,17 +913,17 @@ python3 --version
 
 ```bash
 crontab -l
-python3 local/modules/simplemdm/scripts/simplemdm_sync.py --api-key 'YOUR_SIMPLEMDM_API_KEY' --munkireport-url 'http://localhost:8888' --respect-schedule --force-run --verbose
+ SIMPLEMDM_API_KEY='YOUR_SIMPLEMDM_API_KEY' python3 local/modules/simplemdm/scripts/simplemdm_sync.py --munkireport-url 'http://localhost:8888' --respect-schedule --force-run --verbose
 ```
 
-   - If the queue state remains `queued` longer than the current sync interval, verify cron is installed with `local/modules/simplemdm/scripts/install_cron.sh --munkireport-url '<url>' --api-key 'YOUR_SIMPLEMDM_API_KEY' --install`.
+   - If the queue state remains `queued` longer than the current sync interval, verify cron is installed with `SIMPLEMDM_API_KEY='YOUR_SIMPLEMDM_API_KEY' local/modules/simplemdm/scripts/install_cron.sh --munkireport-url '<url>' --install`.
    - If you want an immediate one-off run from the UI, use the `In-Module Sync And Schedule` panel instead and ensure Python is available in the MunkiReport runtime.
 
 5. Sync fails with unauthorized/forbidden:
    - Cause: invalid SimpleMDM API key or auth mismatch.
    - Fix:
      - Save a valid API key in `Admin -> SimpleMDM Settings`.
-     - Re-run sync with `--api-key 'YOUR_SIMPLEMDM_API_KEY'` for explicit test.
+     - Re-run sync with `SIMPLEMDM_API_KEY='YOUR_SIMPLEMDM_API_KEY'` exported for an explicit test.
      - If MunkiReport API token auth is enabled in your environment, pass `--munkireport-token`.
 
 6. `Admin -> SimpleMDM Settings` is missing:
@@ -1562,8 +1562,8 @@ Verification checklist (webhook path):
 ### Run manually
 
 ```bash
+ SIMPLEMDM_API_KEY='YOUR_SIMPLEMDM_API_KEY' \
 python3 /path/to/munkireport/local/modules/simplemdm/scripts/simplemdm_sync.py \
-  --api-key 'YOUR_SIMPLEMDM_API_KEY' \
   --munkireport-url 'https://your-munkireport'
 ```
 
@@ -1649,19 +1649,19 @@ Run history safety:
 Example (faster test run):
 
 ```bash
-python3 .../simplemdm_sync.py --api-key 'KEY' --munkireport-url 'https://mr' --max-parent-resources 25 --verbose
+ SIMPLEMDM_API_KEY='KEY' python3 .../simplemdm_sync.py --munkireport-url 'https://mr' --max-parent-resources 25 --verbose
 ```
 
 Example with delta + commands:
 
 ```bash
-python3 .../simplemdm_sync.py --api-key 'KEY' --munkireport-url 'https://mr' --delta --sync-commands --commands-limit 250
+ SIMPLEMDM_API_KEY='KEY' python3 .../simplemdm_sync.py --munkireport-url 'https://mr' --delta --sync-commands --commands-limit 250
 ```
 
 Example with per-device subresources:
 
 ```bash
-python3 .../simplemdm_sync.py --api-key 'KEY' --munkireport-url 'https://mr' --sync-device-subresources --device-subresource-limit 200
+ SIMPLEMDM_API_KEY='KEY' python3 .../simplemdm_sync.py --munkireport-url 'https://mr' --sync-device-subresources --device-subresource-limit 200
 ```
 
 ### Scheduling
@@ -1670,10 +1670,17 @@ Recommended: run cron every minute with `--respect-schedule`, then control caden
 - `enable_scheduled_sync`
 - `sync_interval_minutes`
 
-Example cron:
+Example cron. The job sources a `0600` env file rather than carrying the key on the
+command line, because a cron command is readable via `ps` while it runs. `install_cron.sh`
+writes that file for you; to create it by hand:
+
+```bash
+ printf "SIMPLEMDM_API_KEY='YOUR_SIMPLEMDM_API_KEY'\n" > ~/.simplemdm_sync.env
+chmod 600 ~/.simplemdm_sync.env
+```
 
 ```cron
-* * * * * /usr/bin/python3 /path/to/.../simplemdm_sync.py --api-key 'YOUR_SIMPLEMDM_API_KEY' --munkireport-url 'https://mr' --respect-schedule --max-parent-resources 25 >> /var/log/simplemdm_sync.log 2>&1
+* * * * * set -a; . ~/.simplemdm_sync.env; set +a; /usr/bin/python3 /path/to/.../simplemdm_sync.py --munkireport-url 'https://mr' --respect-schedule --max-parent-resources 25 >> /var/log/simplemdm_sync.log 2>&1
 ```
 
 Optional production additions:

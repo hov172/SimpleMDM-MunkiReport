@@ -12,6 +12,10 @@ entry.
 
 ## [Unreleased]
 
+### Security
+- Dependency CVE scan completed, closing the one scope gap the 1.3.6 audit had left open. The module is **clean**: it declares no runtime dependencies at all — its 26 locked packages are the PHPUnit toolchain under `packages-dev` — and the installed PHPUnit 10.5.64 falls outside every advisory range Packagist returns for it. `docs/security-audit-report-2026-08-07.md` Appendix A carries the method and output; the report is now revision 1.2.
+- Scanned MunkiReport core for context, since this module runs inside that process. **Core has 22 affected packages, 21 of them runtime** — notably `robrichards/xmlseclibs` 3.1.1 and `onelogin/php-saml` 3.6.1, which carry a digest/signature validation bypass on the SAML authentication path. That is a separate project and nothing this module can fix, but it is recorded in Appendix A and the roadmap because a vulnerability there is reachable by the same requests that reach this module.
+
 ---
 
 ## [1.3.6] — 2026-08-07

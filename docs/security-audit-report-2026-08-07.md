@@ -32,7 +32,7 @@ The remediation itself was then re-reviewed, which surfaced two further Medium f
 
 - The most severe confirmed finding (SEC-001) allowed a person with nothing more than the ability to rename their own managed Mac to execute JavaScript in the browser session of any MunkiReport operator who opened the device listing — including global administrators whose sessions can reach configuration save and server-side script execution endpoints.
 - After remediation the module has no known Critical, High or Medium exposure; the two remaining open items are Low-severity hardening gaps whose practical exploitability is bounded, and both are documented rather than silently deferred.
-- Not covered by this review: dynamic or penetration testing, dependency CVE scanning, the MunkiReport core application beyond the authorisation helpers this module depends on, and end-to-end validation of the new business-unit scoping (the audited instance runs with business units disabled).
+- Not covered by this review: dynamic or penetration testing, dependency CVE scanning, the MunkiReport core application beyond the authorisation helpers this module depends on, and end-to-end validation of the new business-unit scoping (the audited instance runs with business units disabled). Dependency scanning was initially deferred and has since been completed — see Appendix A.
 
 ---
 
@@ -51,7 +51,7 @@ The remediation itself was then re-reviewed, which surfaced two further Medium f
 
 ### Not Reviewed
 
-- **Dependency CVE scanning.** The environment's Composer build does not provide the `audit` subcommand, and no equivalent scanner was available. `composer.lock` and `vendor/` were not assessed for known vulnerabilities. This is a real gap and is carried in the roadmap.
+- ~~**Dependency CVE scanning.**~~ Completed 2026-08-08 against Packagist's advisory API; see Appendix A. The module itself is clean and declares no runtime dependencies. MunkiReport core, which is out of scope for this audit, has 22 affected packages and is recorded in Appendix A for the maintainer's attention.
 - **Dynamic and penetration testing.** No exploitation was attempted. Every finding in this report was derived by reading code. Where behaviour was confirmed live, it was confirmed against non-destructive requests using legitimate credentials or deliberately invalid ones.
 - **`simplemdm_sync.py` internals.** The 58 KB sync script was inspected only for embedded secrets and for its `--api-key` / `SIMPLEMDM_API_KEY` interface. Its request handling, parsing and error paths were not reviewed.
 - **MunkiReport core** beyond the authentication and authorisation helpers this module depends on.
@@ -1766,7 +1766,8 @@ Add a `machine_group` column to `simplemdm_dashboard_snapshot`, have `record_das
 | Immediate | — | Merge `security/audit-remediation-v1.3.6` to `main` and release 1.3.6 | hov172 | 2026-08-08 |
 | Immediate | SEC-009 | Operators: detect and rewrite pre-1.3.6 crontab entries, then **rotate the SimpleMDM API key** | Deployment owners | On upgrade |
 | This Sprint | SEC-003 | Verify business-unit scoping against a live instance with `enable_business_units=true` and a non-admin account | hov172 | 2026-08-15 |
-| This Sprint | — | Dependency CVE scan of `composer.lock` (not performed — Composer in this environment lacks `audit`) | hov172 | 2026-08-15 |
+| ~~This Sprint~~ | — | ~~Dependency CVE scan of `composer.lock`~~ — **completed 2026-08-08**: module clean (no runtime deps) | hov172 | Done |
+| Immediate | — | **MunkiReport core** (separate project): 21 affected runtime packages. Prioritise `robrichards/xmlseclibs` + `onelogin/php-saml` if SAML auth is in use — digest/signature validation bypass. See Appendix A. | core maintainers | — |
 | ~~This Quarter~~ | SEC-013 | ~~Make the throttle counter increment atomic under a single `flock`~~ — **completed 2026-08-07** | hov172 | Done |
 | ~~This Quarter~~ | SEC-014 | ~~Canonicalise `--env-file` before the containment check~~ — **completed 2026-08-07** | hov172 | Done |
 | Backlog | SEC-015 | Decide whether to add `machine_group` to dashboard snapshots, or document permanently as accepted | hov172 | — |
@@ -1778,18 +1779,50 @@ Add a `machine_group` column to `simplemdm_dashboard_snapshot`, have `record_das
 
 ### Dependency scanning
 
-**Not assessed.** The Composer build available in the audited environment does not provide the `audit` subcommand:
+Performed 2026-08-08 (report revision 1.2). The environment's Composer is 2.2.6, which predates the `audit` subcommand (added in 2.4):
 
 ```
 $ composer audit --format=plain
-
-                                                                  
-  [Symfony\Component\Console\Exception\CommandNotFoundException]  
-  Command "audit" is not defined.                                 
-                                                                  
+  [Symfony\Component\Console\Exception\CommandNotFoundException]
+  Command "audit" is not defined.
 ```
 
-No alternative scanner was available. `composer.lock` and `vendor/` were not assessed for known CVEs. This gap is carried in the roadmap. The project is PHP; `npm audit` is not applicable as there is no Node workspace.
+Rather than install a scanner, the lock files were checked against Packagist's security-advisories API (`GET /api/security-advisories/?packages[]=…`), which is the same advisory database `composer audit` consumes. Installed versions were then matched against each advisory's affected ranges. This is a data fetch only — no third-party code was downloaded or executed.
+
+**simplemdm module — CLEAN.**
+
+```
+### simplemdm module
+    packages: 26  (runtime 0, dev 26)
+    advisories returned: 4   affected: 0   unparseable: 0
+```
+
+The module declares **no runtime dependencies at all**. Its 26 locked packages are the PHPUnit toolchain under `packages-dev`, none of which reaches a production install. Packagist returned four advisories, all against `phpunit/phpunit`; the installed 10.5.64 falls outside every affected range, including CVE-2026-24765 whose 10.x range ends at `<10.5.62`.
+
+**MunkiReport core — 22 affected packages, 21 of them runtime.**
+
+Out of scope for this audit — core is a separate project — but recorded because it is the process this module runs inside, and a vulnerability there is reachable by the same requests.
+
+```
+### MunkiReport core (module runs inside this)
+    packages: 127  (runtime 126, dev 1)
+    advisories returned: 60   affected: 22   unparseable: 0
+```
+
+| Package | Installed | Advisories | Fixed in | Note |
+|---|---|---|---|---|
+| `guzzlehttp/guzzle` | 7.7.0 | 9 | ≥ 7.15.2 | Host-check bypass, cookie scope, proxy-auth leakage, cleartext proxy downgrade |
+| `guzzlehttp/psr7` | 2.5.0 | 4 | ≥ 2.12.3 | CRLF injection, host confusion |
+| `robrichards/xmlseclibs` | 3.1.1 | 2 | ≥ 3.1.5 | **Digest/signature validation bypass**, missing AES-GCM tag validation |
+| `onelogin/php-saml` | 3.6.1 | 1 | ≥ 3.8.1 | SAML toolkit vulnerability via xmlseclibs |
+| `symfony/yaml` | 3.4.47 | 3 | ≥ 5.4.52 | Parser DoS — billion laughs, ReDoS, stack exhaustion |
+| `nesbot/carbon` | 2.67.0 | 1 | ≥ 2.72.6 | Arbitrary file include via `Carbon::setLocale` |
+| `symfony/process` | 6.3.0 | 1 | ≥ 6.4.14 | Command execution hijack — Windows only |
+| `squizlabs/php_codesniffer` | 2.9.2 | 1 | ≥ 3.13.6 | OS command injection (dev dependency) |
+
+The pair worth acting on first is `robrichards/xmlseclibs` with `onelogin/php-saml`: a digest/signature validation bypass in an XML signature library, used by the SAML authentication path. **If this install uses SAML for login, treat that as an authentication-bypass risk.** Installs using local or LDAP auth do not exercise that code.
+
+**Method caveat:** the version-range matching was implemented for this scan rather than using Composer's own semver library. All 60 advisory ranges parsed cleanly (`unparseable: 0`), and the module's clean result was additionally confirmed by reading the four phpunit ranges by hand. Treat the core figures as a strong indicator, and re-run with `composer audit` on a Composer ≥ 2.4 before planning core remediation.
 
 ### PHPUnit — final state
 
@@ -1972,3 +2005,4 @@ Remaining `simplemdm_rt_*` widgets were swept for output sinks; none use the esc
 |---|---|---|---|
 | 1.0 | 2026-08-07 | Claude Code (secure-webapp skill), for hov172 | Initial report covering the full module audit, the twelve remediations applied on branch `security/audit-remediation-v1.3.6` (`b7f1aa6`, `739a25b`, `9c1dc20`, `708a542`), two open Low findings, one accepted risk, and one false positive |
 | 1.1 | 2026-08-07 | Claude Code (secure-webapp skill), for hov172 | SEC-013 and SEC-014 remediated and verified (`35f9613`); both moved from Open Findings to Confirmed Findings with applied fixes, evidence and verification. Finding counts updated: 14 fixed, 0 open, 1 accepted risk, 1 false positive. Roadmap entries marked done. **No open findings remain.** |
+| 1.2 | 2026-08-08 | Claude Code (secure-webapp skill), for hov172 | Dependency CVE scan completed against Packagist's advisory API, closing the scope gap recorded in 1.0. Module clean — no runtime dependencies, and the installed PHPUnit is outside every advisory range. MunkiReport core scanned for context: 22 affected packages, 21 runtime, added to Appendix A and the roadmap. No change to this module's findings. |

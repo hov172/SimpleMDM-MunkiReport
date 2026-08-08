@@ -207,6 +207,75 @@ final class SecretHandlingGuardTest extends TestCase
         );
     }
 
+    public function testGetConfigRedactsThroughTheSharedPolicy(): void
+    {
+        // The redaction must be a single sweep over the assembled response,
+        // not a per-key branch inside the settings loop. get_config() merges
+        // in runner settings, derived run state and defaults *after* that
+        // loop, and anything arriving from those sources would otherwise skip
+        // the check entirely.
+        $this->assertMatchesRegularExpression(
+            '/\$config = Simplemdm_config_policy::redact\(\$config, \$is_global\);\s+jsonView\(\$config\);/',
+            self::$controller,
+            'get_config() must redact through Simplemdm_config_policy immediately before jsonView(), '
+            . 'so every key in the response is covered whatever assembled it.'
+        );
+
+        $this->assertStringNotContainsString(
+            "if (\$setting->name === 'webhook_secret' && ! \$is_global) {",
+            self::$controller,
+            'The hand-maintained per-secret branches are back. They are a deny-list: any key nobody '
+            . 'remembered to add is disclosed in full.'
+        );
+    }
+
+    public function testEverySecretShapedWritableSettingIsCoveredByThePolicy(): void
+    {
+        require_once __DIR__ . '/../../simplemdm_config_policy.php';
+
+        // save_config() is the full set of settings an admin can write, and
+        // get_config() can read back every one of them. The two lists live
+        // ~150 lines apart, so assert the coupling rather than trusting review
+        // to notice when one of them grows.
+        $this->assertSame(
+            1,
+            preg_match('/\$config_keys = \[(.*?)\];/s', self::$controller, $m),
+            'Could not locate the $config_keys list in save_config(); this guard needs updating.'
+        );
+
+        preg_match_all("/'([a-z0-9_]+)'/", $m[1], $keys);
+        $writable = $keys[1];
+        $this->assertGreaterThan(30, count($writable), 'Parsed implausibly few writable config keys.');
+
+        foreach ($writable as $key) {
+            if (! preg_match(Simplemdm_config_policy::SECRET_NAME_PATTERN, $key)) {
+                continue;
+            }
+            if (Simplemdm_config_policy::isSecret($key)) {
+                continue;
+            }
+
+            // A credential-shaped key the policy lets through must be excused
+            // by a documented rule -- a NON_SECRET_SUFFIXES suffix or an
+            // EXEMPT_KEYS entry -- not by an oversight.
+            $excused = in_array($key, Simplemdm_config_policy::EXEMPT_KEYS, true);
+            foreach (Simplemdm_config_policy::NON_SECRET_SUFFIXES as $suffix) {
+                $excused = $excused || substr($key, -strlen($suffix)) === $suffix;
+            }
+
+            $this->assertTrue(
+                $excused,
+                sprintf(
+                    '%s is writable via save_config() and looks like a credential, but the policy '
+                    . 'discloses it to any sync-token caller. Either it is a secret (let the policy '
+                    . 'redact it) or it is not (add it to EXEMPT_KEYS, or give it a NON_SECRET_SUFFIXES '
+                    . 'suffix, with a comment saying why).',
+                    $key
+                )
+            );
+        }
+    }
+
     public function testEnvFilePathIsCanonicalisedBeforeContainmentCheck(): void
     {
         // A textual prefix match is bypassed by '..' or a symlinked parent,

@@ -57,7 +57,18 @@ for headless clients.
 Notes:
 - `api_key` is not returned to non-global users.
 - Sync-auth `get_config` callers receive non-secret settings plus `*_set` flags, not raw secret values.
-- `webhook_secret` and `action_api_secret` are masked for non-global users (`*_set` flags only).
+- Which settings count as secret is decided in one place, `Simplemdm_config_policy`, and the
+  default is "secret" (1.3.7). A setting is redacted when its name contains `secret`, `token`,
+  `password`, `passphrase`, `credential`, `salt`, `pepper`, or `key` as a whole
+  underscore-delimited segment — so `api_key`, `webhook_secret`, `action_api_secret`,
+  `client_reporter_secret` and any credential added later are all covered without being listed
+  anywhere. Two narrow exclusions: names ending `_enabled` (feature flags the sync runner reads),
+  and `client_reporter_device_token_metadata_json` (reports `has_token` as a boolean, never the
+  stored hash).
+- The redaction runs as a single sweep over the assembled response immediately before it is
+  serialised, not per-key while the response is built. `get_config()` merges in defaults, runner
+  configuration and derived run state after reading the settings table, and a per-source check
+  would leave those paths uncovered.
 - Token-readable module data routes are limited to read-only dashboard/detail/MCP-readback
   endpoints; mutating operations still require their route-specific auth checks.
 - The token list includes `get_client_facts/{serial}` (since 2026-07-08): per-device

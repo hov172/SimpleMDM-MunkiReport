@@ -44,6 +44,7 @@ class Simplemdm_controller extends Module_controller
         require_once $this->module_path . '/simplemdm_client_reporter_nonce_model.php';
         require_once $this->module_path . '/simplemdm_client_reporter_token_model.php';
         require_once $this->module_path . '/simplemdm_mcp_finding_model.php';
+        require_once $this->module_path . '/simplemdm_config_policy.php';
 
         // Check if authorized (except token-protected sync endpoints)
         $is_sync_action = false;
@@ -4296,26 +4297,14 @@ class Simplemdm_controller extends Module_controller
         }
         $settings = Simplemdm_config_model::all();
         foreach ($settings as $setting) {
-            if ($setting->name === 'api_key') {
-                $config['api_key_set'] = trim((string)$setting->value) !== '' ? '1' : '0';
-                if (! $is_global) {
-                    continue;
-                }
-            }
-            if ($setting->name === 'webhook_secret' && ! $is_global) {
-                $config['webhook_secret_set'] = trim((string)$setting->value) !== '' ? '1' : '0';
-                continue;
-            }
-            if ($setting->name === 'action_api_secret' && ! $is_global) {
-                $config['action_api_secret_set'] = trim((string)$setting->value) !== '' ? '1' : '0';
-                continue;
-            }
-            if ($setting->name === 'client_reporter_secret' && ! $is_global) {
-                $config['client_reporter_secret_set'] = trim((string)$setting->value) !== '' ? '1' : '0';
-                continue;
-            }
             $config[$setting->name] = $setting->value;
         }
+
+        // The settings page shows "an API key is stored" next to a write-only
+        // field, so this flag is emitted for every caller -- including the
+        // global admin, who also receives the value itself. Redaction below
+        // adds the equivalent flag for the secrets it strips.
+        $config['api_key_set'] = trim((string) ($config['api_key'] ?? '')) !== '' ? '1' : '0';
 
         if (! isset($config['supplemental_enabled'])) {
             $config['supplemental_enabled'] = '1';
@@ -4397,6 +4386,13 @@ class Simplemdm_controller extends Module_controller
         foreach ($run_state as $key => $value) {
             $config[$key] = $value;
         }
+
+        // Last statement before the response, deliberately: the settings loop
+        // is only one of several sources above (defaults, runner config,
+        // derived run state), and a per-source check would let the others
+        // through. Sync-token callers are not global admins, so this is what
+        // keeps the shared API key from handing out every other secret.
+        $config = Simplemdm_config_policy::redact($config, $is_global);
 
         jsonView($config);
     }

@@ -32,7 +32,7 @@ The remediation itself was then re-reviewed, which surfaced two further Medium f
 
 - The most severe confirmed finding (SEC-001) allowed a person with nothing more than the ability to rename their own managed Mac to execute JavaScript in the browser session of any MunkiReport operator who opened the device listing — including global administrators whose sessions can reach configuration save and server-side script execution endpoints.
 - After remediation the module has no known Critical, High or Medium exposure; the two remaining open items are Low-severity hardening gaps whose practical exploitability is bounded, and both are documented rather than silently deferred.
-- Not covered by this review: dynamic or penetration testing, dependency CVE scanning, the MunkiReport core application beyond the authorisation helpers this module depends on, and end-to-end validation of the new business-unit scoping (the audited instance runs with business units disabled). Dependency scanning was initially deferred and has since been completed — see Appendix A.
+- Not covered by this review: dynamic or penetration testing, dependency CVE scanning, the MunkiReport core application beyond the authorisation helpers this module depends on, and dynamic/penetration testing. The two scope gaps recorded at revision 1.0 — dependency scanning and live business-unit verification — have both since been closed; see Appendix A and SEC-003 Verification.
 
 ---
 
@@ -56,7 +56,7 @@ The remediation itself was then re-reviewed, which surfaced two further Medium f
 - **`simplemdm_sync.py` internals.** The 58 KB sync script was inspected only for embedded secrets and for its `--api-key` / `SIMPLEMDM_API_KEY` interface. Its request handling, parsing and error paths were not reviewed.
 - **MunkiReport core** beyond the authentication and authorisation helpers this module depends on.
 - **Infrastructure.** TLS termination, reverse proxy configuration, web server hardening, host security, file permissions in production, and database configuration are all out of scope.
-- **Business-unit scoping end to end.** `enable_business_units` is `false` on the audited instance and no non-administrative test account was available, so the SEC-003 remediation is supported by guard tests and code reasoning rather than a live restricted session.
+- ~~**Business-unit scoping end to end.**~~ Completed 2026-08-08 via `tests/manual/sec003_business_unit_scoping.php`, which boots the real application, enables business units in-process, builds a fixture estate inside a rolled-back transaction and exercises the real controller as a non-admin session. 21 assertions, all passing. See SEC-003 Verification.
 - Migrations, the client reporter macOS agents in operation, and any third-party SaaS integration behaviour on the SimpleMDM side.
 
 ### Methodology
@@ -496,8 +496,24 @@ The gate on `enable_business_units` is the load-bearing design decision. With bu
 
 - `MachineScopeGuardTest` asserts the helpers exist, that scoping remains gated on `enable_business_units`, that global admins and token callers are exempt, that all seven serial-scoped endpoints call `require_serial_access()`, that list and export queries remain scoped, and that group ids are `intval`-cast before reaching raw SQL.
 - Live regression check with business units disabled: `get_data` returns 454 devices, `get_mcp_finding_stats` returns 197 open findings, `get_assignment_group_stats` returns named groups — all unchanged from before the fix, confirming no over-scoping in the default configuration.
-- Full suite: `OK (113 tests, 215 assertions)`.
-- **Verification gap:** the enabled-business-unit path was not exercised live. See Not Reviewed and the roadmap.
+- Full suite: `OK (115 tests, 222 assertions)`.
+- **Live verification, 2026-08-08** (`tests/manual/sec003_business_unit_scoping.php`, 21/21 passing). Boots the real application, enables business units in-process, and inserts a fixture estate inside a transaction that is always rolled back: two serials in the caller's machine group, one in another group, and one present in `simplemdm` with no `reportdata` row at all (the MCP-only shape). It then drives the real controller with a non-admin session restricted to a single group:
+
+  | Assertion | Result |
+  |---|---|
+  | `machine_scope_enabled()` with BUs on and a non-admin caller | `true` |
+  | `require_serial_access()` on an in-scope serial | allowed, no body emitted |
+  | `require_serial_access()` on an out-of-scope serial | denied, body `Not found` |
+  | `scoped_devices()` over all four fixtures | returns only the two in-group serials |
+  | `scoped_findings()` over all four fixtures | returns only the two in-group serials |
+  | `machine_group_sql_filter()` | emits `machine_group IN (9101)` — int-cast |
+  | `get_mcp_findings()` list | scoped to the two in-group serials |
+  | `get_mcp_findings(<out-of-scope serial>)` | `Not found` |
+  | Sync-token caller | exempt; out-of-scope serial allowed |
+  | Global admin | exempt |
+  | Business units disabled | scoping off, and the orphan serial visible again |
+
+  The last two rows matter most: they confirm the exemptions the design depends on, and that the MCP-only device — which has no `reportdata` row and would vanish under unconditional scoping — remains visible when business units are off. Residue check after the run: `reportdata` 1 row, `simplemdm` 454, findings 211 — unchanged, and zero rows matching the fixture prefixes.
 
 ---
 
@@ -1765,7 +1781,7 @@ Add a `machine_group` column to `simplemdm_dashboard_snapshot`, have `record_das
 |---|---|---|---|---|
 | Immediate | — | Merge `security/audit-remediation-v1.3.6` to `main` and release 1.3.6 | hov172 | 2026-08-08 |
 | Immediate | SEC-009 | Operators: detect and rewrite pre-1.3.6 crontab entries, then **rotate the SimpleMDM API key** | Deployment owners | On upgrade |
-| This Sprint | SEC-003 | Verify business-unit scoping against a live instance with `enable_business_units=true` and a non-admin account | hov172 | 2026-08-15 |
+| ~~This Sprint~~ | SEC-003 | ~~Verify business-unit scoping live~~ — **completed 2026-08-08**, 21/21 via `tests/manual/sec003_business_unit_scoping.php` | hov172 | Done |
 | ~~This Sprint~~ | — | ~~Dependency CVE scan of `composer.lock`~~ — **completed 2026-08-08**: module clean (no runtime deps) | hov172 | Done |
 | Immediate | — | **MunkiReport core** (separate project): 21 affected runtime packages. Prioritise `robrichards/xmlseclibs` + `onelogin/php-saml` if SAML auth is in use — digest/signature validation bypass. See Appendix A. | core maintainers | — |
 | ~~This Quarter~~ | SEC-013 | ~~Make the throttle counter increment atomic under a single `flock`~~ — **completed 2026-08-07** | hov172 | Done |
@@ -2006,3 +2022,4 @@ Remaining `simplemdm_rt_*` widgets were swept for output sinks; none use the esc
 | 1.0 | 2026-08-07 | Claude Code (secure-webapp skill), for hov172 | Initial report covering the full module audit, the twelve remediations applied on branch `security/audit-remediation-v1.3.6` (`b7f1aa6`, `739a25b`, `9c1dc20`, `708a542`), two open Low findings, one accepted risk, and one false positive |
 | 1.1 | 2026-08-07 | Claude Code (secure-webapp skill), for hov172 | SEC-013 and SEC-014 remediated and verified (`35f9613`); both moved from Open Findings to Confirmed Findings with applied fixes, evidence and verification. Finding counts updated: 14 fixed, 0 open, 1 accepted risk, 1 false positive. Roadmap entries marked done. **No open findings remain.** |
 | 1.2 | 2026-08-08 | Claude Code (secure-webapp skill), for hov172 | Dependency CVE scan completed against Packagist's advisory API, closing the scope gap recorded in 1.0. Module clean — no runtime dependencies, and the installed PHPUnit is outside every advisory range. MunkiReport core scanned for context: 22 affected packages, 21 runtime, added to Appendix A and the roadmap. No change to this module's findings. |
+| 1.3 | 2026-08-08 | Claude Code (secure-webapp skill), for hov172 | SEC-003 verified live via a new transactional harness, `tests/manual/sec003_business_unit_scoping.php` — 21/21 assertions against the real controller with business units enabled and a non-admin session, rolled back with zero residue. The last remaining scope gap from revision 1.0 is closed; the report now has no unverified findings and no outstanding scope caveats beyond dynamic testing. |

@@ -753,3 +753,52 @@ via its truncation-note "Open findings browser" link.
    - Set `mcp_findings_enabled` to `0` and confirm the section is absent
      rather than showing an error (the endpoint answers `403`).
 9. **No console errors** in any of the above states.
+
+---
+
+## 14) SEC-003 Manual Verification (business-unit scoping)
+
+`tests/manual/sec003_business_unit_scoping.php` verifies that module reads stay
+scoped to the caller's machine groups when business units are enabled. It is not
+in the PHPUnit suite because it needs a booted MunkiReport and a real database,
+neither of which `tests/bootstrap.php` provides.
+
+It is safe to run against a live instance: business units are enabled in-process
+only, the fixture estate is created inside a transaction, and the transaction is
+always rolled back — including on failure.
+
+```bash
+C=munkireport-local   # your container
+
+# The harness needs the app bootstrap without its final dispatch block.
+docker exec $C sh -c \
+  "sed \"/^\\\$uri_protocol = conf('uriProtocol');/,\\\$d\" \
+   /var/munkireport/bootstrap/app.php > /tmp/boot_nodispatch.php"
+
+docker cp tests/manual/sec003_business_unit_scoping.php $C:/tmp/
+docker exec $C php /tmp/sec003_business_unit_scoping.php
+```
+
+Expected tail: `==== 21 passed, 0 failed ====` followed by
+`[fixtures rolled back]`.
+
+Confirm no residue afterwards — counts should match what they were before:
+
+```bash
+docker exec $C php -r '
+$p=new PDO("sqlite:/var/munkireport/app/db/db.sqlite");
+foreach([["reportdata","serial_number like \"SEC003%\""],
+         ["simplemdm","serial_number like \"SEC003%\""],
+         ["simplemdm_mcp_finding","source = \"sec003harness\""]] as [$t,$w])
+  printf("%s: %d\n", $t, $p->query("select count(*) from `$t` where $w")->fetchColumn());'
+```
+
+All three must report `0`.
+
+What it covers: `machine_scope_enabled()` gating, `require_serial_access()`
+allowing in-scope and answering `Not found` for out-of-scope serials,
+`scoped_devices()` / `scoped_findings()` query filtering, int-casting in
+`machine_group_sql_filter()`, the `get_mcp_findings` endpoint at both list and
+per-serial level, and the three exemptions the design relies on — sync-token
+callers, global admins, and business units being disabled (which must keep
+MCP-only devices with no `reportdata` row visible).

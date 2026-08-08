@@ -153,4 +153,30 @@ final class SecretHandlingGuardTest extends TestCase
             'Fewer endpoints are throttled than before — a shared-secret endpoint has lost its gate.'
         );
     }
+
+    public function testThrottleDirectoryIsNotBlindlyTrusted(): void
+    {
+        // sys_get_temp_dir() is shared with every local account. A directory
+        // pre-created by another user (or a symlink standing in for one) would
+        // let them clear the counters or pin them at the limit, turning the
+        // throttle into a denial of service against the sync integration.
+        foreach ([
+            'is_link($dir)'      => 'reject a symlink standing in for the directory',
+            'posix_geteuid()'    => 'require the directory to be owned by this process',
+            '0077'               => 'reject a group- or world-writable directory',
+        ] as $needle => $why) {
+            $this->assertStringContainsString(
+                $needle,
+                self::$controller,
+                sprintf('throttle_dir() must %s.', $why)
+            );
+        }
+
+        $this->assertStringContainsString(
+            "hash('sha256', \$this->module_path)",
+            self::$controller,
+            'The throttle directory name must be per-install so two MunkiReport instances on one host '
+            . 'do not share counters.'
+        );
+    }
 }

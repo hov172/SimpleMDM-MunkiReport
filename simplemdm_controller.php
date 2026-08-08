@@ -2557,12 +2557,37 @@ class Simplemdm_controller extends Module_controller
             return '';
         }
 
-        $dir = rtrim($base, '/') . '/simplemdm-auth-throttle';
-        if (! is_dir($dir) && ! @mkdir($dir, 0700, true) && ! is_dir($dir)) {
+        // Per-install suffix so two MunkiReport instances on one host do not
+        // share counters, and so the name is not trivially predictable.
+        $dir = rtrim($base, '/') . '/simplemdm-auth-throttle-'
+            . substr(hash('sha256', $this->module_path), 0, 16);
+
+        if (! is_dir($dir)) {
+            @mkdir($dir, 0700, true);
+        }
+
+        // sys_get_temp_dir() is usually /tmp, which every local account can
+        // write to. A pre-existing directory owned by someone else — or a
+        // symlink standing in for one — would let that user clear the counters
+        // (defeating the throttle) or pin them at the limit (locking out the
+        // sync integration). Only use the directory when it is a real
+        // directory, owned by this process, and not group- or world-writable.
+        if (! is_dir($dir) || is_link($dir) || ! is_writable($dir)) {
             return '';
         }
 
-        return is_writable($dir) ? $dir : '';
+        clearstatcache(true, $dir);
+        $owner = @fileowner($dir);
+        if ($owner === false || (function_exists('posix_geteuid') && $owner !== posix_geteuid())) {
+            return '';
+        }
+
+        $perms = @fileperms($dir);
+        if ($perms === false || ($perms & 0077) !== 0) {
+            return '';
+        }
+
+        return $dir;
     }
 
     /**

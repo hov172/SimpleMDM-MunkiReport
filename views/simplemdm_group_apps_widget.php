@@ -126,7 +126,7 @@ $(document).on('appReady', function() {
     var regularWidthClass = 'col-lg-6';
 
     function esc(value) {
-        return $('<div>').text(String(value === null || value === undefined ? '' : value)).html();
+        return window.simplemdmEscapeHtml(value);
     }
 
     function listingUrl(query) {

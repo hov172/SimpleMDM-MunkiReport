@@ -418,7 +418,7 @@ $(document).on('appReady', function() {
     var simplemdmDeviceId = '';
 
     function esc(val) {
-        return $('<div>').text(String(val)).html();
+        return window.simplemdmEscapeHtml(val);
     }
 
     function toTitle(key) {
@@ -532,7 +532,7 @@ $(document).on('appReady', function() {
 
     function renderOverviewValue(val) {
         if (typeof val === 'string' && /^https?:\/\//i.test(val)) {
-            return '<a href="' + esc(val) + '" target="_blank" rel="noopener noreferrer">' + esc(val) + '</a>';
+            return '<a href="' + window.simplemdmEscapeUrl(val) + '" target="_blank" rel="noopener noreferrer">' + esc(val) + '</a>';
         }
         return esc(val);
     }

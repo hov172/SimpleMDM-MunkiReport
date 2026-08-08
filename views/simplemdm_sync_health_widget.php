@@ -54,7 +54,7 @@ $(document).on('appReady', function() {
             ];
             rows.forEach(function(row) {
                 var valueClass = row.long ? 'simplemdm-metric-value simplemdm-metric-value-long' : 'simplemdm-metric-value badge pull-right';
-                listGroup.append('<span class="list-group-item">' + row.label + '<span class="' + valueClass + '">' + row.value + '</span></span>');
+                listGroup.append('<span class="list-group-item">' + window.simplemdmEscapeHtml(row.label) + '<span class="' + valueClass + '">' + window.simplemdmEscapeHtml(row.value) + '</span></span>');
             });
         }).fail(function() {
             $('#simplemdm-sync-health-widget .panel-body').html('<p class="text-danger text-center">Failed to load sync telemetry.</p>');

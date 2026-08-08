@@ -30,7 +30,7 @@ $(document).on('appReady', function() {
                 .map(function(s) { return '<span class="badge alert-' + s + '">' + Number(d[s]) + '</span>'; }).join(' ');
             $list.append($('<span class="list-group-item">')
                 .append('#' + (i + 1) + ' ')
-                .append('<a href="' + deviceUrl + '">' + $('<i>').text(serial).html() + '</a> ')
+                .append('<a href="' + deviceUrl + '">' + window.simplemdmEscapeHtml(serial) + '</a> ')
                 .append('<span class="pull-right">' + badges + ' <span class="badge">' + Number(d.score || 0) + '</span></span>'));
         });
     });

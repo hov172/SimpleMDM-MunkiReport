@@ -15,7 +15,15 @@ class Simplemdm_controller extends Module_controller
     // the core Module controller filter.
     private $token_read_actions = ['get_sync_telemetry', 'get_compliance_stats', 'get_command_status_stats', 'get_assignment_group_stats', 'get_resource_type_stats', 'get_os_security_stats', 'get_supplemental_status', 'get_supplemental_overview_stats', 'get_supplemental_applecare_stats', 'get_device_resources', 'get_events', 'get_dashboard_trend', 'get_supplemental_data', 'get_client_facts', 'get_runner_status', 'get_mcp_findings', 'get_mcp_finding_stats', 'export_mcp_findings', 'get_mcp_scan_status', 'get_mcp_finding_timeline'];
     private $token_read_request = false;
+    /** Memoized shared-secret check results, so one request counts once. */
+    private $auth_check_cache = [];
     private $downloadable_scripts = ['simplemdm_sync.py', 'install_cron.sh', 'remove_cron.sh'];
+
+    /** Failed shared-secret authentications tolerated per client per window. */
+    const AUTH_FAILURE_LIMIT = 20;
+
+    /** Length of the failed-authentication sliding window, in seconds. */
+    const AUTH_FAILURE_WINDOW_SECONDS = 900;
 
     function __construct()
     {
@@ -63,9 +71,46 @@ class Simplemdm_controller extends Module_controller
             }
         }
 
+        // Throttle before core's own filter gets a chance to answer. Direct
+        // routes (/module/simplemdm/ingest) are rejected by core with a 403
+        // when the token is wrong, so the per-action gate further down would
+        // never be reached on that path; enforcing here covers both routes.
+        // is_valid_sync_token() is memoized and has already recorded this
+        // attempt; only a request that failed AND has exhausted its budget is
+        // turned away here, so a correct secret always gets through.
+        if ($this->presented_shared_secret_header()
+            && ! $this->is_valid_sync_token()
+            && $this->is_auth_throttled('shared_secret')) {
+            $this->deny_shared_secret();
+            exit;
+        }
+
         if (! $is_sync_action && ! $this->authorized()) {
             die('Authenticate first.');
         }
+    }
+
+    /**
+     * Whether this request carried any of the module's shared-secret headers.
+     *
+     * Used to decide if a request is a credential attempt at all. A browser
+     * session sends none of these, so it never touches the throttle.
+     *
+     * @return bool
+     **/
+    private function presented_shared_secret_header()
+    {
+        foreach ([
+            'HTTP_X_SIMPLEMDM_API_KEY',
+            'HTTP_X_SIMPLEMDM_WEBHOOK_SECRET',
+            'HTTP_X_WEBHOOK_SECRET',
+        ] as $key) {
+            if (isset($_SERVER[$key]) && trim((string) $_SERVER[$key]) !== '') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -1197,19 +1242,30 @@ class Simplemdm_controller extends Module_controller
         return $bytes > 0 ? $bytes : 16384;
     }
 
+    // Client reporter integrity controls default to ON.
+    //
+    // Without them, ingest_client_facts authenticates on one shared secret
+    // that every managed Mac carries, so any device holding it can write facts
+    // for any serial, and a captured request can be replayed indefinitely.
+    //
+    // Changing the default does not alter existing installs: all three keys
+    // are in the save_config allow-list, so any site that has ever saved the
+    // SimpleMDM settings page has an explicit stored row that wins over the
+    // default here. A site with no stored row has never configured the feature
+    // and has client_reporter_enabled off as well.
     private function client_reporter_hmac_enabled()
     {
-        return $this->get_config_value('client_reporter_hmac_enabled', '0') === '1';
+        return $this->get_config_value('client_reporter_hmac_enabled', '1') === '1';
     }
 
     private function client_reporter_replay_protection_enabled()
     {
-        return $this->get_config_value('client_reporter_replay_protection_enabled', '0') === '1';
+        return $this->get_config_value('client_reporter_replay_protection_enabled', '1') === '1';
     }
 
     private function client_reporter_per_device_tokens_enabled()
     {
-        return $this->get_config_value('client_reporter_per_device_tokens_enabled', '0') === '1';
+        return $this->get_config_value('client_reporter_per_device_tokens_enabled', '1') === '1';
     }
 
     private function client_reporter_proxy_only_enabled()
@@ -1819,7 +1875,8 @@ class Simplemdm_controller extends Module_controller
         } catch (\Throwable $e) {
             $payload['present'] = null;
             $payload['reason'] = 'query_failed';
-            $payload['detail'] = ['error' => $e->getMessage()];
+            $this->log_internal_error('supplemental_source:' . $source_id, $e);
+            $payload['detail'] = ['error' => 'Supplemental source query failed. See the server log for details.'];
             $payload['freshness'] = $this->format_supplemental_freshness(null, $summary_refresh, true, 'failed');
             return $payload;
         }
@@ -2301,15 +2358,436 @@ class Simplemdm_controller extends Module_controller
         $this->set_config_value('last_sync_time', $state['last_sync_time']);
     }
 
+    /**
+     * Record an internal failure server-side without leaking it to the client.
+     *
+     * Responses carry a generic message; the class, message, file and line go
+     * to the PHP error log where an operator can correlate them.
+     *
+     * @param string $context Short label for where the failure happened
+     * @param \Throwable $e
+     * @return void
+     **/
+    private function log_internal_error($context, $e)
+    {
+        error_log(sprintf(
+            'simplemdm[%s]: %s: %s in %s:%d',
+            (string) $context,
+            get_class($e),
+            $e->getMessage(),
+            $e->getFile(),
+            $e->getLine()
+        ));
+    }
+
+    /**
+     * Whether per-user machine group scoping applies to this request.
+     *
+     * Three callers are exempt:
+     *
+     *  - Sync-token clients. They are headless, hold a shared secret, have no
+     *    session and therefore no group membership, and are trusted with the
+     *    whole estate by design.
+     *  - Global admins, who can access every machine group anyway.
+     *  - Every caller when business units are disabled. In that configuration
+     *    core's AuthHandler hands every user every machine group, so the only
+     *    thing scoping would change is hiding SimpleMDM devices that have no
+     *    MunkiReport record at all (an MCP-only serial has no reportdata row,
+     *    so its machine_group is NULL and matches nothing). Those devices are
+     *    visible to everyone today and must stay visible.
+     *
+     * @return bool
+     **/
+    private function machine_scope_enabled()
+    {
+        if ($this->token_read_request === true) {
+            return false;
+        }
+        if (! function_exists('conf') || ! conf('enable_business_units', false)) {
+            return false;
+        }
+        return ! $this->authorized('global');
+    }
+
+    /**
+     * Reject a request for a serial the signed-in user may not see.
+     *
+     * MunkiReport core scopes machines to the caller's machine groups (and,
+     * with business units enabled, to their unit). This module queries its own
+     * tables directly, so it has to apply the same check explicitly — without
+     * it, any authenticated user could read any device by guessing a serial.
+     *
+     * Emits the 403 response itself so callers can `return` straight away.
+     *
+     * @param string $serial_number
+     * @return bool TRUE when the caller may proceed
+     **/
+    private function require_serial_access($serial_number)
+    {
+        if (! $this->machine_scope_enabled()) {
+            return true;
+        }
+
+        $serial_number = trim((string) $serial_number);
+        if ($serial_number === '') {
+            return true;
+        }
+
+        if (! function_exists('authorized_for_serial') || authorized_for_serial($serial_number)) {
+            return true;
+        }
+
+        // Same body as an unknown serial, so the response cannot be used to
+        // probe which serials exist outside the caller's scope.
+        jsonView(['status' => 'error', 'message' => 'Not found'], 404);
+        return false;
+    }
+
+    /**
+     * Restrict an Eloquent/Capsule query to the caller's machine groups.
+     *
+     * Joins core's reportdata table on serial_number and filters on
+     * machine_group, mirroring get_machine_group_filter() in the core site
+     * helper. A no-op for headless token callers and when the session carries
+     * no group restriction.
+     *
+     * @param mixed $query Eloquent builder or Capsule query builder
+     * @param string $serial_column Fully qualified serial column to join on
+     * @return mixed The same query, for chaining
+     **/
+    private function scope_to_machine_groups($query, $serial_column)
+    {
+        if (! $this->machine_scope_enabled() || ! function_exists('get_filtered_groups')) {
+            return $query;
+        }
+
+        // get_filtered_groups() reads $_SESSION; with no session there is
+        // nothing to scope against and the constructor has already rejected
+        // the request.
+        if (! isset($_SESSION['machine_groups'])) {
+            return $query;
+        }
+
+        $groups = get_filtered_groups();
+        if (! is_array($groups) || ! $groups) {
+            return $query;
+        }
+
+        $groups = array_values(array_map('intval', $groups));
+
+        return $query->whereIn($serial_column, function ($sub) use ($groups) {
+            $sub->select('serial_number')
+                ->from('reportdata')
+                ->whereIn('machine_group', $groups);
+        });
+    }
+
+    /**
+     * Device query pre-filtered to the caller's machine groups.
+     *
+     * Use for every read that reaches the browser. Writes and internal sync
+     * lookups keep using the model directly — they run under token auth, where
+     * scoping is a no-op by design.
+     *
+     * @return mixed
+     **/
+    private function scoped_devices()
+    {
+        return $this->scope_to_machine_groups(Simplemdm_model::query(), 'simplemdm.serial_number');
+    }
+
+    /**
+     * MCP finding query pre-filtered to the caller's machine groups.
+     *
+     * @return mixed
+     **/
+    private function scoped_findings()
+    {
+        return $this->scope_to_machine_groups(Simplemdm_mcp_finding_model::query(), 'serial_number');
+    }
+
+    /**
+     * Machine group filter as a raw SQL fragment, for the handful of
+     * aggregates that are written as raw PDO queries rather than builders.
+     *
+     * The group ids are cast to int before interpolation, so no user-supplied
+     * string ever reaches the statement.
+     *
+     * @param string $serial_column Column to constrain
+     * @param string $prefix 'WHERE' or 'AND', depending on the caller
+     * @return string Empty string when scoping does not apply
+     **/
+    private function machine_group_sql_filter($serial_column = 'serial_number', $prefix = 'WHERE')
+    {
+        if (! $this->machine_scope_enabled() || ! function_exists('get_filtered_groups')) {
+            return '';
+        }
+        if (! isset($_SESSION['machine_groups'])) {
+            return '';
+        }
+
+        $groups = get_filtered_groups();
+        if (! is_array($groups) || ! $groups) {
+            return '';
+        }
+
+        $ids = implode(',', array_map('intval', $groups));
+
+        return sprintf(
+            ' %s %s IN (SELECT serial_number FROM reportdata WHERE machine_group IN (%s)) ',
+            $prefix,
+            $serial_column,
+            $ids
+        );
+    }
+
+    /**
+     * Directory used for failed-authentication counters.
+     *
+     * Deliberately outside the module (and therefore outside the web root):
+     * the counters must never be fetchable over HTTP or swept into the module
+     * download archive.
+     *
+     * @return string Empty string when no usable directory is available
+     **/
+    private function throttle_dir()
+    {
+        $base = sys_get_temp_dir();
+        if (! $base || ! is_dir($base) || ! is_writable($base)) {
+            return '';
+        }
+
+        $dir = rtrim($base, '/') . '/simplemdm-auth-throttle';
+        if (! is_dir($dir) && ! @mkdir($dir, 0700, true) && ! is_dir($dir)) {
+            return '';
+        }
+
+        return is_writable($dir) ? $dir : '';
+    }
+
+    /**
+     * Client address used to key the throttle.
+     *
+     * REMOTE_ADDR only. Forwarded headers are attacker-controlled unless the
+     * request came through a configured trusted proxy, and letting a caller
+     * pick its own throttle bucket would defeat the control entirely.
+     *
+     * @return string
+     **/
+    private function throttle_key_for_request()
+    {
+        return trim((string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
+    }
+
+    /**
+     * Reject the request when this client has failed authentication too often.
+     *
+     * Sliding window, ~20 failures per 15 minutes per IP. The secret
+     * comparisons themselves are constant-time, so this exists to bound
+     * offline-scale guessing volume rather than to close a timing oracle.
+     *
+     * Fails OPEN when no writable temp directory exists: an unavailable cache
+     * must not take a working sync integration offline. Rate limiting at the
+     * web server or reverse proxy remains the stronger control.
+     *
+     * @param string $bucket Label separating unrelated credential types
+     * @return bool TRUE when the caller may proceed
+     **/
+    private function is_auth_throttled($bucket)
+    {
+        $file = $this->throttle_file($bucket);
+        if ($file === '') {
+            return false;
+        }
+
+        $state = $this->read_throttle_state($file);
+        return $state['count'] >= self::AUTH_FAILURE_LIMIT;
+    }
+
+    /**
+     * Emit the failure response for a rejected shared-secret request.
+     *
+     * 429 once the client has burned through its attempt budget, otherwise the
+     * usual 401. The throttle is checked only after the credential has already
+     * been found invalid, so a caller presenting the correct secret is never
+     * locked out — a sync client must not go down because it shares an egress
+     * IP with something that is guessing.
+     *
+     * @param string $bucket
+     * @return void
+     **/
+    private function deny_shared_secret($bucket = 'shared_secret')
+    {
+        if ($this->is_auth_throttled($bucket)) {
+            $state = $this->read_throttle_state($this->throttle_file($bucket));
+            header('Retry-After: ' . max(1, $state['reset'] - time()));
+            jsonView([
+                'status' => 'error',
+                'message' => 'Too many failed authentication attempts. Try again later.',
+            ], 429);
+            return;
+        }
+
+        jsonView(['status' => 'error', 'message' => 'Unauthorized'], 401);
+    }
+
+    /**
+     * Record one failed authentication for the calling client.
+     *
+     * @param string $bucket
+     * @return void
+     **/
+    private function record_auth_failure($bucket)
+    {
+        $file = $this->throttle_file($bucket);
+        if ($file === '') {
+            return;
+        }
+
+        $state = $this->read_throttle_state($file);
+        $state['count']++;
+
+        @file_put_contents(
+            $file,
+            json_encode(['count' => $state['count'], 'reset' => $state['reset']]),
+            LOCK_EX
+        );
+        @chmod($file, 0600);
+
+        $this->cleanup_throttle_files();
+    }
+
+    /**
+     * Clear the counter after a successful authentication.
+     *
+     * @param string $bucket
+     * @return void
+     **/
+    private function clear_auth_failures($bucket)
+    {
+        $file = $this->throttle_file($bucket);
+        if ($file !== '' && is_file($file)) {
+            @unlink($file);
+        }
+    }
+
+    /**
+     * @param string $bucket
+     * @return string Empty string when throttling is unavailable
+     **/
+    private function throttle_file($bucket)
+    {
+        $dir = $this->throttle_dir();
+        if ($dir === '') {
+            return '';
+        }
+
+        // Hashed so no client-controlled text reaches the filesystem.
+        return $dir . '/' . hash('sha256', (string) $bucket . '|' . $this->throttle_key_for_request());
+    }
+
+    /**
+     * @param string $file
+     * @return array{count:int,reset:int}
+     **/
+    private function read_throttle_state($file)
+    {
+        $fresh = ['count' => 0, 'reset' => time() + self::AUTH_FAILURE_WINDOW_SECONDS];
+        if (! is_file($file)) {
+            return $fresh;
+        }
+
+        $raw = @file_get_contents($file);
+        if ($raw === false) {
+            return $fresh;
+        }
+
+        $decoded = json_decode((string) $raw, true);
+        if (! is_array($decoded) || ! isset($decoded['reset'], $decoded['count'])) {
+            return $fresh;
+        }
+
+        // Window elapsed: start over.
+        if ((int) $decoded['reset'] <= time()) {
+            return $fresh;
+        }
+
+        return ['count' => (int) $decoded['count'], 'reset' => (int) $decoded['reset']];
+    }
+
+    /**
+     * Drop counter files whose window has long since closed.
+     *
+     * Runs probabilistically so a busy endpoint does not scan the directory on
+     * every request.
+     *
+     * @return void
+     **/
+    private function cleanup_throttle_files()
+    {
+        if (random_int(1, 50) !== 1) {
+            return;
+        }
+
+        $dir = $this->throttle_dir();
+        if ($dir === '') {
+            return;
+        }
+
+        $cutoff = time() - (self::AUTH_FAILURE_WINDOW_SECONDS * 2);
+        foreach ((array) @scandir($dir) as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+            $path = $dir . '/' . $entry;
+            if (is_file($path) && @filemtime($path) < $cutoff) {
+                @unlink($path);
+            }
+        }
+    }
+
+    /**
+     * Note the outcome of a shared-secret check for throttling purposes.
+     *
+     * Only a presented-but-wrong credential counts as a failure. A request
+     * that simply carries no header is a browser session, not a guess.
+     *
+     * @param string $bucket
+     * @param bool $presented
+     * @param bool $ok
+     * @return bool The unchanged $ok, for convenient inlining
+     **/
+    private function note_auth_result($bucket, $presented, $ok)
+    {
+        if ($presented) {
+            if ($ok) {
+                $this->clear_auth_failures($bucket);
+            } else {
+                $this->record_auth_failure($bucket);
+            }
+        }
+        return $ok;
+    }
+
     private function is_valid_sync_token()
     {
+        // Several endpoints validate more than once per request (constructor
+        // vouch, then the action itself); memoize so one bad request counts
+        // as one failure.
+        if (array_key_exists('sync_token', $this->auth_check_cache)) {
+            return $this->auth_check_cache['sync_token'];
+        }
+
         $provided = '';
         if (isset($_SERVER['HTTP_X_SIMPLEMDM_API_KEY'])) {
             $provided = trim((string)$_SERVER['HTTP_X_SIMPLEMDM_API_KEY']);
         }
 
         $stored = $this->get_stored_api_key();
-        return $provided !== '' && $stored !== '' && hash_equals($stored, $provided);
+        $ok = $provided !== '' && $stored !== '' && hash_equals($stored, $provided);
+
+        return $this->auth_check_cache['sync_token'] =
+            $this->note_auth_result('shared_secret', $provided !== '', $ok);
     }
 
     private function is_valid_webhook_secret()
@@ -2323,10 +2801,9 @@ class Simplemdm_controller extends Module_controller
 
         $setting = Simplemdm_config_model::where('name', 'webhook_secret')->first();
         $stored = $setting ? trim((string)$setting->value) : '';
-        if ($stored === '') {
-            return false;
-        }
-        return $provided !== '' && hash_equals($stored, $provided);
+        $ok = $stored !== '' && $provided !== '' && hash_equals($stored, $provided);
+
+        return $this->note_auth_result('shared_secret', $provided !== '', $ok);
     }
 
     private function is_valid_client_reporter_secret()
@@ -2344,7 +2821,9 @@ class Simplemdm_controller extends Module_controller
         }
 
         $stored = trim($this->get_config_value('client_reporter_secret', ''));
-        return $provided !== '' && $stored !== '' && hash_equals($stored, $provided);
+        $ok = $provided !== '' && $stored !== '' && hash_equals($stored, $provided);
+
+        return $this->note_auth_result('client_reporter', $provided !== '', $ok);
     }
 
     private function client_reporter_signature_header()
@@ -2665,10 +3144,9 @@ class Simplemdm_controller extends Module_controller
         }
         $setting = Simplemdm_config_model::where('name', 'action_api_secret')->first();
         $stored = $setting ? trim((string)$setting->value) : '';
-        if ($stored === '') {
-            return false;
-        }
-        return hash_equals($stored, $provided);
+        $ok = $stored !== '' && hash_equals($stored, $provided);
+
+        return $this->note_auth_result('action_secret', true, $ok);
     }
 
     /**
@@ -2694,9 +3172,10 @@ class Simplemdm_controller extends Module_controller
         if (isset($_POST['action_secret']) && trim((string)$_POST['action_secret']) !== '') {
             return trim((string)$_POST['action_secret']);
         }
-        if (isset($_GET['action_secret']) && trim((string)$_GET['action_secret']) !== '') {
-            return trim((string)$_GET['action_secret']);
-        }
+
+        // Deliberately NOT read from $_GET: a secret in the query string is
+        // written to web server access logs, proxy logs and Referer headers.
+        // Callers must use a header or the POST/JSON body.
 
         if (stripos((string)$content_type, 'application/json') !== false && trim((string)$raw_input) !== '') {
             $decoded = json_decode((string)$raw_input, true);
@@ -2865,16 +3344,23 @@ class Simplemdm_controller extends Module_controller
         $install_script = $this->scripts_dir() . '/install_cron.sh';
         $remove_script = $this->scripts_dir() . '/remove_cron.sh';
 
-        $sync_command = sprintf(
-            "%s %s --api-key 'YOUR_SIMPLEMDM_API_KEY' --munkireport-url %s --run-source manual_host --force-run --max-parent-resources %s --verbose",
+        // These are copy-paste templates for an operator's own shell. The key
+        // is supplied through the environment rather than an --api-key flag so
+        // that following the documented workflow does not leave the secret in
+        // shell history or in `ps` output. The leading space keeps the
+        // assignment out of history in shells with HISTCONTROL=ignorespace.
+        $key_prefix = " SIMPLEMDM_API_KEY='YOUR_SIMPLEMDM_API_KEY' ";
+
+        $sync_command = $key_prefix . sprintf(
+            "%s %s --munkireport-url %s --run-source manual_host --force-run --max-parent-resources %s --verbose",
             escapeshellarg($config['script_runner_python_bin']),
             escapeshellarg($sync_script),
             escapeshellarg($config['script_runner_munkireport_url']),
             escapeshellarg($config['script_runner_max_parent_resources'])
         );
 
-        $cron_print_command = sprintf(
-            "%s --munkireport-url %s --api-key 'YOUR_SIMPLEMDM_API_KEY' --python-bin %s --schedule %s --log-path %s --max-parent-resources %s --print-only",
+        $cron_print_command = $key_prefix . sprintf(
+            "%s --munkireport-url %s --python-bin %s --schedule %s --log-path %s --max-parent-resources %s --print-only",
             escapeshellarg($install_script),
             escapeshellarg($config['script_runner_munkireport_url']),
             escapeshellarg($config['script_runner_python_bin']),
@@ -2930,7 +3416,50 @@ class Simplemdm_controller extends Module_controller
         ];
     }
 
-    private function run_local_script_command($command, $cwd)
+    /**
+     * Run a local helper script.
+     *
+     * Secrets are handed over in $env rather than baked into $command, so they
+     * never appear in `ps` output, /proc/<pid>/cmdline or an installed crontab
+     * line. Passing null for $env inherits the PHP process environment, which
+     * is the historical behaviour.
+     *
+     * @param string $command
+     * @param string $cwd
+     * @param array|null $env Extra environment merged over the current one
+     * @return array
+     **/
+    /**
+     * Mask any configured secret that a helper script happened to echo.
+     *
+     * Defence in depth: the secrets are no longer passed on the command line,
+     * but a verbose script can still print one (for example when reporting the
+     * cron line it would install).
+     *
+     * @param string $text
+     * @return string
+     **/
+    private function redact_secrets($text)
+    {
+        $text = (string) $text;
+        if ($text === '') {
+            return $text;
+        }
+
+        foreach (['api_key', 'webhook_secret', 'action_api_secret', 'client_reporter_secret'] as $name) {
+            $secret = trim($this->get_config_value($name, ''));
+            // Very short values would match too much of the output to be safe
+            // to substitute blindly.
+            if (strlen($secret) < 8) {
+                continue;
+            }
+            $text = str_replace($secret, '[redacted]', $text);
+        }
+
+        return $text;
+    }
+
+    private function run_local_script_command($command, $cwd, $env = null)
     {
         $descriptor_spec = [
             0 => ['pipe', 'r'],
@@ -2938,7 +3467,14 @@ class Simplemdm_controller extends Module_controller
             2 => ['pipe', 'w'],
         ];
 
-        $process = proc_open($command, $descriptor_spec, $pipes, $cwd);
+        $process_env = null;
+        if (is_array($env)) {
+            // getenv() with no argument returns the full current environment;
+            // merging keeps PATH and friends intact for the child.
+            $process_env = array_merge(getenv(), $env);
+        }
+
+        $process = proc_open($command, $descriptor_spec, $pipes, $cwd, $process_env);
         if (! is_resource($process)) {
             return [
                 'ok' => false,
@@ -3050,6 +3586,53 @@ class Simplemdm_controller extends Module_controller
         return $result;
     }
 
+    /**
+     * Decide whether a module-relative path is kept out of the download archive.
+     *
+     * The archive is a distribution artifact, so it must carry only the module
+     * itself. Previously everything except .git was included, which meant any
+     * tooling or working directory that happened to sit in the module folder
+     * (editor state, agent scratch dirs, captured session logs) shipped with
+     * it. Rather than chase individual names, every dot-entry is excluded plus
+     * an explicit list of build/dev directories.
+     *
+     * @param string $relative_path Path relative to the module root, '/' separated
+     * @return bool TRUE when the entry must be skipped
+     **/
+    private function is_excluded_from_module_archive($relative_path)
+    {
+        $relative_path = str_replace('\\', '/', (string) $relative_path);
+        $segments = explode('/', $relative_path);
+
+        // Any dot-file or dot-directory, at any depth.
+        foreach ($segments as $segment) {
+            if ($segment !== '' && $segment[0] === '.') {
+                return true;
+            }
+        }
+
+        $excluded_roots = [
+            'vendor',
+            'tests',
+            'node_modules',
+            '__pycache__',
+            'claude-Workflow',
+        ];
+        if (in_array($segments[0], $excluded_roots, true)) {
+            return true;
+        }
+
+        // Compiled Python and editor leftovers anywhere in the tree.
+        $basename = $segments[count($segments) - 1];
+        foreach (['.pyc', '.pyo', '.log', '.swp', '~'] as $suffix) {
+            if ($suffix !== '' && substr($basename, -strlen($suffix)) === $suffix) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function create_module_archive()
     {
         if (! class_exists('ZipArchive')) {
@@ -3080,7 +3663,7 @@ class Simplemdm_controller extends Module_controller
             if (! $relative_path) {
                 continue;
             }
-            if ($relative_path === '.git' || strpos($relative_path, '.git/') === 0) {
+            if ($this->is_excluded_from_module_archive($relative_path)) {
                 continue;
             }
 
@@ -3290,7 +3873,7 @@ class Simplemdm_controller extends Module_controller
     public function get_enrollment_stats()
     {
         jsonView(
-            Simplemdm_model::selectRaw("COUNT(CASE WHEN `status` = 'enrolled' THEN 1 END) AS 'enrolled'")
+            $this->scoped_devices()->selectRaw("COUNT(CASE WHEN `status` = 'enrolled' THEN 1 END) AS 'enrolled'")
                 ->selectRaw("COUNT(CASE WHEN `status` != 'enrolled' OR `status` IS NULL THEN 1 END) AS 'unenrolled'")
                 ->first()
                 ->toLabelCount()
@@ -3305,7 +3888,7 @@ class Simplemdm_controller extends Module_controller
     public function get_dep_stats()
     {
         jsonView(
-            Simplemdm_model::selectRaw("COUNT(CASE WHEN `is_dep_enrollment` = 1 THEN 1 END) AS 'dep_enrolled'")
+            $this->scoped_devices()->selectRaw("COUNT(CASE WHEN `is_dep_enrollment` = 1 THEN 1 END) AS 'dep_enrolled'")
                 ->selectRaw("COUNT(CASE WHEN `is_dep_enrollment` = 0 OR `is_dep_enrollment` IS NULL THEN 1 END) AS 'not_dep'")
                 ->first()
                 ->toLabelCount()
@@ -3320,7 +3903,7 @@ class Simplemdm_controller extends Module_controller
     public function get_filevault_stats()
     {
         jsonView(
-            Simplemdm_model::selectRaw("COUNT(CASE WHEN `filevault_enabled` = 1 THEN 1 END) AS 'enabled'")
+            $this->scoped_devices()->selectRaw("COUNT(CASE WHEN `filevault_enabled` = 1 THEN 1 END) AS 'enabled'")
                 ->selectRaw("COUNT(CASE WHEN `filevault_enabled` = 0 OR `filevault_enabled` IS NULL THEN 1 END) AS 'disabled'")
                 ->first()
                 ->toLabelCount()
@@ -3335,7 +3918,7 @@ class Simplemdm_controller extends Module_controller
     public function get_supervised_stats()
     {
         jsonView(
-            Simplemdm_model::selectRaw("COUNT(CASE WHEN `is_supervised` = 1 THEN 1 END) AS 'supervised'")
+            $this->scoped_devices()->selectRaw("COUNT(CASE WHEN `is_supervised` = 1 THEN 1 END) AS 'supervised'")
                 ->selectRaw("COUNT(CASE WHEN `is_supervised` = 0 OR `is_supervised` IS NULL THEN 1 END) AS 'unsupervised'")
                 ->first()
                 ->toLabelCount()
@@ -3350,6 +3933,9 @@ class Simplemdm_controller extends Module_controller
      **/
     public function get_simplemdm_data($serial_number = '')
     {
+        if (! $this->require_serial_access($serial_number)) {
+            return;
+        }
         jsonView(
             Simplemdm_model::select()
                 ->where('simplemdm.serial_number', $serial_number)
@@ -3365,6 +3951,9 @@ class Simplemdm_controller extends Module_controller
         $serial_number = trim((string) $serial_number);
         if ($serial_number === '') {
             jsonView(['status' => 'error', 'message' => 'Missing serial number'], 400);
+            return;
+        }
+        if (! $this->require_serial_access($serial_number)) {
             return;
         }
 
@@ -3594,6 +4183,9 @@ class Simplemdm_controller extends Module_controller
      **/
     public function device($serial_number = '')
     {
+        if (! $this->require_serial_access($serial_number)) {
+            return;
+        }
         $obj = new View();
         $obj->view('simplemdm_device', [
             'serial_number'   => $serial_number,
@@ -3666,9 +4258,9 @@ class Simplemdm_controller extends Module_controller
             'client_reporter_history_enabled' => '1',
             'client_reporter_max_payload_bytes' => '16384',
             'client_reporter_allowed_fact_keys_json' => json_encode($this->client_reporter_allowed_fact_keys()),
-            'client_reporter_hmac_enabled' => '0',
-            'client_reporter_replay_protection_enabled' => '0',
-            'client_reporter_per_device_tokens_enabled' => '0',
+            'client_reporter_hmac_enabled' => '1',
+            'client_reporter_replay_protection_enabled' => '1',
+            'client_reporter_per_device_tokens_enabled' => '1',
             'client_reporter_ip_allowlist' => '',
             'client_reporter_proxy_only_enabled' => '0',
             'client_reporter_trusted_proxy_ips' => '',
@@ -4059,7 +4651,8 @@ class Simplemdm_controller extends Module_controller
         try {
             $zip_path = $this->create_module_archive();
         } catch (\Throwable $e) {
-            jsonView(['status' => 'error', 'message' => $e->getMessage()], 500);
+            $this->log_internal_error('download_module', $e);
+            jsonView(['status' => 'error', 'message' => 'Unable to build the module archive'], 500);
             return;
         }
 
@@ -4094,7 +4687,6 @@ class Simplemdm_controller extends Module_controller
         $install_script = escapeshellarg($cwd . '/install_cron.sh');
         $remove_script = escapeshellarg($cwd . '/remove_cron.sh');
         $mr_url = escapeshellarg($runner['script_runner_munkireport_url']);
-        $api_key = escapeshellarg($this->get_stored_api_key());
         $schedule = escapeshellarg($runner['script_runner_schedule']);
         $log_path = escapeshellarg($runner['script_runner_log_path']);
         $max_parent_resources = escapeshellarg($runner['script_runner_max_parent_resources']);
@@ -4136,30 +4728,31 @@ class Simplemdm_controller extends Module_controller
             return;
         }
 
+        // The API key is NOT interpolated into any of these commands. Both
+        // simplemdm_sync.py and install_cron.sh already read SIMPLEMDM_API_KEY
+        // from the environment, so the secret travels via proc_open's env
+        // instead of appearing in `ps`, /proc/<pid>/cmdline or a crontab line.
         $commands = [
             'sync_now' => sprintf(
-                "%s %s --api-key %s --munkireport-url %s --run-source in_module_immediate --force-run --max-parent-resources %s --verbose",
+                "%s %s --munkireport-url %s --run-source in_module_immediate --force-run --max-parent-resources %s --verbose",
                 $python,
                 $sync_script,
-                $api_key,
                 $mr_url,
                 $max_parent_resources
             ),
             'print_cron' => sprintf(
-                "%s --munkireport-url %s --api-key %s --python-bin %s --schedule %s --log-path %s --max-parent-resources %s --print-only",
+                "%s --munkireport-url %s --python-bin %s --schedule %s --log-path %s --max-parent-resources %s --print-only",
                 $install_script,
                 $mr_url,
-                $api_key,
                 $python,
                 $schedule,
                 $log_path,
                 $max_parent_resources
             ),
             'install_cron' => sprintf(
-                "%s --munkireport-url %s --api-key %s --python-bin %s --schedule %s --log-path %s --max-parent-resources %s --install",
+                "%s --munkireport-url %s --python-bin %s --schedule %s --log-path %s --max-parent-resources %s --install",
                 $install_script,
                 $mr_url,
-                $api_key,
                 $python,
                 $schedule,
                 $log_path,
@@ -4173,7 +4766,11 @@ class Simplemdm_controller extends Module_controller
             return;
         }
 
-        $result = $this->run_local_script_command($commands[$action], $cwd);
+        $result = $this->run_local_script_command(
+            $commands[$action],
+            $cwd,
+            ['SIMPLEMDM_API_KEY' => $this->get_stored_api_key()]
+        );
         if ($action === 'sync_now') {
             $this->refresh_legacy_sync_config_from_runs();
         }
@@ -4182,8 +4779,8 @@ class Simplemdm_controller extends Module_controller
             'action' => $action,
             'command' => $commands[$action],
             'exit_code' => $result['exit_code'],
-            'stdout' => $result['stdout'],
-            'stderr' => $result['stderr'],
+            'stdout' => $this->redact_secrets($result['stdout']),
+            'stderr' => $this->redact_secrets($result['stderr']),
         ], $result['ok'] ? 200 : 500);
     }
 
@@ -4299,7 +4896,7 @@ class Simplemdm_controller extends Module_controller
     {
         $this->connectDB();
         if (! $this->is_valid_sync_token()) {
-            jsonView(['status' => 'error', 'message' => 'Unauthorized'], 401);
+            $this->deny_shared_secret();
             return;
         }
 
@@ -4368,7 +4965,7 @@ class Simplemdm_controller extends Module_controller
     {
         $this->connectDB();
         if (! $this->is_valid_sync_token()) {
-            jsonView(['status' => 'error', 'message' => 'Unauthorized'], 401);
+            $this->deny_shared_secret();
             return;
         }
 
@@ -4389,7 +4986,8 @@ class Simplemdm_controller extends Module_controller
             $this->backfill_machine_desc_from_model_names($records);
             jsonView(['status' => 'success']);
         } catch (\Throwable $e) {
-            jsonView(['status' => 'error', 'message' => $e->getMessage()], 400);
+            $this->log_internal_error('ingest', $e);
+            jsonView(['status' => 'error', 'message' => 'Ingest failed'], 400);
         }
     }
 
@@ -4445,7 +5043,7 @@ class Simplemdm_controller extends Module_controller
     {
         $this->connectDB();
         if (! $this->is_valid_sync_token()) {
-            jsonView(['status' => 'error', 'message' => 'Unauthorized'], 401);
+            $this->deny_shared_secret();
             return;
         }
 
@@ -4511,7 +5109,7 @@ class Simplemdm_controller extends Module_controller
     {
         $this->connectDB();
         if (! $this->is_valid_sync_token()) {
-            jsonView(['status' => 'error', 'message' => 'Unauthorized'], 401);
+            $this->deny_shared_secret();
             return;
         }
 
@@ -4584,7 +5182,7 @@ class Simplemdm_controller extends Module_controller
         }
 
         if (! $this->is_valid_client_reporter_secret()) {
-            jsonView(['status' => 'error', 'message' => 'Unauthorized'], 401);
+            $this->deny_shared_secret('client_reporter');
             return;
         }
         if (! $this->client_reporter_enabled()) {
@@ -4736,7 +5334,7 @@ class Simplemdm_controller extends Module_controller
     {
         $this->connectDB();
         if (! $this->is_valid_webhook_secret() && ! $this->is_valid_sync_token()) {
-            jsonView(['status' => 'error', 'message' => 'Unauthorized'], 401);
+            $this->deny_shared_secret();
             return;
         }
 
@@ -4837,7 +5435,7 @@ class Simplemdm_controller extends Module_controller
     {
         $this->connectDB();
         if (! $this->is_valid_sync_token()) {
-            jsonView(['status' => 'error', 'message' => 'Unauthorized'], 401);
+            $this->deny_shared_secret();
             return;
         }
 
@@ -5037,6 +5635,8 @@ class Simplemdm_controller extends Module_controller
             ->selectRaw("CASE WHEN reportdata.serial_number IS NULL THEN 0 ELSE 1 END AS has_reportdata")
             ->leftJoin('reportdata', 'reportdata.serial_number', '=', 'simplemdm.serial_number');
 
+        $this->scope_to_machine_groups($query, 'simplemdm.serial_number');
+
         if ($this->has_supplemental_summary_table()) {
             $query
                 ->leftJoin('simplemdm_supplemental_summary as supp', 'supp.serial_number', '=', 'simplemdm.serial_number')
@@ -5068,6 +5668,7 @@ class Simplemdm_controller extends Module_controller
                 COALESCE(NULLIF(TRIM(assignment_group), ''), 'No Assignment Group') AS label,
                 COUNT(*) AS count
             FROM simplemdm
+            " . $this->machine_group_sql_filter('serial_number', 'WHERE') . "
             GROUP BY COALESCE(NULLIF(TRIM(assignment_group), ''), 'No Assignment Group')
             ORDER BY count DESC
         ";
@@ -6147,6 +6748,9 @@ class Simplemdm_controller extends Module_controller
             jsonView(['status' => 'error', 'message' => 'No serial number provided'], 400);
             return;
         }
+        if (! $this->require_serial_access($serial_number)) {
+            return;
+        }
 
         $device = Simplemdm_model::where('serial_number', $serial_number)->first();
         if (! $device || ! $device->simplemdm_id) {
@@ -6400,6 +7004,9 @@ class Simplemdm_controller extends Module_controller
             jsonView(['status' => 'error', 'message' => 'No serial number provided'], 400);
             return;
         }
+        if (! $this->require_serial_access($serial_number)) {
+            return;
+        }
 
         $device = Simplemdm_model::where('serial_number', $serial_number)->first();
         if (! $device || ! $device->simplemdm_id) {
@@ -6583,7 +7190,7 @@ class Simplemdm_controller extends Module_controller
     {
         $this->connectDB();
         if (! $this->is_valid_sync_token()) {
-            jsonView(['status' => 'error', 'message' => 'Unauthorized'], 401);
+            $this->deny_shared_secret();
             return;
         }
 
@@ -6765,9 +7372,14 @@ class Simplemdm_controller extends Module_controller
         }
         $offset = isset($_GET['offset']) ? max(0, (int) $_GET['offset']) : 0;
 
-        $query = Simplemdm_mcp_finding_model::orderBy('id', 'desc')->limit($limit)->offset($offset);
-
         $serial_number = trim((string) $serial_number);
+        if (! $this->require_serial_access($serial_number)) {
+            return;
+        }
+
+        $query = Simplemdm_mcp_finding_model::orderBy('id', 'desc')->limit($limit)->offset($offset);
+        $this->scope_to_machine_groups($query, 'serial_number');
+
         if ($serial_number !== '') {
             $query->where('serial_number', $serial_number);
         }
@@ -6835,17 +7447,17 @@ class Simplemdm_controller extends Module_controller
         }
 
         $totals = [
-            'danger'  => (int) Simplemdm_mcp_finding_model::whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES)->where('severity', 'danger')->count(),
-            'warning' => (int) Simplemdm_mcp_finding_model::whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES)->where('severity', 'warning')->count(),
-            'info'    => (int) Simplemdm_mcp_finding_model::whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES)->where('severity', 'info')->count(),
+            'danger'  => (int) $this->scoped_findings()->whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES)->where('severity', 'danger')->count(),
+            'warning' => (int) $this->scoped_findings()->whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES)->where('severity', 'warning')->count(),
+            'info'    => (int) $this->scoped_findings()->whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES)->where('severity', 'info')->count(),
         ];
         $status_totals = [
-            'open'         => (int) Simplemdm_mcp_finding_model::where('status', 'open')->count(),
-            'acknowledged' => (int) Simplemdm_mcp_finding_model::where('status', 'acknowledged')->count(),
-            'in_progress'  => (int) Simplemdm_mcp_finding_model::where('status', 'in_progress')->count(),
-            'resolved'     => (int) Simplemdm_mcp_finding_model::where('status', 'resolved')->count(),
-            'ignored'      => (int) Simplemdm_mcp_finding_model::where('status', 'ignored')->count(),
-            'suppressed'   => (int) Simplemdm_mcp_finding_model::where('status', 'suppressed')->count(),
+            'open'         => (int) $this->scoped_findings()->where('status', 'open')->count(),
+            'acknowledged' => (int) $this->scoped_findings()->where('status', 'acknowledged')->count(),
+            'in_progress'  => (int) $this->scoped_findings()->where('status', 'in_progress')->count(),
+            'resolved'     => (int) $this->scoped_findings()->where('status', 'resolved')->count(),
+            'ignored'      => (int) $this->scoped_findings()->where('status', 'ignored')->count(),
+            'suppressed'   => (int) $this->scoped_findings()->where('status', 'suppressed')->count(),
         ];
 
         jsonView([
@@ -6905,38 +7517,38 @@ class Simplemdm_controller extends Module_controller
 
         $by_status = [];
         foreach (['open', 'acknowledged', 'in_progress', 'resolved', 'ignored', 'suppressed'] as $status) {
-            $by_status[$status] = (int) $applyFilters(Simplemdm_mcp_finding_model::where('status', $status))->count();
+            $by_status[$status] = (int) $applyFilters($this->scoped_findings()->where('status', $status))->count();
         }
 
         $by_severity = [];
         foreach (['danger', 'warning', 'info'] as $severity) {
             $by_severity[$severity] = (int) $applyFilters(
-                Simplemdm_mcp_finding_model::whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES)->where('severity', $severity)
+                $this->scoped_findings()->whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES)->where('severity', $severity)
             )->count();
         }
 
         $by_category = [];
         $categoryValues = $applyFilters(
-            Simplemdm_mcp_finding_model::whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES)
+            $this->scoped_findings()->whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES)
         )->whereNotNull('category')->where('category', '!=', '')->distinct()->pluck('category');
         foreach ($categoryValues as $categoryValue) {
             $by_category[$categoryValue] = (int) $applyFilters(
-                Simplemdm_mcp_finding_model::whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES)->where('category', $categoryValue)
+                $this->scoped_findings()->whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES)->where('category', $categoryValue)
             )->count();
         }
 
         $by_source = [];
         $sourceValues = $applyFilters(
-            Simplemdm_mcp_finding_model::whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES)
+            $this->scoped_findings()->whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES)
         )->distinct()->pluck('source');
         foreach ($sourceValues as $sourceValue) {
             $by_source[$sourceValue] = (int) $applyFilters(
-                Simplemdm_mcp_finding_model::whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES)->where('source', $sourceValue)
+                $this->scoped_findings()->whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES)->where('source', $sourceValue)
             )->count();
         }
 
         $riskRows = $applyFilters(
-            Simplemdm_mcp_finding_model::whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES)
+            $this->scoped_findings()->whereIn('status', Simplemdm_mcp_finding_model::ACTIVE_STATUSES)
         )->get(['serial_number', 'severity'])->map(function ($r) {
             return ['serial_number' => $r->serial_number, 'severity' => $r->severity];
         })->all();
@@ -6967,7 +7579,7 @@ class Simplemdm_controller extends Module_controller
         if ($days < 1) { $days = 30; }
         if ($days > 90) { $days = 90; }
         $since = gmdate('c', time() - ($days + 1) * 86400);
-        $rows = Simplemdm_mcp_finding_model::where(function ($q) use ($since) {
+        $rows = $this->scoped_findings()->where(function ($q) use ($since) {
                 $q->where('first_seen_at', '>=', $since)->orWhere('resolved_at', '>=', $since);
             })
             ->get(['first_seen_at', 'resolved_at'])
@@ -6997,6 +7609,7 @@ class Simplemdm_controller extends Module_controller
 
         $exportCap = 10000;
         $query = Simplemdm_mcp_finding_model::orderBy('id', 'desc')->limit($exportCap + 1);
+        $this->scope_to_machine_groups($query, 'serial_number');
 
         $severity = isset($_GET['severity']) ? strtolower(trim((string) $_GET['severity'])) : '';
         if ($severity !== '') {
@@ -7075,7 +7688,9 @@ class Simplemdm_controller extends Module_controller
         foreach ($rows as $row) {
             $line = [];
             foreach ($columns as $col) {
-                $line[] = isset($row[$col]) ? $row[$col] : '';
+                $line[] = Simplemdm_mcp_finding_model::neutralizeCsvField(
+                    isset($row[$col]) ? $row[$col] : ''
+                );
             }
             fputcsv($out, $line);
         }
@@ -7098,7 +7713,7 @@ class Simplemdm_controller extends Module_controller
 
         $sourceFilter = isset($_GET['source']) ? strtolower(trim((string) $_GET['source'])) : '';
 
-        $sourcesQuery = Simplemdm_mcp_finding_model::query();
+        $sourcesQuery = $this->scoped_findings();
         if ($sourceFilter !== '') {
             $sourcesQuery->where('source', $sourceFilter);
         }
@@ -7106,7 +7721,7 @@ class Simplemdm_controller extends Module_controller
 
         $result = [];
         foreach ($sources as $source) {
-            $last = Simplemdm_mcp_finding_model::where('source', $source)
+            $last = $this->scoped_findings()->where('source', $source)
                 ->orderBy('reported_at', 'desc')
                 ->orderBy('id', 'desc')
                 ->first();
@@ -7116,9 +7731,9 @@ class Simplemdm_controller extends Module_controller
             $lastScanId = $last->scan_id;
 
             $counts = [
-                'danger'  => (int) Simplemdm_mcp_finding_model::where('source', $source)->where('scan_id', $lastScanId)->where('severity', 'danger')->count(),
-                'warning' => (int) Simplemdm_mcp_finding_model::where('source', $source)->where('scan_id', $lastScanId)->where('severity', 'warning')->count(),
-                'info'    => (int) Simplemdm_mcp_finding_model::where('source', $source)->where('scan_id', $lastScanId)->where('severity', 'info')->count(),
+                'danger'  => (int) $this->scoped_findings()->where('source', $source)->where('scan_id', $lastScanId)->where('severity', 'danger')->count(),
+                'warning' => (int) $this->scoped_findings()->where('source', $source)->where('scan_id', $lastScanId)->where('severity', 'warning')->count(),
+                'info'    => (int) $this->scoped_findings()->where('source', $source)->where('scan_id', $lastScanId)->where('severity', 'info')->count(),
             ];
             $counts['total'] = $counts['danger'] + $counts['warning'] + $counts['info'];
 
@@ -7142,7 +7757,7 @@ class Simplemdm_controller extends Module_controller
         // let a lesser session skip a scope check -- authorized('global')
         // IS the scope check.
         if (! $this->is_valid_sync_token() && ! $this->authorized('global')) {
-            jsonView(['status' => 'error', 'message' => 'Unauthorized'], 401);
+            $this->deny_shared_secret();
             return;
         }
 
@@ -7220,11 +7835,16 @@ class Simplemdm_controller extends Module_controller
             $limit = 500;
         }
 
+        $serial_number = trim((string) $serial_number);
+        if (! $this->require_serial_access($serial_number)) {
+            return;
+        }
+
         $query = Event_model::where('module', 'like', 'simplemdm%')
             ->orderBy('id', 'desc')
             ->limit($limit);
+        $this->scope_to_machine_groups($query, 'serial_number');
 
-        $serial_number = trim((string) $serial_number);
         if ($serial_number !== '') {
             $query->where('serial_number', $serial_number);
         }
@@ -7268,7 +7888,7 @@ class Simplemdm_controller extends Module_controller
             $min_os = trim((string)$cfg->value);
         }
 
-        $rows = Simplemdm_model::select(
+        $rows = $this->scoped_devices()->select(
             'serial_number',
             'status',
             'is_supervised',
@@ -7445,6 +8065,7 @@ class Simplemdm_controller extends Module_controller
                 SUM(CASE WHEN is_supervised = 1 THEN 1 ELSE 0 END) AS supervised_total,
                 SUM(CASE WHEN filevault_enabled = 1 THEN 1 ELSE 0 END) AS filevault_total
             FROM simplemdm
+            " . $this->machine_group_sql_filter('serial_number', 'WHERE') . "
             GROUP BY COALESCE(NULLIF(TRIM(os_version), ''), 'Unknown')
             ORDER BY total DESC
         ";
@@ -7555,6 +8176,10 @@ class Simplemdm_controller extends Module_controller
         if (in_array($method, $mutating_methods, true)) {
             $provided_secret = $this->extract_action_secret_from_request($input, $content_type);
             if (! $this->is_valid_action_secret($provided_secret)) {
+                if ($this->is_auth_throttled('action_secret')) {
+                    $this->deny_shared_secret('action_secret');
+                    return;
+                }
                 jsonView(['status' => 'error', 'message' => 'Invalid or missing action secret'], 401);
                 return;
             }

@@ -17,6 +17,15 @@ LOG_PATH="${LOG_PATH:-/var/log/simplemdm_sync.log}"
 INSTALL_CRON="${INSTALL_CRON:-0}"
 REMOVE_CRON="${REMOVE_CRON:-0}"
 MATCH_TEXT="${MATCH_TEXT:-simplemdm_sync.py}"
+# Secrets live in a 0600 file that the cron job sources, never on the cron
+# command line: a crontab entry is readable via `ps` while the job runs and,
+# on many systems, from the spool directory.
+ENV_FILE="${ENV_FILE:-$HOME/.simplemdm_sync.env}"
+
+# Single-quote a value for safe re-sourcing, handling embedded single quotes.
+shell_quote() {
+    printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
+}
 
 usage() {
     cat <<EOF
@@ -26,9 +35,14 @@ Usage:
 
 Options:
   --munkireport-url URL   Required. Base MunkiReport URL used by the sync script.
-  --api-key KEY           Required for host/manual runner installs. Passed to simplemdm_sync.py.
+  --api-key KEY           Required for host/manual runner installs. Written to
+                          the 0600 env file below, never to the crontab line.
+                          Prefer exporting SIMPLEMDM_API_KEY instead, so the key
+                          does not appear in your shell history.
   --munkireport-token TOKEN
-                          Optional MunkiReport API token passed to simplemdm_sync.py.
+                          Optional MunkiReport API token. Handled like --api-key.
+  --env-file PATH         Where secrets are stored for the cron job to source.
+                          Must not be inside the web root. Default: $ENV_FILE
   --python-bin PATH       Python binary to use. Default: $PYTHON_BIN
   --schedule SPEC         Cron schedule. Default: "$SCHEDULE"
   --log-path PATH         Log file path. Default: $LOG_PATH
@@ -41,7 +55,7 @@ Options:
   -h, --help              Show this help.
 
 Environment overrides:
-  MUNKIREPORT_URL, SIMPLEMDM_API_KEY, MUNKIREPORT_TOKEN, PYTHON_BIN, SCHEDULE, LOG_PATH, MAX_PARENT_RESOURCES, INSTALL_CRON, REMOVE_CRON, MATCH_TEXT
+  MUNKIREPORT_URL, SIMPLEMDM_API_KEY, MUNKIREPORT_TOKEN, PYTHON_BIN, SCHEDULE, LOG_PATH, MAX_PARENT_RESOURCES, INSTALL_CRON, REMOVE_CRON, MATCH_TEXT, ENV_FILE
 EOF
 }
 
@@ -61,6 +75,10 @@ while [ $# -gt 0 ]; do
             ;;
         --munkireport-token)
             MUNKIREPORT_TOKEN="${2:-}"
+            shift 2
+            ;;
+        --env-file)
+            ENV_FILE="${2:-}"
             shift 2
             ;;
         --schedule)
@@ -130,25 +148,52 @@ if [ ! -f "$SYNC_SCRIPT" ]; then
     exit 1
 fi
 
-CRON_CMD="$PYTHON_BIN $SYNC_SCRIPT --api-key '$SIMPLEMDM_API_KEY' --munkireport-url '$MUNKIREPORT_URL' --respect-schedule --max-parent-resources $MAX_PARENT_RESOURCES"
-if [ -n "$MUNKIREPORT_TOKEN" ]; then
-    CRON_CMD="$CRON_CMD --munkireport-token '$MUNKIREPORT_TOKEN'"
+case "$ENV_FILE" in
+    /*) ;;
+    *)
+        echo "ERROR: --env-file must be an absolute path (got '$ENV_FILE')." >&2
+        exit 1
+        ;;
+esac
+
+if [ -z "${ENV_FILE##"$MODULE_DIR"/*}" ]; then
+    echo "ERROR: --env-file must not live inside the module directory; it would be web-served." >&2
+    exit 1
 fi
+
+# The cron job sources the env file, so no secret appears in the crontab line.
+CRON_CMD="set -a; . '$ENV_FILE'; set +a; $PYTHON_BIN $SYNC_SCRIPT --munkireport-url '$MUNKIREPORT_URL' --respect-schedule --max-parent-resources $MAX_PARENT_RESOURCES"
 CRON_CMD="$CRON_CMD >> $LOG_PATH 2>&1"
 CRON_LINE="$SCHEDULE $CRON_CMD"
 
 echo "MunkiReport root: $MR_ROOT"
 echo "Module path: $MODULE_DIR"
 echo "Sync script: $SYNC_SCRIPT"
+echo "Secrets file: $ENV_FILE (mode 0600, holds SIMPLEMDM_API_KEY)"
 echo ""
 echo "Cron entry:"
 echo "$CRON_LINE"
 
 if [ "$INSTALL_CRON" != "1" ]; then
     echo ""
-    echo "Printed only. Re-run with --install to update the current user's crontab."
+    echo "Printed only. Re-run with --install to write $ENV_FILE and update the current user's crontab."
     exit 0
 fi
+
+# Write the secrets file first, with a restrictive umask so it is never
+# briefly world-readable.
+(
+    umask 077
+    {
+        echo "# Written by install_cron.sh. Keep mode 0600."
+        echo "SIMPLEMDM_API_KEY=$(shell_quote "$SIMPLEMDM_API_KEY")"
+        if [ -n "$MUNKIREPORT_TOKEN" ]; then
+            echo "MUNKIREPORT_TOKEN=$(shell_quote "$MUNKIREPORT_TOKEN")"
+        fi
+    } > "$ENV_FILE"
+)
+chmod 600 "$ENV_FILE"
+echo "Wrote $ENV_FILE (mode 0600)."
 
 TMP_FILE="$(mktemp)"
 trap 'rm -f "$TMP_FILE"' EXIT

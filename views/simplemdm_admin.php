@@ -1278,7 +1278,7 @@ $(document).on('appReady', function() {
     }
 
     function escapeHtml(value) {
-        return $('<div>').text(String(value || '')).html();
+        return window.simplemdmEscapeHtml(value);
     }
 
     function parseJsonValue(value, fallback) {
@@ -2407,22 +2407,22 @@ $(document).on('appReady', function() {
             html += '<div class="simplemdm-script-row">';
             html += '<div class="simplemdm-script-head">';
             html += '<div>';
-            html += '<h4 class="simplemdm-script-title">' + $('<div>').text(script.name || '').html() + '</h4>';
+            html += '<h4 class="simplemdm-script-title">' + window.simplemdmEscapeHtml(script.name || '') + '</h4>';
             html += '</div>';
-            html += '<span class="simplemdm-script-type">' + $('<div>').text(script.type || 'script').html() + '</span>';
+            html += '<span class="simplemdm-script-type">' + window.simplemdmEscapeHtml(script.type || 'script') + '</span>';
             html += '</div>';
-            html += '<p class="simplemdm-script-description">' + $('<div>').text(script.description || '').html() + '</p>';
+            html += '<p class="simplemdm-script-description">' + window.simplemdmEscapeHtml(script.description || '') + '</p>';
             html += '<div class="simplemdm-script-actions">';
-            html += '<a class="btn btn-default btn-sm" href="' + $('<div>').text(script.download_url || '#').html() + '"><i class="fa fa-download"></i> Download</a>';
-            html += '<button type="button" class="btn btn-default btn-sm simplemdm-copy-command" data-command="' + $('<div>').text(script.external_command || '').html() + '"><i class="fa fa-copy"></i> Copy External Command</button>';
+            html += '<a class="btn btn-default btn-sm" href="' + window.simplemdmEscapeUrl(script.download_url || '#') + '"><i class="fa fa-download"></i> Download</a>';
+            html += '<button type="button" class="btn btn-default btn-sm simplemdm-copy-command" data-command="' + window.simplemdmEscapeHtml(script.external_command || '') + '"><i class="fa fa-copy"></i> Copy External Command</button>';
             html += '<span class="simplemdm-run-script-wrap" title="Checking in-module requirements...">';
-            html += '<button type="button" class="btn btn-primary btn-sm simplemdm-run-script" data-action="' + $('<div>').text(script.run_action || '').html() + '" title="Checking in-module requirements..."><i class="fa fa-play"></i> Run In Module</button>';
+            html += '<button type="button" class="btn btn-primary btn-sm simplemdm-run-script" data-action="' + window.simplemdmEscapeHtml(script.run_action || '') + '" title="Checking in-module requirements..."><i class="fa fa-play"></i> Run In Module</button>';
             html += '</span>';
             html += '</div>';
             html += '<p class="simplemdm-script-inline-status">Checking in-module requirements...</p>';
             html += '<div class="simplemdm-script-command-wrap">';
             html += '<span class="simplemdm-script-command-label">External Command</span>';
-            html += '<pre class="simplemdm-script-command">' + $('<div>').text(script.external_command || '').html() + '</pre>';
+            html += '<pre class="simplemdm-script-command">' + window.simplemdmEscapeHtml(script.external_command || '') + '</pre>';
             html += '</div>';
             html += '</div>';
         });
@@ -2442,7 +2442,7 @@ $(document).on('appReady', function() {
             if (xhr && xhr.responseJSON && (xhr.responseJSON.message || xhr.responseJSON.error)) {
                 msg = xhr.responseJSON.message || xhr.responseJSON.error;
             }
-            $('#script-catalog').html('<p class="text-danger">' + $('<div>').text(msg).html() + '</p>');
+            $('#script-catalog').html('<p class="text-danger">' + window.simplemdmEscapeHtml(msg) + '</p>');
         });
     }
 

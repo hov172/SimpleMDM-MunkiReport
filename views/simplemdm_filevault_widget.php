@@ -66,7 +66,7 @@ $(document).on('appReady', function(e, lang) {
             listGroup.append(
                 '<a href="' + filterUrl + '" class="list-group-item">' +
                 '<span class="simplemdm-status-row">' +
-                '<span class="simplemdm-status-label">' + label + '</span>' +
+                '<span class="simplemdm-status-label">' + window.simplemdmEscapeHtml(label) + '</span>' +
                 '<span class="badge simplemdm-status-count">' + item.count + '</span>' +
                 '</span>' +
                 '</a>'

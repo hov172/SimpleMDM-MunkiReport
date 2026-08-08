@@ -54,7 +54,7 @@ $(document).on('appReady', function() {
 
             listGroup.append(
                 '<a href="' + simplemdmListingUrl('os=' + encodeURIComponent(os)) + '" class="list-group-item">' +
-                os +
+                window.simplemdmEscapeHtml(os) +
                 '<span class="badge pull-right">' + Number(row.total || 0) + '</span>' +
                 '</a>'
             );

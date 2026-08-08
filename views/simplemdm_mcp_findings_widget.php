@@ -92,7 +92,7 @@ $(document).on('appReady', function() {
     var $widget = $('#simplemdm-mcp-findings-widget');
 
     function esc(v) {
-        return $('<div>').text(String(v === null || v === undefined ? '' : v)).html();
+        return window.simplemdmEscapeHtml(v);
     }
 
     function slugify(v) {

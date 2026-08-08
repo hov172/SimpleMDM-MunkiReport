@@ -82,7 +82,16 @@ $(document).on('appReady', function() {
     var $endpointFilter = $('#endpoint-filter');
 
     function escapeHtml(value) {
-        return $('<div>').text(String(value || '')).html();
+        return window.simplemdmEscapeHtml(value);
+    }
+
+    // DataTables cell renderer: escape, and fall back to a dash when empty.
+    function escapeCell(data, type) {
+        if (type !== 'display') {
+            return data;
+        }
+        var text = String(data === null || data === undefined ? '' : data);
+        return text === '' ? '-' : escapeHtml(text);
     }
 
     function applyUrlFilters() {
@@ -151,24 +160,14 @@ $(document).on('appReady', function() {
                 return json && Array.isArray(json.data) ? json.data : [];
             }
         },
+        // DataTables writes cell content as HTML. Every one of these columns
+        // carries SimpleMDM-supplied text, so each is escaped before display.
         columns: [
-            {data: 'resource_type'},
-            {data: 'resource_id'},
-            {data: 'name',
-                render: function(data) {
-                    return data || '-';
-                }
-            },
-            {data: 'source_endpoint',
-                render: function(data) {
-                    return data || '-';
-                }
-            },
-            {data: 'synced_at',
-                render: function(data) {
-                    return data || '-';
-                }
-            }
+            {data: 'resource_type', render: escapeCell},
+            {data: 'resource_id', render: escapeCell},
+            {data: 'name', render: escapeCell},
+            {data: 'source_endpoint', render: escapeCell},
+            {data: 'synced_at', render: escapeCell}
         ]
     });
 

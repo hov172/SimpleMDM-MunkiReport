@@ -291,9 +291,9 @@ $(document).on('appReady', function() {
             cards.append(
                 '<div class="col-lg-3 col-md-4 col-sm-6">' +
                     '<div class="simplemdm-resource-type-card" style="border-color:' + borderColor + '; box-shadow: inset 0 2px 0 ' + borderColor + ', 0 6px 24px ' + glowColor + ';">' +
-                        '<div class="simplemdm-resource-type-title">' + label + '</div>' +
+                        '<div class="simplemdm-resource-type-title">' + window.simplemdmEscapeHtml(label) + '</div>' +
                         '<div class="simplemdm-resource-type-count" style="color:' + color + ';">' + item.count + '</div>' +
-                        '<a class="btn btn-xs btn-primary" href="' + filterUrl + '">View ' + label + '</a>' +
+                        '<a class="btn btn-xs btn-primary" href="' + filterUrl + '">View ' + window.simplemdmEscapeHtml(label) + '</a>' +
                     '</div>' +
                 '</div>'
             );

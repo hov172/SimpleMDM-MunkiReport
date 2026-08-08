@@ -172,7 +172,7 @@ $(document).on('appReady', function(e, lang) {
             var label = item.label || 'Unknown';
             var filterUrl = simplemdmListingUrl('group=' + encodeURIComponent(label));
             var row = '<a href="' + filterUrl + '" class="list-group-item">' +
-                label +
+                window.simplemdmEscapeHtml(label) +
                 '<span class="badge pull-right">' + item.count + '</span>' +
                 '</a>';
             listGroup.append(row);

@@ -115,7 +115,10 @@ Notes:
   - `X-SIMPLEMDM-CLIENT-SECRET`.
 - Current trust model:
   - shared secret plus HTTPS, allowlisted fact keys, payload-size limits, and type validation.
-  - optional hardening can also require HMAC signing (`client_reporter_hmac_enabled`), replay protection (`client_reporter_replay_protection_enabled`), per-device tokens (`client_reporter_per_device_tokens_enabled`), and trusted-proxy/IP controls (`client_reporter_proxy_only_enabled`, `client_reporter_ip_allowlist`, `client_reporter_trusted_proxy_ips`).
+  - HMAC signing (`client_reporter_hmac_enabled`), replay protection (`client_reporter_replay_protection_enabled`) and per-device tokens (`client_reporter_per_device_tokens_enabled`) **default to on** as of 1.3.6. Without them the shared secret is the only control, and since every managed Mac carries it, any one of them can write facts for any serial and a captured request can be replayed indefinitely.
+    - Existing installs are unaffected on upgrade: all three keys are in the `save_config` allow-list, so any site that has saved the settings page has a stored value that takes precedence over the default.
+    - Turning any of them off is a deliberate downgrade. Do it only for a closed test fixture.
+  - Trusted-proxy/IP controls (`client_reporter_proxy_only_enabled`, `client_reporter_ip_allowlist`, `client_reporter_trusted_proxy_ips`) remain opt-in.
   - `client_reporter_max_time_skew_seconds` controls the allowed time window for timestamp-based validation.
 - Boundary:
   - suitable for controlled supplemental reporting
@@ -162,6 +165,13 @@ Notes:
      MCP's auto-publish middleware is enabled — a spike from an unexpected
      `source` slug is a signal worth investigating)
 10. Rotate secrets on staff turnover or suspected exposure.
+11. Never put a secret on a command line or in a URL:
+    - The cron runner sources a `0600` env file (`~/.simplemdm_sync.env` by default, `--env-file` to relocate). `install_cron.sh` writes it for you. A crontab line is readable via `ps` while the job runs.
+    - `run_script` passes `SIMPLEMDM_API_KEY` to the child process through the environment and redacts configured secrets out of the stdout/stderr it returns.
+    - `action_secret` is accepted only in a request header or the POST/JSON body. It is deliberately **not** read from the query string, which would copy it into access logs, proxy logs and `Referer` headers.
+12. Rate limiting: the module throttles failed shared-secret authentications to 20 per client IP per 15 minutes, answering `429` with `Retry-After` beyond that. A correct secret is never throttled. This bounds guessing volume only — put real rate limiting at the reverse proxy or WAF.
+13. Business units: when `enable_business_units` is on, module reads are scoped to the caller's machine groups, and a request for an out-of-scope serial answers `404`. Global admins and sync-token clients are exempt. With business units off, core grants every user every machine group and the module matches that behavior.
+    - Note that dashboard trend data (`get_dashboard_trend`) is served from pre-aggregated estate-wide snapshots and cannot be scoped per group. Disable the trend widget if whole-estate device counts are sensitive in your deployment.
 
 ## 6) Optional Hardening For Option B
 

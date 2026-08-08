@@ -254,6 +254,16 @@ $(document).on('appReady', function(e, lang) {
 
     syncUiFromFilters();
 
+    function esc(v) {
+        return window.simplemdmEscapeHtml(v);
+    }
+
+    // DataTables writes cell content as HTML, so every column that is not
+    // rendered through esc() must use the built-in text renderer. Device
+    // names, model names and group names all originate in SimpleMDM and are
+    // attacker-influenced (a user renaming their Mac reaches device_name).
+    var textColumn = $.fn.dataTable.render.text();
+
     var oTable = $('#simplemdm-devices-table').DataTable({
         serverSide: false,
         ajax: {
@@ -267,9 +277,9 @@ $(document).on('appReady', function(e, lang) {
                     if (type === 'display') {
                         var href = appUrl + '/module/simplemdm/device/' + encodeURIComponent(data);
                         if (full.has_reportdata === 1 || full.has_reportdata === '1' || full.has_reportdata === true) {
-                            href = appUrl + '/clients/detail/' + data + '#tab_simplemdm-tab';
+                            href = appUrl + '/clients/detail/' + encodeURIComponent(data) + '#tab_simplemdm-tab';
                         }
-                        return '<a href="' + href + '" title="' + data + '">' + data + '</a>';
+                        return '<a href="' + window.simplemdmEscapeUrl(href) + '" title="' + esc(data) + '">' + esc(data) + '</a>';
                     }
                     return data;
                 }
@@ -277,7 +287,7 @@ $(document).on('appReady', function(e, lang) {
             {data: 'device_name',
                 render: function(data, type, full) {
                     if (type === 'display' && full.simplemdm_id) {
-                        return '<a href="https://a.simplemdm.com/devices/' + full.simplemdm_id + '" target="_blank">' + data + ' <i class="fa fa-external-link"></i></a>';
+                        return '<a href="https://a.simplemdm.com/devices/' + encodeURIComponent(String(full.simplemdm_id)) + '" target="_blank" rel="noopener noreferrer">' + esc(data) + ' <i class="fa fa-external-link"></i></a>';
                     }
                     return data;
                 }
@@ -286,13 +296,13 @@ $(document).on('appReady', function(e, lang) {
                 render: function(data, type, full) {
                     if (type === 'display') {
                         var labelClass = data === 'enrolled' ? 'label-success' : 'label-danger';
-                        return '<span class="label ' + labelClass + '">' + data + '</span>';
+                        return '<span class="label ' + labelClass + '">' + esc(data) + '</span>';
                     }
                     return data;
                 }
             },
-            {data: 'model_name'},
-            {data: 'os_version'},
+            {data: 'model_name', render: textColumn},
+            {data: 'os_version', render: textColumn},
             {data: 'is_supervised',
                 render: function(data, type, full) {
                     if (type === 'display') {
@@ -332,8 +342,8 @@ $(document).on('appReady', function(e, lang) {
                     return data;
                 }
             },
-            {data: 'last_seen_at'},
-            {data: 'assignment_group'},
+            {data: 'last_seen_at', render: textColumn},
+            {data: 'assignment_group', render: textColumn},
             {data: 'supplemental_source_modules_json',
                 render: function(data, type, full) {
                     if (type !== 'display') {
@@ -350,7 +360,7 @@ $(document).on('appReady', function(e, lang) {
                         chips.push('<span class="label label-info">Profiles: ' + String(full.supplemental_profile_count) + '</span>');
                     }
                     if (full.supplemental_applecare_coverage_status) {
-                        chips.push('<span class="label label-default">' + String(full.supplemental_applecare_coverage_status) + '</span>');
+                        chips.push('<span class="label label-default">' + esc(full.supplemental_applecare_coverage_status) + '</span>');
                     }
                     if (full.supplemental_filevault_enabled === 0 || full.supplemental_filevault_enabled === '0') {
                         chips.push('<span class="label label-danger">Supp FV Off</span>');
@@ -363,7 +373,7 @@ $(document).on('appReady', function(e, lang) {
                         chips.push('<span class="label label-warning">MI Warnings: ' + String(full.supplemental_managedinstalls_warning_count) + '</span>');
                     }
                     if (modules.length && !chips.length) {
-                        chips.push('<span class="label label-default">' + modules.join(', ') + '</span>');
+                        chips.push('<span class="label label-default">' + esc(modules.join(', ')) + '</span>');
                     }
                     return chips.length ? chips.join(' ') : '<span class="text-muted">-</span>';
                 }

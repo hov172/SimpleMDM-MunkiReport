@@ -26,9 +26,9 @@ $(document).on('appReady', function() {
         findings.forEach(function(f) {
             var deviceUrl = appUrl + '/module/simplemdm/device/' + encodeURIComponent(String(f.serial_number || ''));
             $list.append($('<span class="list-group-item">')
-                .append('<strong>' + $('<i>').text(f.finding_type || '-').html() + '</strong> ')
-                .append(f.serial_number ? '<a href="' + deviceUrl + '">' + $('<i>').text(f.serial_number).html() + '</a>' : '')
-                .append('<span class="simplemdm-mcp-finding-message">' + $('<i>').text(f.message || '').html() + '</span>'));
+                .append('<strong>' + window.simplemdmEscapeHtml(f.finding_type || '-') + '</strong> ')
+                .append(f.serial_number ? '<a href="' + deviceUrl + '">' + window.simplemdmEscapeHtml(f.serial_number) + '</a>' : '')
+                .append('<span class="simplemdm-mcp-finding-message">' + window.simplemdmEscapeHtml(f.message || '') + '</span>'));
         });
     });
 });

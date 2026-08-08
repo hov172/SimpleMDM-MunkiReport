@@ -47,7 +47,7 @@ $(document).on('appReady', function() {
                 var href = item.query ? listingUrl(item.query) : listingUrl();
                 $list.append(
                     '<a href="' + href + '" class="list-group-item">' +
-                    item.label +
+                    window.simplemdmEscapeHtml(item.label) +
                     '<span class="badge pull-right">' + item.value + '</span>' +
                     '</a>'
                 );

@@ -205,7 +205,7 @@ $(document).on('appReady', function() {
         });
 
     function esc(v) {
-        return $('<div>').text(String(v === null || v === undefined ? '' : v)).html();
+        return window.simplemdmEscapeHtml(v);
     }
 
     function statusBadge(status) {

@@ -86,7 +86,7 @@ $(document).on('appReady', function() {
                 }
                 listGroup.append(
                     '<a href="' + listingUrl(query) + '" class="list-group-item">' +
-                    String(row.label || '').replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); }) +
+                    window.simplemdmEscapeHtml(String(row.label || '').replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); })) +
                     '<span class="badge pull-right">' + Number(row.count || 0) + '</span>' +
                     '</a>'
                 );

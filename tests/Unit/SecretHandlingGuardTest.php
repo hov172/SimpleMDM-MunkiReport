@@ -1,0 +1,156 @@
+<?php
+
+declare(strict_types=1);
+
+use PHPUnit\Framework\TestCase;
+
+/**
+ * Tripwires for how the module handles its shared secrets.
+ *
+ * Three regressions are cheap to reintroduce and expensive to notice:
+ *
+ *  - Putting the SimpleMDM API key back on a command line. Arguments are
+ *    visible in `ps` and /proc/<pid>/cmdline to every local account, and an
+ *    installed crontab line persists that exposure.
+ *  - Reading the action secret from the query string, which copies it into web
+ *    server access logs, proxy logs and Referer headers.
+ *  - Widening the module download archive so it sweeps up whatever tooling or
+ *    scratch state happens to live in the module directory.
+ */
+final class SecretHandlingGuardTest extends TestCase
+{
+    private static string $controller;
+    private static string $installCron;
+
+    public static function setUpBeforeClass(): void
+    {
+        self::$controller = (string) file_get_contents(
+            __DIR__ . '/../../simplemdm_controller.php'
+        );
+        self::$installCron = (string) file_get_contents(
+            __DIR__ . '/../../scripts/install_cron.sh'
+        );
+    }
+
+    public function testRunScriptNeverPutsTheApiKeyOnTheCommandLine(): void
+    {
+        $this->assertStringNotContainsString(
+            '--api-key %s',
+            self::$controller,
+            'run_script() is interpolating the API key into a shell command again. '
+            . 'Pass it through run_local_script_command()\'s $env argument instead.'
+        );
+
+        $this->assertStringContainsString(
+            "'SIMPLEMDM_API_KEY' => \$this->get_stored_api_key()",
+            self::$controller,
+            'run_script() must hand the key to the child process via the environment.'
+        );
+    }
+
+    public function testScriptRunnerOutputIsRedacted(): void
+    {
+        $this->assertStringContainsString(
+            "'stdout' => \$this->redact_secrets(",
+            self::$controller,
+            'run_script() must redact configured secrets out of script stdout before returning it.'
+        );
+        $this->assertStringContainsString(
+            "'stderr' => \$this->redact_secrets(",
+            self::$controller,
+            'run_script() must redact configured secrets out of script stderr before returning it.'
+        );
+    }
+
+    public function testCronEntryCarriesNoSecret(): void
+    {
+        $this->assertStringNotContainsString(
+            "--api-key '\$SIMPLEMDM_API_KEY'",
+            self::$installCron,
+            'install_cron.sh is writing the API key into the crontab line again. '
+            . 'The job must source the 0600 env file instead.'
+        );
+
+        $this->assertStringContainsString(
+            'set -a; . ',
+            self::$installCron,
+            'The cron entry must source the env file so secrets stay off the command line.'
+        );
+
+        $this->assertStringContainsString(
+            'umask 077',
+            self::$installCron,
+            'The env file must be created under a restrictive umask so it is never briefly world-readable.'
+        );
+    }
+
+    public function testEnvFileCannotLandInsideTheModuleDirectory(): void
+    {
+        $this->assertStringContainsString(
+            'must not live inside the module directory',
+            self::$installCron,
+            'install_cron.sh must refuse an --env-file path under the module, which is web-served.'
+        );
+    }
+
+    public function testActionSecretIsNotReadFromTheQueryString(): void
+    {
+        $this->assertDoesNotMatchRegularExpression(
+            '/\$_GET\[\s*[\'"]action_secret[\'"]\s*\]/',
+            self::$controller,
+            'The action secret is being read from $_GET again — that writes it to access logs and Referer headers.'
+        );
+    }
+
+    public function testModuleArchiveExcludesDotEntriesAndDevDirectories(): void
+    {
+        $this->assertStringContainsString(
+            'private function is_excluded_from_module_archive',
+            self::$controller,
+            'The archive exclusion helper has gone missing; create_module_archive() would ship everything again.'
+        );
+
+        foreach (['vendor', 'tests', 'node_modules', '__pycache__'] as $dir) {
+            $this->assertStringContainsString(
+                "'" . $dir . "'",
+                self::$controller,
+                sprintf('%s must stay in the module archive exclusion list.', $dir)
+            );
+        }
+    }
+
+    public function testClientReporterIntegrityControlsDefaultOn(): void
+    {
+        foreach ([
+            'client_reporter_hmac_enabled',
+            'client_reporter_replay_protection_enabled',
+            'client_reporter_per_device_tokens_enabled',
+        ] as $key) {
+            $this->assertStringNotContainsString(
+                "get_config_value('" . $key . "', '0')",
+                self::$controller,
+                sprintf(
+                    '%s defaults to off again. Without it, one shared secret lets any device write facts for any '
+                    . 'serial and lets a captured request be replayed.',
+                    $key
+                )
+            );
+        }
+    }
+
+    public function testFailedSharedSecretAttemptsAreThrottled(): void
+    {
+        $this->assertStringContainsString(
+            'private function is_auth_throttled',
+            self::$controller,
+            'The failed-authentication throttle has been removed.'
+        );
+
+        // Every endpoint that accepts a shared secret should gate on it.
+        $this->assertGreaterThanOrEqual(
+            8,
+            substr_count(self::$controller, 'deny_shared_secret('),
+            'Fewer endpoints are throttled than before — a shared-secret endpoint has lost its gate.'
+        );
+    }
+}

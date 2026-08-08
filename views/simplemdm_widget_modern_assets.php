@@ -2173,6 +2173,44 @@ body.simplemdm-theme-dark #simplemdm-dashboard-grid > .simplemdm-dashboard-item 
         };
     };
 
+    // Canonical HTML escaper for every SimpleMDM view.
+    //
+    // Escapes quotes as well as angle brackets, so the result is safe in text
+    // nodes AND inside quoted attribute values. The older per-view helper was
+    // `$('<div>').text(v).html()`, which relies on innerHTML serialization and
+    // therefore leaves `"` and `'` untouched — values interpolated into
+    // href="..." or title="..." could break out of the attribute.
+    var simplemdmHtmlEntities = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    };
+
+    window.simplemdmEscapeHtml = function(value) {
+        return String(value === null || value === undefined ? '' : value)
+            .replace(/[&<>"']/g, function(char) {
+                return simplemdmHtmlEntities[char];
+            });
+    };
+
+    // Escape a value destined for an href/src attribute. Only http(s) and
+    // relative URLs survive; anything else (javascript:, data:, vbscript:)
+    // collapses to '#' so a hostile attribute value cannot become a script URL.
+    window.simplemdmEscapeUrl = function(value) {
+        var raw = String(value === null || value === undefined ? '' : value).trim();
+        if (raw === '') {
+            return '#';
+        }
+        // Reject any scheme other than http/https. A leading slash, './',
+        // '../' or a bare path has no scheme and is safe to keep.
+        if (/^[a-z][a-z0-9+.-]*:/i.test(raw) && !/^https?:/i.test(raw)) {
+            return '#';
+        }
+        return window.simplemdmEscapeHtml(raw);
+    };
+
     window.simplemdmModuleUrl = function(path) {
         var normalizedPath = String(path || '').replace(/^\/+/, '');
         if (appUrl.indexOf('index.php?') !== -1) {

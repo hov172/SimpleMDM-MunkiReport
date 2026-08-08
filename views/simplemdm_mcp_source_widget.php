@@ -23,7 +23,7 @@ $(document).on('appReady', function(e, lang) {
     var topCount = 8;
 
     function esc(v) {
-        return $('<div>').text(String(v === null || v === undefined ? '' : v)).html();
+        return window.simplemdmEscapeHtml(v);
     }
 
     function findingsUrl(query) {

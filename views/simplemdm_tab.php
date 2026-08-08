@@ -301,7 +301,7 @@ $(document).on('appReady', function(e, lang) {
     }
 
     function esc(val) {
-        return $('<div>').text(String(val)).html();
+        return window.simplemdmEscapeHtml(val);
     }
 
     function renderTabResources(payload) {

@@ -439,9 +439,11 @@ Operational guidance:
    - Use `Enable Scheduled Sync` to turn on scheduled reconciliation
    - Optional: enable in-module script execution if you want the module to install/remove cron for you
 5. Add schedule runner (cron):
-   - `* * * * * /usr/bin/python3 <ABSOLUTE_MR_ROOT>/local/modules/simplemdm/scripts/simplemdm_sync.py --api-key 'YOUR_SIMPLEMDM_API_KEY' --munkireport-url 'https://mr' --respect-schedule --max-parent-resources 25 >> /var/log/simplemdm_sync.log 2>&1`
+   - Keep the API key out of the crontab line — a cron command is visible in `ps` while the job runs. Put it in a `0600` file the job sources:
+     - `printf "SIMPLEMDM_API_KEY='YOUR_SIMPLEMDM_API_KEY'\n" > ~/.simplemdm_sync.env && chmod 600 ~/.simplemdm_sync.env`
+     - `* * * * * set -a; . ~/.simplemdm_sync.env; set +a; /usr/bin/python3 <ABSOLUTE_MR_ROOT>/local/modules/simplemdm/scripts/simplemdm_sync.py --munkireport-url 'https://mr' --respect-schedule --max-parent-resources 25 >> /var/log/simplemdm_sync.log 2>&1`
    - Or use the admin UI `Enable Scheduled Sync` button when in-module script execution is enabled
-   - Or print/install the entry manually with `local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'https://mr' --api-key 'YOUR_SIMPLEMDM_API_KEY' [--install]`
+   - Or print/install the entry manually with `local/modules/simplemdm/scripts/install_cron.sh --munkireport-url 'https://mr' --api-key 'YOUR_SIMPLEMDM_API_KEY' [--install]`. `install_cron.sh` writes the key to `~/.simplemdm_sync.env` (mode `0600`) and emits a cron line that sources it; override the location with `--env-file PATH`. Export `SIMPLEMDM_API_KEY` instead of passing `--api-key` to keep the key out of your shell history too.
    - Scheduled sync always runs `simplemdm_sync.py`; cron is just the launcher
 6. Verify:
    - `reports/simplemdm` renders widgets

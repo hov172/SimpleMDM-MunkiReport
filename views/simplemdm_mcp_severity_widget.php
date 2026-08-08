@@ -27,7 +27,7 @@ $(document).on('appReady', function(e, lang) {
     };
 
     function esc(v) {
-        return $('<div>').text(String(v === null || v === undefined ? '' : v)).html();
+        return window.simplemdmEscapeHtml(v);
     }
 
     function findingsUrl(query) {

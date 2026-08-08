@@ -86,7 +86,7 @@ $(document).on('appReady', function() {
             if (item.rawType === 'other') {
                 listGroup.append(
                     '<span class="list-group-item">' +
-                    item.label +
+                    window.simplemdmEscapeHtml(item.label) +
                     '<span class="badge pull-right">' + item.value + '</span>' +
                     '</span>'
                 );
@@ -95,7 +95,7 @@ $(document).on('appReady', function() {
 
             listGroup.append(
                 '<a href="' + resourcesListingUrl('type=' + encodeURIComponent(item.rawType)) + '" class="list-group-item">' +
-                item.label +
+                window.simplemdmEscapeHtml(item.label) +
                 '<span class="badge pull-right">' + item.value + '</span>' +
                 '</a>'
             );

@@ -65,7 +65,7 @@ $(document).on('appReady', function() {
         top.forEach(function(item) {
             listGroup.append(
                 '<a href="' + simplemdmListingUrl('group=' + encodeURIComponent(item.label)) + '" class="list-group-item">' +
-                item.label +
+                window.simplemdmEscapeHtml(item.label) +
                 '<span class="badge pull-right">' + item.value + '</span>' +
                 '</a>'
             );

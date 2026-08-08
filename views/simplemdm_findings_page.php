@@ -98,7 +98,7 @@ $(document).on('appReady', function() {
     var pageSize = 50, offset = 0, isAdmin = $('#simplemdm-findings-page').attr('data-admin') === '1';
     if (!isAdmin) { $('#f-bulkbar, #f-selall').hide(); }
 
-    function esc(v) { return $('<div>').text(String(v === null || v === undefined ? '' : v)).html(); }
+    function esc(v) { return window.simplemdmEscapeHtml(v); }
 
     function currentFilters() {
         var statuses = $('#f-status .simplemdm-status-chip.active').map(function() {
